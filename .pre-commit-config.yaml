@@ -1,0 +1,5 @@
+repos:
+  - repo: https://github.com/urmzd/semantic-release
+    rev: v0.4.0
+    hooks:
+      - id: conventional-commit-msg
