@@ -2,7 +2,7 @@
 
 ## Identity
 
-`agentctl` is a Rust CLI + TUI for managing agentskills.io skills and sub-agent definitions across AI coding tools.
+`agentspec` is a Rust CLI + TUI for managing agentskills.io skills and sub-agent definitions across AI coding tools.
 
 ## Architecture
 

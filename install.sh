@@ -1,16 +1,16 @@
 #!/bin/sh
-# install.sh — Installs the agentctl binary from GitHub releases.
+# install.sh — Installs the agentspec binary from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/urmzd/agent-spec/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/install.sh | sh
 #
 # Environment variables:
-#   AGENTCTL_VERSION     — version to install (e.g. "v0.1.0"); defaults to latest
-#   AGENTCTL_INSTALL_DIR — installation directory; defaults to $HOME/.local/bin
+#   AGENTSPEC_VERSION     — version to install (e.g. "v0.1.0"); defaults to latest
+#   AGENTSPEC_INSTALL_DIR — installation directory; defaults to $HOME/.local/bin
 
 set -eu
 
-REPO="urmzd/agent-spec"
+REPO="urmzd/agentspec"
 
 # curl with optional auth — uses GH_TOKEN or GITHUB_TOKEN if set.
 gh_curl() {
@@ -49,8 +49,8 @@ main() {
             ;;
     esac
 
-    if [ -n "${AGENTCTL_VERSION:-}" ]; then
-        tag="$AGENTCTL_VERSION"
+    if [ -n "${AGENTSPEC_VERSION:-}" ]; then
+        tag="$AGENTSPEC_VERSION"
     else
         tag=$(gh_curl "https://api.github.com/repos/$REPO/releases/latest" \
             | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
@@ -59,17 +59,17 @@ main() {
         fi
     fi
 
-    artifact="agentctl-${target}"
+    artifact="agentspec-${target}"
     url="https://github.com/$REPO/releases/download/${tag}/${artifact}"
 
-    install_dir="${AGENTCTL_INSTALL_DIR:-$HOME/.local/bin}"
+    install_dir="${AGENTSPEC_INSTALL_DIR:-$HOME/.local/bin}"
     mkdir -p "$install_dir"
 
-    echo "Downloading agentctl $tag for $target..."
-    gh_curl "$url" -o "$install_dir/agentctl"
-    chmod +x "$install_dir/agentctl"
+    echo "Downloading agentspec $tag for $target..."
+    gh_curl "$url" -o "$install_dir/agentspec"
+    chmod +x "$install_dir/agentspec"
 
-    echo "Installed agentctl to $install_dir/agentctl"
+    echo "Installed agentspec to $install_dir/agentspec"
 
     case ":$PATH:" in
         *":$install_dir:"*) ;;
@@ -98,7 +98,7 @@ add_to_path() {
             mkdir -p "$(dirname "$profile")"
             {
                 echo ""
-                echo "# Added by agentctl installer"
+                echo "# Added by agentspec installer"
                 echo "set -Ux fish_user_paths $install_dir \$fish_user_paths"
             } >> "$profile"
             echo "Added $install_dir to $profile"
@@ -107,7 +107,7 @@ add_to_path() {
     elif [ -n "$profile" ] && ! grep -q "$install_dir" "$profile" 2>/dev/null; then
         {
             echo ""
-            echo "# Added by agentctl installer"
+            echo "# Added by agentspec installer"
             echo "export PATH=\"$install_dir:\$PATH\""
         } >> "$profile"
         echo "Added $install_dir to $profile"

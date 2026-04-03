@@ -1,13 +1,13 @@
 [package]
-name = "agent-spec"
+name = "agentspec"
 version = "0.1.0"
 edition = "2024"
 description = "Universal agent skill and sub-agent manager with TUI"
 license = "Apache-2.0"
-repository = "https://github.com/urmzd/agent-spec"
+repository = "https://github.com/urmzd/agentspec"
 
 [[bin]]
-name = "agentctl"
+name = "agentspec"
 path = "src/main.rs"
 
 [dependencies]

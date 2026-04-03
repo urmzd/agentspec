@@ -24,7 +24,7 @@ pub async fn search(query: &str, limit: usize, json: bool) -> Result<()> {
 
     let resp: SearchResponse = client
         .get(&url)
-        .header("User-Agent", "agentctl")
+        .header("User-Agent", "agentspec")
         .header("Accept", "application/vnd.github.v3+json")
         .send()
         .await?
@@ -75,7 +75,7 @@ pub async fn search(query: &str, limit: usize, json: bool) -> Result<()> {
     }
 
     println!(
-        "\n  Install with: {} agentctl skill install <repo>",
+        "\n  Install with: {} agentspec skill install <repo>",
         style("$").dim()
     );
     Ok(())

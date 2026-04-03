@@ -67,8 +67,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: agentctl-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/agentctl
+          name: agentspec-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/agentspec
 
   release:
     name: Release
@@ -98,9 +98,9 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          for dir in artifacts/agentctl-*/; do
+          for dir in artifacts/agentspec-*/; do
             target=$(basename "$dir")
-            cp "$dir/agentctl" "release-assets/$target"
+            cp "$dir/agentspec" "release-assets/$target"
             chmod +x "release-assets/$target"
           done
 
