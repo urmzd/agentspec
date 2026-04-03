@@ -55,10 +55,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build agentctl
+      - name: Build agentspec
         run: cargo build --release
 
       - name: Verify binary runs
         run: |
-          ./target/release/agentctl --help
-          ./target/release/agentctl tool list --json
+          ./target/release/agentspec --help
+          ./target/release/agentspec tool list --json

@@ -1,11 +1,11 @@
 <div align="center">
 
-# agentctl
+# agentspec
 
 Universal agent skill and sub-agent manager with TUI.
 
-[![CI](https://github.com/urmzd/agent-spec/actions/workflows/ci.yml/badge.svg)](https://github.com/urmzd/agent-spec/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/agent-spec.svg)](https://crates.io/crates/agent-spec)
+[![CI](https://github.com/urmzd/agentspec/actions/workflows/ci.yml/badge.svg)](https://github.com/urmzd/agentspec/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/agentspec.svg)](https://crates.io/crates/agentspec)
 
 [Install](#installation) | [Usage](#usage) | [Architecture](#architecture)
 
@@ -13,7 +13,7 @@ Universal agent skill and sub-agent manager with TUI.
 
 ## Overview
 
-`agentctl` manages [agentskills.io](https://agentskills.io) skills and sub-agent definitions across all your AI coding tools from a single CLI. It uses an **IR (intermediate representation)** layer so vendor-specific formats (Claude Code, Gemini CLI, etc.) are translated to a canonical form -- no vendor lock-in.
+`agentspec` manages [agentskills.io](https://agentskills.io) skills and sub-agent definitions across all your AI coding tools from a single CLI. It uses an **IR (intermediate representation)** layer so vendor-specific formats (Claude Code, Gemini CLI, etc.) are translated to a canonical form -- no vendor lock-in.
 
 ### Supported tools
 
@@ -35,53 +35,53 @@ Claude Code, Cline, Windsurf, OpenHands, Gemini CLI, GitHub Copilot, Amp, Cursor
 ### Script
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/urmzd/agent-spec/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/install.sh | sh
 ```
 
 ### Cargo
 
 ```sh
-cargo install agent-spec
+cargo install agentspec
 ```
 
 ### From source
 
 ```sh
-git clone https://github.com/urmzd/agent-spec
-cd agent-spec
+git clone https://github.com/urmzd/agentspec
+cd agentspec
 cargo build --release
 ```
 
 ## Usage
 
 ```
-agentctl                              # Launch interactive TUI
+agentspec                              # Launch interactive TUI
 
 # Skills
-agentctl skill list                   # List installed skills with tool linkage
-agentctl skill install owner/repo     # Install from GitHub
-agentctl skill link <skill> <tool>    # Symlink skill to a tool
-agentctl skill unlink <skill> <tool>
-agentctl skill validate [path]        # Validate SKILL.md
-agentctl skill create [name]          # Scaffold a new skill
-agentctl skill remove <name>
+agentspec skill list                   # List installed skills with tool linkage
+agentspec skill install owner/repo     # Install from GitHub
+agentspec skill link <skill> <tool>    # Symlink skill to a tool
+agentspec skill unlink <skill> <tool>
+agentspec skill validate [path]        # Validate SKILL.md
+agentspec skill create [name]          # Scaffold a new skill
+agentspec skill remove <name>
 
 # Agents
-agentctl agent list                   # List sub-agents across tools
-agentctl agent install owner/repo
-agentctl agent link <agent> <tool>
-agentctl agent validate [path]
-agentctl agent create [name]
-agentctl agent remove <name>
+agentspec agent list                   # List sub-agents across tools
+agentspec agent install owner/repo
+agentspec agent link <agent> <tool>
+agentspec agent validate [path]
+agentspec agent create [name]
+agentspec agent remove <name>
 
 # Tools
-agentctl tool list                    # Show detected AI coding tools
+agentspec tool list                    # Show detected AI coding tools
 
 # Search
-agentctl search <query>               # Search GitHub for skills
+agentspec search <query>               # Search GitHub for skills
 
 # JSON output
-agentctl skill list --json            # Machine-readable output
+agentspec skill list --json            # Machine-readable output
 ```
 
 ## Architecture

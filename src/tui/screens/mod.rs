@@ -60,7 +60,7 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::DarkGray))
-                .title(" agentctl ")
+                .title(" agentspec ")
                 .title_style(
                     Style::default()
                         .fg(Color::Cyan)
