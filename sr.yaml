@@ -1,0 +1,33 @@
+branches:
+  - main
+
+floating_tags: true
+
+types:
+  - name: feat
+    bump: minor
+    section: Features
+  - name: fix
+    bump: patch
+    section: Bug Fixes
+  - name: perf
+    bump: patch
+    section: Performance
+  - name: docs
+    section: Documentation
+  - name: refactor
+    bump: patch
+    section: Refactoring
+  - name: revert
+    section: Reverts
+  - name: chore
+  - name: ci
+  - name: test
+  - name: build
+  - name: style
+
+version_files:
+  - Cargo.toml
+
+changelog:
+  file: CHANGELOG.md

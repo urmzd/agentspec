@@ -1,0 +1,7 @@
+target/
+.claude/
+.vscode/
+.env
+.env.*
+.DS_Store
+.idea/
