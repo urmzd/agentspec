@@ -13,7 +13,7 @@ Universal agent skill and sub-agent manager with TUI.
 
 ## Overview
 
-`agentspec` manages [agentskills.io](https://agentskills.io) skills and sub-agent definitions across all your AI coding tools from a single CLI. It uses an **IR (intermediate representation)** layer so vendor-specific formats (Claude Code, Gemini CLI, etc.) are translated to a canonical form -- no vendor lock-in.
+`agentspec` manages [agentskills.io](https://agentskills.io) skills and sub-agent definitions across all your AI coding tools from a single CLI. It uses an **IR (intermediate representation)** layer so vendor-specific formats (Claude Code, Gemini CLI, etc.) are translated to a canonical form, eliminating vendor lock-in.
 
 ### Supported tools
 
@@ -21,14 +21,13 @@ Claude Code, Cline, Windsurf, OpenHands, Gemini CLI, GitHub Copilot, Amp, Cursor
 
 ## Features
 
-- **Manage skills** -- install, remove, link/unlink across tools
-- **Manage agents** -- sub-agent definitions with per-vendor adapters
-- **Detect tools** -- auto-discovers installed AI coding tools
-- **Validate** -- check SKILL.md and agent files against their specs
-- **Search** -- find skills on GitHub
-- **TUI** -- interactive terminal UI with tabbed views and link picker
-- **IR layer** -- canonical representation with vendor adapters (agentskills, Claude, Gemini)
-- **Lock file compatible** -- reads/writes existing `.skill-lock.json` v3
+- **Skills & Agents** — install, remove, link, unlink, create, validate, and update across tools
+- **Sessions** — list, fuzzy-find, and export AI coding sessions (Claude, Codex) as markdown
+- **Tool detection** — auto-discovers installed AI coding tools on your machine
+- **Search** — find skills on GitHub directly from the CLI
+- **TUI** — interactive terminal UI with tabbed views and link picker
+- **IR layer** — canonical representation with vendor adapters (agentskills, Claude, Gemini)
+- **Lock file** — reads and writes `.skill-lock.json` v3
 
 ## Installation
 
@@ -55,33 +54,40 @@ cargo build --release
 ## Usage
 
 ```
-agentspec                              # Launch interactive TUI
+agentspec                                # Launch interactive TUI
 
 # Skills
-agentspec skill list                   # List installed skills with tool linkage
-agentspec skill install owner/repo     # Install from GitHub
-agentspec skill link <skill> <tool>    # Symlink skill to a tool
+agentspec skill list                     # List installed skills with tool linkage
+agentspec skill install owner/repo       # Install from GitHub
+agentspec skill link <skill> <tool>      # Symlink skill to a tool
 agentspec skill unlink <skill> <tool>
-agentspec skill validate [path]        # Validate SKILL.md
-agentspec skill create [name]          # Scaffold a new skill
+agentspec skill validate [path]          # Validate SKILL.md
+agentspec skill create [name]            # Scaffold a new skill
 agentspec skill remove <name>
 
 # Agents
-agentspec agent list                   # List sub-agents across tools
+agentspec agent list                     # List sub-agents across tools
 agentspec agent install owner/repo
 agentspec agent link <agent> <tool>
 agentspec agent validate [path]
 agentspec agent create [name]
 agentspec agent remove <name>
 
+# Sessions
+agentspec session find                   # Fuzzy-find a session across sources
+agentspec session list claude            # List sessions for a source
+agentspec session export claude          # Export most recent session
+agentspec session export claude <id>     # Export a specific session
+agentspec session export claude -o f.md  # Write export to file
+
 # Tools
-agentspec tool list                    # Show detected AI coding tools
+agentspec tool list                      # Show detected AI coding tools
 
 # Search
-agentspec search <query>               # Search GitHub for skills
+agentspec search <query>                 # Search GitHub for skills
 
-# JSON output
-agentspec skill list --json            # Machine-readable output
+# Global flags
+agentspec skill list --json              # Machine-readable JSON output
 ```
 
 ## Architecture

@@ -8,13 +8,14 @@ mod frontmatter;
 mod ir;
 mod lockfile;
 mod ops;
+mod session;
 #[allow(dead_code)]
 mod skill;
 mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{AgentAction, Cli, Command, SkillAction, ToolAction};
+use cli::{AgentAction, Cli, Command, SessionAction, SkillAction, ToolAction};
 use ir::ResourceKind;
 
 #[tokio::main]
@@ -95,6 +96,53 @@ async fn main() -> color_eyre::Result<()> {
         Some(Command::Tool { action }) => match action {
             ToolAction::List => {
                 ops::list::list_tools(cli.json)?;
+            }
+        },
+        Some(Command::Session { action }) => match action {
+            SessionAction::Find => {
+                let (source, id) = session::find::run_find()?;
+                println!("{source} {id}");
+            }
+            SessionAction::List { source } => {
+                let src = session::get_source(&source)?;
+                let sessions = src.list_sessions()?;
+                if sessions.is_empty() {
+                    eprintln!("No sessions found for {source}");
+                } else {
+                    for s in &sessions {
+                        let date = s
+                            .started_at
+                            .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        let prompt = s.first_prompt.as_deref().unwrap_or("(no prompt)");
+                        println!("{} | {} | {}", s.id, date, prompt);
+                    }
+                }
+            }
+            SessionAction::Export {
+                source,
+                id,
+                last,
+                output,
+            } => {
+                let src = session::get_source(&source)?;
+                let sess = if last {
+                    src.latest_session()?
+                } else if let Some(id) = id {
+                    src.load_session(&id)?
+                } else {
+                    return Err(error::AppError::Other(
+                        "Provide a session ID or use --last".into(),
+                    )
+                    .into());
+                };
+                let markdown = session::render::render_markdown(&sess);
+                if let Some(path) = output {
+                    std::fs::write(&path, &markdown)?;
+                    eprintln!("Written to {path}");
+                } else {
+                    print!("{markdown}");
+                }
             }
         },
         Some(Command::Search { query, limit }) => {

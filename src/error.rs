@@ -23,6 +23,9 @@ pub enum AppError {
     #[error("Tool not found: {0}")]
     ToolNotFound(String),
 
+    #[error("Session not found: {0}")]
+    SessionNotFound(String),
+
     #[error("Invalid frontmatter: {0}")]
     InvalidFrontmatter(String),
 
