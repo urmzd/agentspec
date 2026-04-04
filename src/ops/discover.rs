@@ -13,7 +13,20 @@ use crate::ops::link;
 use crate::ops::memory;
 use crate::tools::{self, CodingTool};
 
+/// Refresh the discovery cache without printing anything.
+pub fn refresh_cache() -> Result<()> {
+    let lockfile = inventory::load_config()?;
+    let discovered = discover_unmanaged(&lockfile)?;
+
+    let mut cfg = inventory::load_config()?;
+    cfg.discovered = discovered;
+    cfg.last_scan = Some(chrono::Utc::now().to_rfc3339());
+    inventory::save_config(&cfg)?;
+    Ok(())
+}
+
 /// Scan all tool directories for unmanaged resources, update config cache, print results.
+#[allow(dead_code)]
 pub fn scan(json: bool) -> Result<()> {
     let lockfile = inventory::load_config()?;
     let discovered = discover_unmanaged(&lockfile)?;
@@ -147,6 +160,12 @@ fn discover_unmanaged(lockfile: &Config) -> Result<Vec<DiscoveredResource>> {
 
     // Also check shared store for untracked items
     scan_shared_store(lockfile, &mut found)?;
+
+    // Scan project roots for configs and llms.txt
+    scan_project_configs(lockfile, &mut found);
+
+    // Scan memory files
+    scan_memory_files(lockfile, &mut found);
 
     Ok(found)
 }
@@ -377,10 +396,7 @@ pub fn adopt(
     let source_loc = &discovered.found_in[0];
     let source_path = Path::new(&source_loc.path);
 
-    let resource_kind = match kind {
-        TrackedKind::Skill => ResourceKind::Skill,
-        TrackedKind::Agent => ResourceKind::Agent,
-    };
+    let resource_kind: ResourceKind = kind.into();
 
     // Determine if already in shared store or needs copying
     let is_shared_store = source_loc.tool == "shared-store";
@@ -411,6 +427,12 @@ pub fn adopt(
                 std::fs::copy(source_path, &dest)?;
             }
             (format!("agents/{name}.md"), dest)
+        }
+        // New entity types — adopt in-place (no copy to shared store)
+        _ => {
+            let abs = source_path.to_path_buf();
+            let relative = source_path.to_string_lossy().to_string();
+            (relative, abs)
         }
     };
 
@@ -515,8 +537,6 @@ pub fn status(json: bool) -> Result<()> {
     let lockfile = inventory::load_config()?;
     let cfg = inventory::load_config()?;
 
-    let project_infos = memory::scan_project_infos();
-
     if json {
         let managed: Vec<serde_json::Value> = lockfile
             .resources
@@ -545,23 +565,11 @@ pub fn status(json: bool) -> Result<()> {
                 })
             })
             .collect();
-        let projects: Vec<serde_json::Value> = project_infos
-            .iter()
-            .filter(|p| p.has_agents_md || p.memory_count > 0)
-            .map(|p| {
-                serde_json::json!({
-                    "project": p.project_path.as_ref().map(|pp| pp.to_string_lossy().to_string()).unwrap_or(p.encoded_name.clone()),
-                    "has_agents_md": p.has_agents_md,
-                    "memory_count": p.memory_count,
-                })
-            })
-            .collect();
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
                 "managed": managed,
                 "unmanaged": unmanaged,
-                "projects": projects,
             }))?
         );
         return Ok(());
@@ -575,7 +583,7 @@ pub fn status(json: bool) -> Result<()> {
         for r in &lockfile.resources {
             let tools: Vec<&str> = r.links.iter().map(|l| l.tool.as_str()).collect();
             println!(
-                "  {} {:<25} {:<10} {}",
+                "  {} {:<35} {:<15} {}",
                 style("●").green(),
                 r.name,
                 format!("{}", r.kind),
@@ -591,17 +599,12 @@ pub fn status(json: bool) -> Result<()> {
     // Unmanaged resources
     println!("\n  {}", style("Unmanaged Resources").bold().underlined());
     if cfg.discovered.is_empty() {
-        let scan_note = if cfg.last_scan.is_some() {
-            "(none found)"
-        } else {
-            "(run `agentspec discover` to scan)"
-        };
-        println!("  {scan_note}");
+        println!("  (none found)");
     } else {
         for d in &cfg.discovered {
             let tools: Vec<&str> = d.found_in.iter().map(|l| l.tool.as_str()).collect();
             println!(
-                "  {} {:<25} {:<10} {}",
+                "  {} {:<35} {:<15} {}",
                 style("○").dim(),
                 d.name,
                 format!("{}", d.kind),
@@ -610,40 +613,111 @@ pub fn status(json: bool) -> Result<()> {
         }
     }
 
-    // Project configurations
-    let projects_with_config: Vec<_> = project_infos
-        .iter()
-        .filter(|p| p.has_agents_md || p.memory_count > 0)
-        .collect();
+    Ok(())
+}
 
-    if !projects_with_config.is_empty() {
-        println!(
-            "\n  {}",
-            style("Project Configurations").bold().underlined()
-        );
-        for p in &projects_with_config {
-            let display = p
-                .project_path
-                .as_ref()
-                .map(|pp| pp.to_string_lossy().to_string())
-                .unwrap_or_else(|| p.encoded_name.clone());
-            let mut tags: Vec<String> = Vec::new();
-            if p.has_agents_md {
-                tags.push("AGENTS.md".to_string());
+/// Scan decoded project roots for AGENTS.md, CLAUDE.md, and llms.txt.
+fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
+    let project_infos = memory::scan_project_infos();
+
+    for p in &project_infos {
+        let Some(ref pp) = p.project_path else {
+            continue;
+        };
+        let project_name = pp
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| p.encoded_name.clone());
+
+        // AGENTS.md
+        if p.has_agents_md {
+            let file_path = pp.join("AGENTS.md");
+            let name = format!("{project_name}/AGENTS.md");
+            if cfg.find(&name, TrackedKind::ProjectConfig).is_none()
+                && !found.iter().any(|d| d.name == name)
+            {
+                found.push(DiscoveredResource {
+                    name,
+                    kind: TrackedKind::ProjectConfig,
+                    found_in: vec![DiscoveryLocation {
+                        tool: "project".to_string(),
+                        path: file_path.to_string_lossy().to_string(),
+                    }],
+                    content_hash: inventory::hash_file(&file_path).ok(),
+                });
             }
-            if p.memory_count > 0 {
-                tags.push(format!("{} memories", p.memory_count));
+        }
+
+        // CLAUDE.md
+        if p.has_claude_md {
+            let file_path = pp.join("CLAUDE.md");
+            let name = format!("{project_name}/CLAUDE.md");
+            if cfg.find(&name, TrackedKind::ProjectConfig).is_none()
+                && !found.iter().any(|d| d.name == name)
+            {
+                found.push(DiscoveredResource {
+                    name,
+                    kind: TrackedKind::ProjectConfig,
+                    found_in: vec![DiscoveryLocation {
+                        tool: "project".to_string(),
+                        path: file_path.to_string_lossy().to_string(),
+                    }],
+                    content_hash: inventory::hash_file(&file_path).ok(),
+                });
             }
-            println!(
-                "  {} {:<45} {}",
-                style("~").dim(),
-                style(&display).cyan(),
-                tags.join(", ")
-            );
+        }
+
+        // llms.txt
+        if p.has_llms_txt {
+            let file_path = pp.join("llms.txt");
+            let name = format!("{project_name}/llms.txt");
+            if cfg.find(&name, TrackedKind::LlmsTxt).is_none()
+                && !found.iter().any(|d| d.name == name)
+            {
+                found.push(DiscoveredResource {
+                    name,
+                    kind: TrackedKind::LlmsTxt,
+                    found_in: vec![DiscoveryLocation {
+                        tool: "project".to_string(),
+                        path: file_path.to_string_lossy().to_string(),
+                    }],
+                    content_hash: inventory::hash_file(&file_path).ok(),
+                });
+            }
         }
     }
+}
 
-    Ok(())
+/// Scan Claude Code memory files as discoverable entities.
+fn scan_memory_files(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
+    let memories = memory::scan_memories();
+
+    for m in &memories {
+        let project_name = m
+            .project_path
+            .as_deref()
+            .and_then(|p| {
+                std::path::Path::new(p)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+            })
+            .unwrap_or_else(|| m.project_name.clone());
+
+        let name = format!("{project_name}/{}", m.name);
+        if cfg.find(&name, TrackedKind::Memory).is_none()
+            && !found.iter().any(|d| d.name == name)
+        {
+            found.push(DiscoveredResource {
+                name,
+                kind: TrackedKind::Memory,
+                found_in: vec![DiscoveryLocation {
+                    tool: "claude-code".to_string(),
+                    path: m.file_path.to_string_lossy().to_string(),
+                }],
+                content_hash: inventory::hash_file(&m.file_path).ok(),
+            });
+        }
+    }
 }
 
 fn resolve_tool_slugs(explicit: Option<&[String]>, all: bool) -> Vec<String> {

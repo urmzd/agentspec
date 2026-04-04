@@ -1,6 +1,9 @@
+pub mod agents_md;
 pub mod agentskills;
 pub mod claude;
+pub mod claude_md;
 pub mod gemini;
+pub mod llms_txt;
 
 use std::path::Path;
 
@@ -32,6 +35,9 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
         Box::new(agentskills::AgentSkillsAdapter),
         Box::new(claude::ClaudeAdapter),
         Box::new(gemini::GeminiAdapter),
+        Box::new(agents_md::AgentsMdAdapter),
+        Box::new(claude_md::ClaudeMdAdapter),
+        Box::new(llms_txt::LlmsTxtAdapter),
     ]
 }
 
@@ -39,8 +45,13 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
 pub fn adapter_for_path(path: &Path) -> Option<Box<dyn Adapter>> {
     let filename = path.file_name()?.to_str()?;
 
-    if filename == "SKILL.md" {
-        return Some(Box::new(agentskills::AgentSkillsAdapter));
+    // Route by well-known filename first
+    match filename {
+        "SKILL.md" => return Some(Box::new(agentskills::AgentSkillsAdapter)),
+        "AGENTS.md" => return Some(Box::new(agents_md::AgentsMdAdapter)),
+        "CLAUDE.md" => return Some(Box::new(claude_md::ClaudeMdAdapter)),
+        "llms.txt" => return Some(Box::new(llms_txt::LlmsTxtAdapter)),
+        _ => {}
     }
 
     // Check parent directory to determine context

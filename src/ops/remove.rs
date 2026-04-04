@@ -2,6 +2,7 @@ use console::style;
 
 use crate::config;
 use crate::error::{AppError, Result};
+use crate::inventory::{self, TrackedKind};
 use crate::ir::ResourceKind;
 use crate::lockfile::LockFile;
 use crate::ops::link;
@@ -37,5 +38,27 @@ pub fn remove_agent(name: &str) -> Result<()> {
     std::fs::remove_file(&agent_file)?;
 
     println!("  {} Removed agent '{name}'", style("✓").green().bold());
+    Ok(())
+}
+
+/// Remove tracking for a resource without deleting the underlying file.
+/// Used for memories, project configs, llms.txt — files owned by their
+/// respective tools, not by agentspec.
+pub fn remove_tracked(name: &str, kind: TrackedKind) -> Result<()> {
+    let mut cfg = inventory::load_config()?;
+
+    if cfg.find(name, kind).is_none() {
+        return Err(AppError::Other(format!(
+            "{kind} '{name}' is not tracked"
+        )));
+    }
+
+    cfg.remove(name, kind);
+    inventory::save_config(&cfg)?;
+
+    println!(
+        "  {} Removed {kind} '{name}' from tracking",
+        style("✓").green().bold()
+    );
     Ok(())
 }

@@ -7,6 +7,8 @@ use crate::adapters::{self, Adapter};
 use crate::config;
 use crate::error::Result;
 use crate::lockfile::LockFile;
+use crate::ops::memory;
+use crate::session;
 use crate::tools::{self, CodingTool};
 
 use super::event::poll_event;
@@ -17,11 +19,19 @@ pub enum Tab {
     Skills,
     Agents,
     Tools,
+    Sessions,
+    Memories,
 }
 
 impl Tab {
     pub fn all() -> &'static [Tab] {
-        &[Tab::Skills, Tab::Agents, Tab::Tools]
+        &[
+            Tab::Skills,
+            Tab::Agents,
+            Tab::Tools,
+            Tab::Sessions,
+            Tab::Memories,
+        ]
     }
 
     pub fn label(&self) -> &str {
@@ -29,6 +39,8 @@ impl Tab {
             Tab::Skills => "Skills",
             Tab::Agents => "Agents",
             Tab::Tools => "Tools",
+            Tab::Sessions => "Sessions",
+            Tab::Memories => "Memories",
         }
     }
 
@@ -36,18 +48,26 @@ impl Tab {
         match self {
             Tab::Skills => Tab::Agents,
             Tab::Agents => Tab::Tools,
-            Tab::Tools => Tab::Skills,
+            Tab::Tools => Tab::Sessions,
+            Tab::Sessions => Tab::Memories,
+            Tab::Memories => Tab::Skills,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            Tab::Skills => Tab::Tools,
+            Tab::Skills => Tab::Memories,
             Tab::Agents => Tab::Skills,
             Tab::Tools => Tab::Agents,
+            Tab::Sessions => Tab::Tools,
+            Tab::Memories => Tab::Sessions,
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Entry types
+// ---------------------------------------------------------------------------
 
 pub struct SkillEntry {
     pub name: String,
@@ -71,11 +91,69 @@ pub struct ToolEntry {
     pub agent_count: usize,
 }
 
+pub struct SessionEntry {
+    #[allow(dead_code)]
+    pub id: String,
+    pub source: String,
+    pub date: String,
+    pub prompt: String,
+}
+
+pub struct MemoryEntry {
+    pub name: String,
+    pub description: String,
+    pub memory_type: String,
+    pub project: String,
+}
+
+// ---------------------------------------------------------------------------
+// Lazy loading
+// ---------------------------------------------------------------------------
+
+#[allow(dead_code)]
+pub enum LazyTab<T> {
+    Unloaded,
+    Loaded(Vec<T>),
+    Error(String),
+}
+
+#[allow(dead_code)]
+impl<T> LazyTab<T> {
+    pub fn items(&self) -> &[T] {
+        match self {
+            LazyTab::Loaded(v) => v,
+            _ => &[],
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items().len()
+    }
+
+    pub fn is_unloaded(&self) -> bool {
+        matches!(self, LazyTab::Unloaded)
+    }
+
+    pub fn label(&self) -> &str {
+        match self {
+            LazyTab::Unloaded => "...",
+            LazyTab::Loaded(_) => "",
+            LazyTab::Error(e) => e,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
 pub struct App {
     pub tab: Tab,
     pub skills: Vec<SkillEntry>,
     pub agents: Vec<AgentEntry>,
     pub tool_entries: Vec<ToolEntry>,
+    pub sessions: LazyTab<SessionEntry>,
+    pub memories: LazyTab<MemoryEntry>,
     pub installed_tools: Vec<String>,
     pub selected: usize,
     pub filter: String,
@@ -99,6 +177,8 @@ impl App {
             skills,
             agents,
             tool_entries,
+            sessions: LazyTab::Unloaded,
+            memories: LazyTab::Unloaded,
             installed_tools: installed_slugs,
             selected: 0,
             filter: String::new(),
@@ -121,6 +201,19 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Load data for the current tab if it hasn't been loaded yet.
+    fn ensure_tab_loaded(&mut self) {
+        match self.tab {
+            Tab::Sessions if self.sessions.is_unloaded() => {
+                self.sessions = load_sessions();
+            }
+            Tab::Memories if self.memories.is_unloaded() => {
+                self.memories = load_memories();
+            }
+            _ => {}
+        }
     }
 
     fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
@@ -157,10 +250,12 @@ impl App {
             KeyCode::Tab | KeyCode::Right => {
                 self.tab = self.tab.next();
                 self.selected = 0;
+                self.ensure_tab_loaded();
             }
             KeyCode::BackTab | KeyCode::Left => {
                 self.tab = self.tab.prev();
                 self.selected = 0;
+                self.ensure_tab_loaded();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 let max = self.current_list_len();
@@ -176,7 +271,7 @@ impl App {
                 self.filter.clear();
             }
             KeyCode::Char('l') => {
-                if self.tab != Tab::Tools {
+                if matches!(self.tab, Tab::Skills | Tab::Agents) {
                     self.open_link_picker();
                 }
             }
@@ -218,7 +313,7 @@ impl App {
                 .filtered_agents()
                 .get(self.selected)
                 .map(|a| a.name.clone()),
-            Tab::Tools => None,
+            _ => None,
         };
 
         let Some(name) = name else { return };
@@ -234,7 +329,7 @@ impl App {
                 .iter()
                 .find(|a| a.name == name)
                 .map(|a| &a.linked_tools),
-            Tab::Tools => None,
+            _ => None,
         };
 
         let Some(linked) = linked else { return };
@@ -250,7 +345,6 @@ impl App {
 
     fn apply_link_picker(&mut self) {
         // TODO: actually create/remove symlinks based on changed checks
-        // For now this is a visual-only feature
     }
 
     pub fn current_list_len(&self) -> usize {
@@ -258,6 +352,8 @@ impl App {
             Tab::Skills => self.filtered_skills().len(),
             Tab::Agents => self.filtered_agents().len(),
             Tab::Tools => self.tool_entries.len(),
+            Tab::Sessions => self.filtered_sessions().len(),
+            Tab::Memories => self.filtered_memories().len(),
         }
     }
 
@@ -286,7 +382,46 @@ impl App {
             })
             .collect()
     }
+
+    pub fn filtered_sessions(&self) -> Vec<&SessionEntry> {
+        self.sessions
+            .items()
+            .iter()
+            .filter(|s| {
+                self.filter.is_empty()
+                    || s.source
+                        .to_lowercase()
+                        .contains(&self.filter.to_lowercase())
+                    || s.prompt
+                        .to_lowercase()
+                        .contains(&self.filter.to_lowercase())
+            })
+            .collect()
+    }
+
+    pub fn filtered_memories(&self) -> Vec<&MemoryEntry> {
+        self.memories
+            .items()
+            .iter()
+            .filter(|m| {
+                self.filter.is_empty()
+                    || m.name
+                        .to_lowercase()
+                        .contains(&self.filter.to_lowercase())
+                    || m.project
+                        .to_lowercase()
+                        .contains(&self.filter.to_lowercase())
+                    || m.memory_type
+                        .to_lowercase()
+                        .contains(&self.filter.to_lowercase())
+            })
+            .collect()
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Data loaders
+// ---------------------------------------------------------------------------
 
 fn load_skills(installed: &[Box<dyn CodingTool>]) -> Vec<SkillEntry> {
     let lock = LockFile::load(&config::lock_file_path()).unwrap_or_else(|_| LockFile::empty());
@@ -330,7 +465,6 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
     let mut entries = Vec::new();
     let agents_dir = config::shared_agents_dir();
 
-    // Shared agents
     if agents_dir.exists()
         && let Ok(dir) = std::fs::read_dir(&agents_dir)
     {
@@ -360,7 +494,6 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
         }
     }
 
-    // Tool-specific agents not in shared store
     for tool in installed {
         if let Some(dir) = tool.agents_dir() {
             if !dir.exists() {
@@ -412,4 +545,45 @@ fn load_tool_entries(_installed: &[Box<dyn CodingTool>]) -> Vec<ToolEntry> {
             agent_count: t.linked_agents().len(),
         })
         .collect()
+}
+
+fn load_sessions() -> LazyTab<SessionEntry> {
+    let mut entries = Vec::new();
+
+    for source_name in &["claude", "codex"] {
+        let Ok(src) = session::get_source(source_name) else {
+            continue;
+        };
+        let Ok(sessions) = src.list_sessions() else {
+            continue;
+        };
+        for s in sessions {
+            entries.push(SessionEntry {
+                id: s.id,
+                source: source_name.to_string(),
+                date: s
+                    .started_at
+                    .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
+                prompt: s.first_prompt.unwrap_or_else(|| "(no prompt)".to_string()),
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| b.date.cmp(&a.date));
+    LazyTab::Loaded(entries)
+}
+
+fn load_memories() -> LazyTab<MemoryEntry> {
+    let mems = memory::scan_memories();
+    let entries = mems
+        .into_iter()
+        .map(|m| MemoryEntry {
+            name: m.name,
+            description: m.description,
+            memory_type: m.memory_type,
+            project: m.project_path.unwrap_or(m.project_name),
+        })
+        .collect();
+    LazyTab::Loaded(entries)
 }

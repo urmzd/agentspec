@@ -1,12 +1,11 @@
 pub mod create;
 pub mod dedup;
 pub mod discover;
-pub mod install;
 pub mod link;
 pub mod list;
 pub mod manage;
 pub mod memory;
 pub mod remove;
-pub mod search;
 pub mod validate;
 pub mod verify;
+
