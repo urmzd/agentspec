@@ -27,7 +27,6 @@ Claude Code, Cline, Windsurf, OpenHands, Gemini CLI, GitHub Copilot, Amp, Cursor
 - **Search** — find skills on GitHub directly from the CLI
 - **TUI** — interactive terminal UI with tabbed views and link picker
 - **IR layer** — canonical representation with vendor adapters (agentskills, Claude, Gemini)
-- **Lock file** — reads and writes `.skill-lock.json` v3
 
 ## Installation
 
