@@ -39,6 +39,11 @@ pub enum Command {
         #[arg(long, default_value = "20")]
         limit: usize,
     },
+    /// Manage AI coding sessions
+    Session {
+        #[command(subcommand)]
+        action: SessionAction,
+    },
     /// Launch interactive TUI
     Tui,
 }
@@ -129,4 +134,28 @@ pub enum AgentAction {
 pub enum ToolAction {
     /// List detected AI coding tools
     List,
+}
+
+#[derive(Subcommand)]
+pub enum SessionAction {
+    /// List sessions for a source
+    List {
+        /// Source to list (claude, codex)
+        source: String,
+    },
+    /// Fuzzy-find a session across all sources
+    Find,
+    /// Export a session as markdown
+    Export {
+        /// Source (claude, codex)
+        source: String,
+        /// Session ID (omit if using --last)
+        id: Option<String>,
+        /// Use the most recent session
+        #[arg(long)]
+        last: bool,
+        /// Write to file instead of stdout
+        #[arg(short, long)]
+        output: Option<String>,
+    },
 }
