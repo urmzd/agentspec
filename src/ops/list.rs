@@ -5,9 +5,19 @@ use crate::config;
 use crate::error::Result;
 use crate::ir::Resource;
 use crate::lockfile::LockFile;
+use crate::ops::verify;
 use crate::tools::{self, CodingTool};
 
 pub fn list_skills(tool_filter: Option<&str>, json: bool) -> Result<()> {
+    // Check integrity of managed resources
+    if !json
+        && let Ok(issues) = verify::verify_integrity()
+        && !issues.is_empty()
+    {
+        verify::warn_integrity_issues(&issues);
+        eprintln!();
+    }
+
     let lock = LockFile::load(&config::lock_file_path())?;
     let installed = tools::installed_tools();
     let skills_dir = config::shared_skills_dir();
@@ -79,6 +89,15 @@ pub fn list_skills(tool_filter: Option<&str>, json: bool) -> Result<()> {
 }
 
 pub fn list_agents(tool_filter: Option<&str>, json: bool) -> Result<()> {
+    // Check integrity of managed resources
+    if !json
+        && let Ok(issues) = verify::verify_integrity()
+        && !issues.is_empty()
+    {
+        verify::warn_integrity_issues(&issues);
+        eprintln!();
+    }
+
     let installed = tools::installed_tools();
     let agents_dir = config::shared_agents_dir();
 
