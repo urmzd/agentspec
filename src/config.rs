@@ -20,11 +20,6 @@ pub fn lock_file_path() -> PathBuf {
     agents_base_dir().join(".skill-lock.json")
 }
 
-#[allow(dead_code)]
-pub fn agent_lock_file_path() -> PathBuf {
-    agents_base_dir().join(".agent-lock.json")
-}
-
 pub fn inventory_lockfile_path() -> PathBuf {
     agents_base_dir().join("agentspec-lock.yml")
 }

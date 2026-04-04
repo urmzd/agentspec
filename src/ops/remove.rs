@@ -4,7 +4,6 @@ use crate::config;
 use crate::error::{AppError, Result};
 use crate::inventory::{self, TrackedKind};
 use crate::ir::ResourceKind;
-use crate::lockfile::LockFile;
 use crate::ops::link;
 
 pub fn remove_skill(name: &str) -> Result<()> {
@@ -16,10 +15,10 @@ pub fn remove_skill(name: &str) -> Result<()> {
     // Unlink from all tools first
     link::unlink_from_all(ResourceKind::Skill, name)?;
 
-    // Remove from lock file
-    let mut lock = LockFile::load(&config::lock_file_path())?;
-    lock.remove_entry(name);
-    lock.save(&config::lock_file_path())?;
+    // Remove from inventory config
+    let mut cfg = inventory::load_config()?;
+    cfg.remove(name, TrackedKind::Skill);
+    inventory::save_config(&cfg)?;
 
     // Remove directory
     std::fs::remove_dir_all(&skill_dir)?;
@@ -35,6 +34,12 @@ pub fn remove_agent(name: &str) -> Result<()> {
     }
 
     link::unlink_from_all(ResourceKind::Agent, name)?;
+
+    // Remove from inventory config
+    let mut cfg = inventory::load_config()?;
+    cfg.remove(name, TrackedKind::Agent);
+    inventory::save_config(&cfg)?;
+
     std::fs::remove_file(&agent_file)?;
 
     println!("  {} Removed agent '{name}'", style("✓").green().bold());
