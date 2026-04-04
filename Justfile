@@ -3,11 +3,11 @@ default: check
 init:
     rustup component add clippy rustfmt
 
-install:
-    cargo build --release
-
 build:
     cargo build
+
+install:
+    cargo install --path . --force
 
 run *ARGS:
     cargo run -- {{ARGS}}

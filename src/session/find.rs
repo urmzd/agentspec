@@ -20,9 +20,7 @@ pub fn run_find() -> Result<(String, String)> {
     }
 
     if all_sessions.is_empty() {
-        return Err(AppError::Other(
-            "No sessions found from any source".into(),
-        ));
+        return Err(AppError::Other("No sessions found from any source".into()));
     }
 
     all_sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));

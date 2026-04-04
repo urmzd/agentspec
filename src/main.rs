@@ -5,6 +5,7 @@ mod cli;
 mod config;
 mod error;
 mod frontmatter;
+mod inventory;
 mod ir;
 mod lockfile;
 mod ops;
@@ -15,7 +16,10 @@ mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{AgentAction, Cli, Command, SessionAction, SkillAction, ToolAction};
+use cli::{
+    AgentAction, Cli, Command, ManageAction, MemoryAction, SessionAction, SkillAction, ToolAction,
+};
+use inventory::TrackedKind;
 use ir::ResourceKind;
 
 #[tokio::main]
@@ -51,7 +55,7 @@ async fn main() -> color_eyre::Result<()> {
                 ops::remove::remove_skill(&name)?;
             }
             SkillAction::Link { skill, tool } => {
-                ops::link::link(ResourceKind::Skill, &skill, &tool)?;
+                ops::link::link(ResourceKind::Skill, &skill, &tool, false)?;
             }
             SkillAction::Unlink { skill, tool } => {
                 ops::link::unlink(ResourceKind::Skill, &skill, &tool)?;
@@ -81,7 +85,7 @@ async fn main() -> color_eyre::Result<()> {
                 ops::remove::remove_agent(&name)?;
             }
             AgentAction::Link { agent, tool } => {
-                ops::link::link(ResourceKind::Agent, &agent, &tool)?;
+                ops::link::link(ResourceKind::Agent, &agent, &tool, false)?;
             }
             AgentAction::Unlink { agent, tool } => {
                 ops::link::unlink(ResourceKind::Agent, &agent, &tool)?;
@@ -147,6 +151,62 @@ async fn main() -> color_eyre::Result<()> {
         },
         Some(Command::Search { query, limit }) => {
             ops::search::search(&query, limit, cli.json).await?;
+        }
+        Some(Command::Manage { action }) => match action {
+            ManageAction::Add {
+                source,
+                kind,
+                tools,
+                all_tools,
+                copy,
+            } => {
+                // Check if it's a discovered resource name
+                let cfg = inventory::load_config()?;
+                let tracked_kind = kind.as_deref().map(|k| match k {
+                    "skill" => TrackedKind::Skill,
+                    "agent" => TrackedKind::Agent,
+                    _ => unreachable!("clap validates this"),
+                });
+                let is_discovered = cfg
+                    .discovered
+                    .iter()
+                    .any(|d| d.name == source && tracked_kind.is_none_or(|tk| d.kind == tk));
+                if is_discovered {
+                    let kind = tracked_kind.unwrap_or_else(|| {
+                        cfg.discovered
+                            .iter()
+                            .find(|d| d.name == source)
+                            .unwrap()
+                            .kind
+                    });
+                    ops::discover::adopt(&source, kind, tools.as_deref(), all_tools, copy)?;
+                } else {
+                    ops::manage::manage(&source, tools.as_deref(), all_tools, copy)?;
+                }
+            }
+            ManageAction::All { all_tools, copy } => {
+                ops::discover::adopt_all(all_tools, copy)?;
+            }
+            ManageAction::List => {
+                ops::discover::status(cli.json)?;
+            }
+        },
+        Some(Command::Dedup { by_hash, by_name }) => {
+            ops::dedup::dedup(by_hash, by_name, cli.json)?;
+        }
+        Some(Command::Memory { action }) => match action {
+            MemoryAction::List { project, mem_type } => {
+                ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.json)?;
+            }
+        },
+        Some(Command::Discover) => {
+            ops::discover::scan(cli.json)?;
+        }
+        Some(Command::Status) => {
+            ops::discover::status(cli.json)?;
+        }
+        Some(Command::Verify { accept, name }) => {
+            ops::verify::verify(accept, name.as_deref(), cli.json)?;
         }
     }
 
