@@ -13,7 +13,7 @@ use crate::ir::Resource;
 /// Trait for vendor-specific format adapters.
 /// Each adapter can parse a vendor's file format into the canonical IR
 /// and emit the IR back into that vendor's format.
-#[allow(dead_code)]
+#[allow(dead_code)] // emit() not yet called but required for round-tripping
 pub trait Adapter: Send + Sync {
     /// Vendor identifier (e.g. "agentskills", "claude-code", "gemini-cli")
     fn vendor(&self) -> &str;

@@ -6,7 +6,7 @@ use ratatui::prelude::*;
 use crate::adapters::{self, Adapter};
 use crate::config;
 use crate::error::Result;
-use crate::lockfile::LockFile;
+use crate::inventory::{self, TrackedKind};
 use crate::ops::memory;
 use crate::session;
 use crate::tools::{self, CodingTool};
@@ -92,7 +92,7 @@ pub struct ToolEntry {
 }
 
 pub struct SessionEntry {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // stored for future session detail view
     pub id: String,
     pub source: String,
     pub date: String,
@@ -117,7 +117,6 @@ pub enum LazyTab<T> {
     Error(String),
 }
 
-#[allow(dead_code)]
 impl<T> LazyTab<T> {
     pub fn items(&self) -> &[T] {
         match self {
@@ -132,14 +131,6 @@ impl<T> LazyTab<T> {
 
     pub fn is_unloaded(&self) -> bool {
         matches!(self, LazyTab::Unloaded)
-    }
-
-    pub fn label(&self) -> &str {
-        match self {
-            LazyTab::Unloaded => "...",
-            LazyTab::Loaded(_) => "",
-            LazyTab::Error(e) => e,
-        }
     }
 }
 
@@ -424,13 +415,15 @@ impl App {
 // ---------------------------------------------------------------------------
 
 fn load_skills(installed: &[Box<dyn CodingTool>]) -> Vec<SkillEntry> {
-    let lock = LockFile::load(&config::lock_file_path()).unwrap_or_else(|_| LockFile::empty());
+    let cfg = inventory::load_config().unwrap_or_else(|_| inventory::Config::empty());
     let skills_dir = config::shared_skills_dir();
 
-    let mut entries: Vec<SkillEntry> = lock
-        .skills
+    let mut entries: Vec<SkillEntry> = cfg
+        .resources
         .iter()
-        .map(|(name, locked)| {
+        .filter(|r| r.kind == TrackedKind::Skill)
+        .map(|tracked| {
+            let name = &tracked.name;
             let skill_md = skills_dir.join(name).join("SKILL.md");
             let description = if skill_md.exists() {
                 adapters::agentskills::AgentSkillsAdapter
@@ -451,7 +444,7 @@ fn load_skills(installed: &[Box<dyn CodingTool>]) -> Vec<SkillEntry> {
             SkillEntry {
                 name: name.clone(),
                 description,
-                source: locked.source.clone(),
+                source: tracked.source.clone(),
                 linked_tools,
             }
         })

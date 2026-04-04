@@ -3,10 +3,12 @@ use console::style;
 use crate::adapters;
 use crate::config;
 use crate::error::Result;
+use crate::inventory::{self, TrackedKind};
 use crate::ir::Resource;
-use crate::lockfile::LockFile;
 use crate::ops::verify;
 use crate::tools::{self, CodingTool};
+
+use crate::adapters::Adapter;
 
 pub fn list_skills(tool_filter: Option<&str>, json: bool) -> Result<()> {
     // Check integrity of managed resources
@@ -18,13 +20,14 @@ pub fn list_skills(tool_filter: Option<&str>, json: bool) -> Result<()> {
         eprintln!();
     }
 
-    let lock = LockFile::load(&config::lock_file_path())?;
+    let cfg = inventory::load_config()?;
     let installed = tools::installed_tools();
     let skills_dir = config::shared_skills_dir();
 
     let mut resources: Vec<(String, Option<Resource>, Vec<String>)> = Vec::new();
 
-    for name in lock.skills.keys() {
+    for tracked in cfg.resources.iter().filter(|r| r.kind == TrackedKind::Skill) {
+        let name = &tracked.name;
         let skill_dir = skills_dir.join(name);
         let skill_md = skill_dir.join("SKILL.md");
         let resource = if skill_md.exists() {
@@ -125,5 +128,3 @@ fn truncate(s: &str, max: usize) -> String {
         format!("{}...", &first_line[..max - 3])
     }
 }
-
-use crate::adapters::Adapter;
