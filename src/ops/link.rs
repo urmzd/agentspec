@@ -5,7 +5,7 @@ use crate::error::{AppError, Result};
 use crate::ir::ResourceKind;
 use crate::tools;
 
-pub fn link(kind: ResourceKind, name: &str, tool_slug: &str) -> Result<()> {
+pub fn link(kind: ResourceKind, name: &str, tool_slug: &str, copy: bool) -> Result<()> {
     let tool =
         tools::find_tool(tool_slug).ok_or_else(|| AppError::ToolNotFound(tool_slug.into()))?;
 
@@ -46,10 +46,20 @@ pub fn link(kind: ResourceKind, name: &str, tool_slug: &str) -> Result<()> {
         )));
     }
 
-    let target = make_relative(&link_path, &shared_dir);
-    std::os::unix::fs::symlink(&target, &link_path)?;
+    if copy {
+        if shared_dir.is_dir() {
+            copy_dir_recursive(&shared_dir, &link_path)?;
+        } else {
+            std::fs::copy(&shared_dir, &link_path)?;
+        }
+        let strategy = "copied";
+        println!("  {} {} '{}' to {}", strategy, kind, name, tool.name());
+    } else {
+        let target = make_relative(&link_path, &shared_dir);
+        std::os::unix::fs::symlink(&target, &link_path)?;
+        println!("  Linked {} '{}' to {}", kind, name, tool.name());
+    }
 
-    println!("Linked {} '{}' to {}", kind, name, tool.name());
     Ok(())
 }
 
@@ -80,9 +90,14 @@ pub fn unlink(kind: ResourceKind, name: &str, tool_slug: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn link_to_tools(kind: ResourceKind, name: &str, tool_slugs: &[String]) -> Result<()> {
+pub fn link_to_tools(
+    kind: ResourceKind,
+    name: &str,
+    tool_slugs: &[String],
+    copy: bool,
+) -> Result<()> {
     for slug in tool_slugs {
-        if let Err(e) = link(kind, name, slug) {
+        if let Err(e) = link(kind, name, slug, copy) {
             eprintln!("Warning: could not link to {slug}: {e}");
         }
     }
@@ -106,4 +121,29 @@ pub fn unlink_from_all(kind: ResourceKind, name: &str) -> Result<()> {
 fn make_relative(from: &Path, to: &Path) -> std::path::PathBuf {
     let from_dir = from.parent().unwrap();
     pathdiff::diff_paths(to, from_dir).unwrap_or_else(|| to.to_path_buf())
+}
+
+/// Public version of make_relative for use by other modules.
+pub fn make_relative_public(from: &Path, to: &Path) -> std::path::PathBuf {
+    make_relative(from, to)
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in walkdir::WalkDir::new(src)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let relative = entry.path().strip_prefix(src).unwrap();
+        let target = dst.join(relative);
+        if entry.file_type().is_dir() {
+            std::fs::create_dir_all(&target)?;
+        } else {
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
 }

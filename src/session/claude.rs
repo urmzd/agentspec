@@ -212,10 +212,10 @@ impl SessionSource for ClaudeSource {
             for entry in fs::read_dir(&project_path)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.extension().is_some_and(|e| e == "jsonl") {
-                    if let Ok(meta) = quick_parse_meta(&path) {
-                        sessions.push(meta);
-                    }
+                if path.extension().is_some_and(|e| e == "jsonl")
+                    && let Ok(meta) = quick_parse_meta(&path)
+                {
+                    sessions.push(meta);
                 }
             }
         }
