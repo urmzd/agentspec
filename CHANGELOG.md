@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 (2026-04-05)
+
+### Features
+
+- **settings**: add tool settings abstraction ([2e13ed3](https://github.com/urmzd/agentspec/commit/2e13ed382d3906463144f03167fc3eebb8a5e406))
+- **session**: add universal session discovery ([46e7146](https://github.com/urmzd/agentspec/commit/46e71461366fb973032fa1f409778e69ab74d701))
+- **session**: implement Claude and Codex session adapters ([ae7d4d2](https://github.com/urmzd/agentspec/commit/ae7d4d2ef4b16904e8ddb5fc8cc6bfbd4c21f663))
+- **session**: define session IR and adapter trait ([6abea49](https://github.com/urmzd/agentspec/commit/6abea490d51853f0328593ab501b393b38a919fe))
+
+### Bug Fixes
+
+- resolve clippy and fmt CI failures ([64ca63b](https://github.com/urmzd/agentspec/commit/64ca63be8459203464947d0d370db3b8af393000))
+- make install.sh executable ([22f92a6](https://github.com/urmzd/agentspec/commit/22f92a64b4adeb26dda08e72673b55689814d54b))
+
+### Documentation
+
+- add architecture plan and standards reference ([f0794a8](https://github.com/urmzd/agentspec/commit/f0794a84e4ee3cb49d41504d16b4f3f86466092d))
+
+### Miscellaneous
+
+- remove dead code and incorrect allow(dead_code) annotations ([55272fd](https://github.com/urmzd/agentspec/commit/55272fd876c6bd70b80723218edc0330f54411e2))
+- configure git commit message hook ([46cf65e](https://github.com/urmzd/agentspec/commit/46cf65e3da6a739e6faf246463e4066920079893))
+- bump version to 0.2.0 ([b098b0d](https://github.com/urmzd/agentspec/commit/b098b0d5baec616b5c64d2d91e8aaa7b2792feec))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.2.0...v0.3.0)
+
+
 ## 0.2.0 (2026-04-04)
 
 ### Features
