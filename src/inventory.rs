@@ -45,10 +45,14 @@ pub struct TrackedResource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum TrackedKind {
     Skill,
     Agent,
+    Session,
+    Memory,
+    ProjectConfig,
+    LlmsTxt,
 }
 
 impl From<ResourceKind> for TrackedKind {
@@ -56,6 +60,23 @@ impl From<ResourceKind> for TrackedKind {
         match k {
             ResourceKind::Skill => TrackedKind::Skill,
             ResourceKind::Agent => TrackedKind::Agent,
+            ResourceKind::Session => TrackedKind::Session,
+            ResourceKind::Memory => TrackedKind::Memory,
+            ResourceKind::ProjectConfig => TrackedKind::ProjectConfig,
+            ResourceKind::LlmsTxt => TrackedKind::LlmsTxt,
+        }
+    }
+}
+
+impl From<TrackedKind> for ResourceKind {
+    fn from(k: TrackedKind) -> Self {
+        match k {
+            TrackedKind::Skill => ResourceKind::Skill,
+            TrackedKind::Agent => ResourceKind::Agent,
+            TrackedKind::Session => ResourceKind::Session,
+            TrackedKind::Memory => ResourceKind::Memory,
+            TrackedKind::ProjectConfig => ResourceKind::ProjectConfig,
+            TrackedKind::LlmsTxt => ResourceKind::LlmsTxt,
         }
     }
 }
@@ -65,6 +86,10 @@ impl std::fmt::Display for TrackedKind {
         match self {
             TrackedKind::Skill => write!(f, "skill"),
             TrackedKind::Agent => write!(f, "agent"),
+            TrackedKind::Session => write!(f, "session"),
+            TrackedKind::Memory => write!(f, "memory"),
+            TrackedKind::ProjectConfig => write!(f, "project-config"),
+            TrackedKind::LlmsTxt => write!(f, "llms-txt"),
         }
     }
 }
@@ -150,6 +175,11 @@ impl Config {
         self.resources
             .iter_mut()
             .find(|r| r.name == name && r.kind == kind)
+    }
+
+    pub fn remove(&mut self, name: &str, kind: TrackedKind) {
+        self.resources
+            .retain(|r| !(r.name == name && r.kind == kind));
     }
 
     pub fn add(&mut self, resource: TrackedResource) {
@@ -252,7 +282,11 @@ pub fn hash_dir(dir: &Path) -> Result<String> {
 pub fn hash_resource(kind: TrackedKind, abs_path: &Path) -> Result<String> {
     match kind {
         TrackedKind::Skill => hash_dir(abs_path),
-        TrackedKind::Agent => hash_file(abs_path),
+        TrackedKind::Agent
+        | TrackedKind::Session
+        | TrackedKind::Memory
+        | TrackedKind::ProjectConfig
+        | TrackedKind::LlmsTxt => hash_file(abs_path),
     }
 }
 

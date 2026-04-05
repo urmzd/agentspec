@@ -30,6 +30,11 @@ pub fn link(kind: ResourceKind, name: &str, tool_slug: &str, copy: bool) -> Resu
             })?;
             (shared, dir)
         }
+        _ => {
+            return Err(AppError::Other(format!(
+                "linking {kind} resources is not yet supported"
+            )));
+        }
     };
 
     std::fs::create_dir_all(&tool_dir)?;
@@ -37,6 +42,7 @@ pub fn link(kind: ResourceKind, name: &str, tool_slug: &str, copy: bool) -> Resu
     let link_path = match kind {
         ResourceKind::Skill => tool_dir.join(name),
         ResourceKind::Agent => tool_dir.join(format!("{name}.md")),
+        _ => unreachable!("handled above"),
     };
 
     if link_path.exists() || link_path.is_symlink() {
@@ -70,12 +76,18 @@ pub fn unlink(kind: ResourceKind, name: &str, tool_slug: &str) -> Result<()> {
     let tool_dir = match kind {
         ResourceKind::Skill => tool.skills_dir(),
         ResourceKind::Agent => tool.agents_dir(),
+        _ => {
+            return Err(AppError::Other(format!(
+                "unlinking {kind} resources is not yet supported"
+            )));
+        }
     }
     .ok_or_else(|| AppError::Other(format!("{} doesn't support {}s", tool.name(), kind)))?;
 
     let link_path = match kind {
         ResourceKind::Skill => tool_dir.join(name),
         ResourceKind::Agent => tool_dir.join(format!("{name}.md")),
+        _ => unreachable!("handled above"),
     };
 
     if !link_path.is_symlink() {
@@ -105,10 +117,14 @@ pub fn link_to_tools(
 }
 
 pub fn unlink_from_all(kind: ResourceKind, name: &str) -> Result<()> {
+    if !matches!(kind, ResourceKind::Skill | ResourceKind::Agent) {
+        return Ok(()); // only skill/agent have tool symlinks
+    }
     for tool in tools::installed_tools() {
         let linked = match kind {
             ResourceKind::Skill => tool.linked_skills(),
             ResourceKind::Agent => tool.linked_agents(),
+            _ => continue,
         };
         if linked.contains(&name.to_string()) {
             unlink(kind, name, tool.slug())?;

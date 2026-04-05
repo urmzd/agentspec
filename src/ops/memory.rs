@@ -4,7 +4,6 @@ use console::style;
 
 use crate::config;
 use crate::error::Result;
-use crate::inventory::hash_file;
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -25,9 +24,8 @@ pub struct ProjectInfo {
     pub encoded_name: String,
     pub project_path: Option<PathBuf>,
     pub has_agents_md: bool,
-    #[allow(dead_code)] // for future AGENTS.md comparison feature
-    pub agents_md_hash: Option<String>,
-    pub memory_count: usize,
+    pub has_claude_md: bool,
+    pub has_llms_txt: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -101,38 +99,23 @@ pub fn scan_project_infos() -> Vec<ProjectInfo> {
         let encoded_name = dir.file_name().unwrap().to_string_lossy().to_string();
         let project_path = decode_project_path(&encoded_name);
 
-        // Check for AGENTS.md at project root
-        let (has_agents_md, agents_md_hash) = if let Some(ref pp) = project_path {
-            let agents_md = pp.join("AGENTS.md");
-            if agents_md.exists() {
-                (true, hash_file(&agents_md).ok())
-            } else {
-                (false, None)
-            }
+        // Check for project-root config files
+        let (has_agents_md, has_claude_md, has_llms_txt) = if let Some(ref pp) = project_path {
+            (
+                pp.join("AGENTS.md").exists(),
+                pp.join("CLAUDE.md").exists(),
+                pp.join("llms.txt").exists(),
+            )
         } else {
-            (false, None)
-        };
-
-        // Count memory files
-        let memory_dir = dir.join("memory");
-        let memory_count = if memory_dir.exists() {
-            std::fs::read_dir(&memory_dir)
-                .map(|rd| {
-                    rd.filter_map(|e| e.ok())
-                        .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("md"))
-                        .count()
-                })
-                .unwrap_or(0)
-        } else {
-            0
+            (false, false, false)
         };
 
         infos.push(ProjectInfo {
             encoded_name,
             project_path,
             has_agents_md,
-            agents_md_hash,
-            memory_count,
+            has_claude_md,
+            has_llms_txt,
         });
     }
 
