@@ -49,7 +49,6 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
                 Tab::Tools => app.tool_entries.len(),
                 Tab::Sessions => app.sessions.len(),
                 Tab::Memories => app.memories.len(),
-
             };
             let style = if *t == app.tab {
                 Style::default()
@@ -88,9 +87,7 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
             Tab::Skills | Tab::Agents => {
                 "[/] Filter  [l] Link  [Tab] Switch  [j/k] Navigate  [q] Quit"
             }
-            Tab::Sessions | Tab::Memories => {
-                "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit"
-            }
+            Tab::Sessions | Tab::Memories => "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit",
             Tab::Tools => "[Tab] Switch  [j/k] Navigate  [q] Quit",
         };
         format!("  {keys}")
@@ -149,7 +146,12 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
         Tab::Sessions => {
             let sessions = app.filtered_sessions();
             if let Some(s) = sessions.get(app.selected) {
-                format!("  {} | {} | {}", s.source, s.date, truncate_str(&s.prompt, 60))
+                format!(
+                    "  {} | {} | {}",
+                    s.source,
+                    s.date,
+                    truncate_str(&s.prompt, 60)
+                )
             } else {
                 String::new()
             }

@@ -26,10 +26,10 @@ fn resolve_kind(name: &str) -> ResourceKind {
         return ResourceKind::Agent;
     }
     // Fallback: check inventory config
-    if let Ok(cfg) = inventory::load_config() {
-        if let Some(r) = cfg.resources.iter().find(|r| r.name == name) {
-            return r.kind.into();
-        }
+    if let Ok(cfg) = inventory::load_config()
+        && let Some(r) = cfg.resources.iter().find(|r| r.name == name)
+    {
+        return r.kind.into();
     }
     // Default to skill if unknown
     ResourceKind::Skill
@@ -174,12 +174,10 @@ async fn main() -> color_eyre::Result<()> {
             ManageAction::Validate { path } => {
                 ops::validate::validate(path.as_deref())?;
             }
-            ManageAction::Create { name, kind } => {
-                match kind.as_deref().unwrap_or("skill") {
-                    "agent" => ops::create::create_agent(name.as_deref())?,
-                    _ => ops::create::create_skill(name.as_deref())?,
-                }
-            }
+            ManageAction::Create { name, kind } => match kind.as_deref().unwrap_or("skill") {
+                "agent" => ops::create::create_agent(name.as_deref())?,
+                _ => ops::create::create_skill(name.as_deref())?,
+            },
             ManageAction::Update { name: _ } => {
                 println!("Update not yet implemented");
             }

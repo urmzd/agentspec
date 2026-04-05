@@ -86,7 +86,9 @@ pub fn parse_heading_doc(content: &str) -> (String, String, String) {
             .find(&format!("# {name}"))
             .map(|i| {
                 let rest = &content[i..];
-                rest.find('\n').map(|nl| &content[i + nl + 1..]).unwrap_or("")
+                rest.find('\n')
+                    .map(|nl| &content[i + nl + 1..])
+                    .unwrap_or("")
             })
             .unwrap_or("");
         after_heading.trim().to_string()

@@ -100,16 +100,15 @@ pub fn scan_project_infos() -> Vec<ProjectInfo> {
         let project_path = decode_project_path(&encoded_name);
 
         // Check for project-root config files
-        let (has_agents_md, has_claude_md, has_llms_txt) =
-            if let Some(ref pp) = project_path {
-                (
-                    pp.join("AGENTS.md").exists(),
-                    pp.join("CLAUDE.md").exists(),
-                    pp.join("llms.txt").exists(),
-                )
-            } else {
-                (false, false, false)
-            };
+        let (has_agents_md, has_claude_md, has_llms_txt) = if let Some(ref pp) = project_path {
+            (
+                pp.join("AGENTS.md").exists(),
+                pp.join("CLAUDE.md").exists(),
+                pp.join("llms.txt").exists(),
+            )
+        } else {
+            (false, false, false)
+        };
 
         infos.push(ProjectInfo {
             encoded_name,

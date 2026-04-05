@@ -590,9 +590,7 @@ fn scan_memory_files(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
             .unwrap_or_else(|| m.project_name.clone());
 
         let name = format!("{project_name}/{}", m.name);
-        if cfg.find(&name, TrackedKind::Memory).is_none()
-            && !found.iter().any(|d| d.name == name)
-        {
+        if cfg.find(&name, TrackedKind::Memory).is_none() && !found.iter().any(|d| d.name == name) {
             found.push(DiscoveredResource {
                 name,
                 kind: TrackedKind::Memory,

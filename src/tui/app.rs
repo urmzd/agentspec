@@ -396,9 +396,7 @@ impl App {
             .iter()
             .filter(|m| {
                 self.filter.is_empty()
-                    || m.name
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
+                    || m.name.to_lowercase().contains(&self.filter.to_lowercase())
                     || m.project
                         .to_lowercase()
                         .contains(&self.filter.to_lowercase())
