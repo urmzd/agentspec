@@ -31,8 +31,8 @@ fn project_cwd_from_dir(dir_name: &str) -> Option<String> {
     // This is best-effort since paths with literal dashes are ambiguous.
     let restored = dir_name
         .replacen('-', "/", 1) // leading dash → /
-        .replace("--", "/.")  // double dash → /.
-        .replace('-', "/");   // remaining dashes → /
+        .replace("--", "/.") // double dash → /.
+        .replace('-', "/"); // remaining dashes → /
     Some(restored)
 }
 
@@ -287,10 +287,10 @@ impl SessionSource for ClaudeSource {
             };
             for entry in entries.filter_map(|e| e.ok()) {
                 let path = entry.path();
-                if path.extension().is_some_and(|e| e == "jsonl") {
-                    if let Ok(meta) = quick_parse_meta(&path) {
-                        sessions.push(meta);
-                    }
+                if path.extension().is_some_and(|e| e == "jsonl")
+                    && let Ok(meta) = quick_parse_meta(&path)
+                {
+                    sessions.push(meta);
                 }
             }
         }

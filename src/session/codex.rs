@@ -135,10 +135,10 @@ fn enrich_meta(path: &Path, mut meta: SessionMeta) -> SessionMeta {
 
         if entry_type == "session_meta" {
             let payload = &v["payload"];
-            if meta.cwd.is_none() {
-                if let Some(c) = payload.get("cwd").and_then(|c| c.as_str()) {
-                    meta.cwd = Some(c.to_string());
-                }
+            if meta.cwd.is_none()
+                && let Some(c) = payload.get("cwd").and_then(|c| c.as_str())
+            {
+                meta.cwd = Some(c.to_string());
             }
         }
 
@@ -188,10 +188,10 @@ fn parse_session_file(path: &Path) -> Result<Session> {
                 if let Some(c) = payload.get("cwd").and_then(|c| c.as_str()) {
                     cwd = Some(c.to_string());
                 }
-                if started_at.is_none() {
-                    if let Some(ts) = payload.get("timestamp").and_then(|t| t.as_str()) {
-                        started_at = ts.parse::<DateTime<Utc>>().ok();
-                    }
+                if started_at.is_none()
+                    && let Some(ts) = payload.get("timestamp").and_then(|t| t.as_str())
+                {
+                    started_at = ts.parse::<DateTime<Utc>>().ok();
                 }
             }
             "response_item" => {
