@@ -1,6 +1,4 @@
 mod adapters;
-#[allow(dead_code)]
-mod agent;
 mod cli;
 mod config;
 mod error;
@@ -10,8 +8,6 @@ mod ir;
 mod lockfile;
 mod ops;
 mod session;
-#[allow(dead_code)]
-mod skill;
 mod tools;
 mod tui;
 

@@ -160,15 +160,6 @@ impl Config {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn remove(&mut self, name: &str, kind: TrackedKind) -> Option<TrackedResource> {
-        let idx = self
-            .resources
-            .iter()
-            .position(|r| r.name == name && r.kind == kind)?;
-        Some(self.resources.remove(idx))
-    }
-
     /// Migrate from the legacy `.skill-lock.json` v3 format.
     pub fn migrate_from_v3(legacy: &LegacyLockFile) -> Self {
         let mut cfg = Self::empty();
@@ -219,11 +210,6 @@ impl TrackedResource {
             updated_at: now,
             links: Vec::new(),
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn absolute_path(&self) -> PathBuf {
-        config::agents_base_dir().join(&self.path)
     }
 }
 
