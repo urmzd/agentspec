@@ -28,6 +28,7 @@ dependencies = [
  "console",
  "crossterm",
  "dirs",
+ "fuzzy-matcher",
  "indicatif",
  "pathdiff",
  "ratatui",
