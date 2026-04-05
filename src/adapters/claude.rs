@@ -96,67 +96,6 @@ impl Adapter for ClaudeAdapter {
         Ok(r)
     }
 
-    fn emit(&self, resource: &Resource) -> Result<String> {
-        let mut fm = String::from("---\n");
-        fm.push_str(&format!("name: {}\n", resource.name));
-        fm.push_str("description: |\n");
-        for line in resource.description.lines() {
-            fm.push_str(&format!("  {line}\n"));
-        }
-        if let Some(tools) = &resource.tools {
-            fm.push_str(&format!("tools: {}\n", tools.join(", ")));
-        }
-        if let Some(dt) = &resource.disallowed_tools {
-            fm.push_str("disallowedTools:\n");
-            for t in dt {
-                fm.push_str(&format!("  - {t}\n"));
-            }
-        }
-        if let Some(model) = &resource.model {
-            fm.push_str(&format!("model: {model}\n"));
-        }
-        if let Some(mt) = resource.max_turns {
-            fm.push_str(&format!("maxTurns: {mt}\n"));
-        }
-        if let Some(color) = &resource.color {
-            fm.push_str(&format!("color: {color}\n"));
-        }
-        if let Some(pm) = &resource.permission_mode {
-            fm.push_str(&format!("permissionMode: {pm}\n"));
-        }
-        if let Some(skills) = &resource.skills {
-            fm.push_str("skills:\n");
-            for s in skills {
-                fm.push_str(&format!("  - {s}\n"));
-            }
-        }
-        if let Some(true) = resource.background {
-            fm.push_str("background: true\n");
-        }
-        if let Some(effort) = &resource.effort {
-            fm.push_str(&format!("effort: {effort}\n"));
-        }
-        if let Some(isolation) = &resource.isolation {
-            fm.push_str(&format!("isolation: {isolation}\n"));
-        }
-        if let Some(ip) = &resource.initial_prompt {
-            fm.push_str(&format!("initialPrompt: {ip}\n"));
-        }
-
-        // Emit Claude-specific extensions
-        if let Some(serde_yaml::Value::Mapping(ext)) = resource.extensions.get("claude-code") {
-            for (k, v) in ext {
-                let key = k.as_str().unwrap_or_default();
-                let val = serde_yaml::to_string(v).unwrap_or_default();
-                fm.push_str(&format!("{key}: {}", val.trim_start()));
-            }
-        }
-
-        fm.push_str("---\n\n");
-        fm.push_str(&resource.body);
-        Ok(fm)
-    }
-
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.name.is_empty() {

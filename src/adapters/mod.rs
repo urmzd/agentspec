@@ -17,9 +17,6 @@ pub trait Adapter: Send + Sync {
     /// Parse a file into the canonical IR.
     fn parse(&self, path: &Path) -> Result<Resource>;
 
-    /// Emit the canonical IR back to the vendor's file format.
-    fn emit(&self, resource: &Resource) -> Result<String>;
-
     /// Validate vendor-specific constraints beyond the base IR.
     fn validate(&self, resource: &Resource) -> Vec<String>;
 }
