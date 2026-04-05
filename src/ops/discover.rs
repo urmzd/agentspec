@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use console::style;
 
@@ -13,10 +13,10 @@ use crate::ops::link;
 use crate::ops::memory;
 use crate::tools::{self, CodingTool};
 
-/// Refresh the discovery cache without printing anything.
-pub fn refresh_cache() -> Result<()> {
+/// Refresh the discovery cache. Pass `broad_root` for a broad scan from a root directory.
+pub fn refresh_cache_with_root(broad_root: Option<&Path>) -> Result<()> {
     let lockfile = inventory::load_config()?;
-    let discovered = discover_unmanaged(&lockfile)?;
+    let discovered = discover_unmanaged(&lockfile, broad_root)?;
 
     let mut cfg = inventory::load_config()?;
     cfg.discovered = discovered;
@@ -25,11 +25,16 @@ pub fn refresh_cache() -> Result<()> {
     Ok(())
 }
 
-/// Discover all unmanaged resources across installed tool directories.
-fn discover_unmanaged(lockfile: &Config) -> Result<Vec<DiscoveredResource>> {
+/// Discover all unmanaged resources. Pass 1 scans known tool dirs, pass 2 (if `broad_root` set)
+/// walks from a root directory looking for SKILL.md and agent .md files anywhere.
+fn discover_unmanaged(
+    lockfile: &Config,
+    broad_root: Option<&Path>,
+) -> Result<Vec<DiscoveredResource>> {
     let installed = tools::installed_tools();
     let mut found: Vec<DiscoveredResource> = Vec::new();
 
+    // Pass 1: known tool directories
     for tool in &installed {
         if let Some(skills_dir) = tool.skills_dir()
             && skills_dir.exists()
@@ -53,7 +58,103 @@ fn discover_unmanaged(lockfile: &Config) -> Result<Vec<DiscoveredResource>> {
     // Scan memory files
     scan_memory_files(lockfile, &mut found);
 
+    // Pass 2: broad scan from root (if requested)
+    if let Some(root) = broad_root {
+        broad_scan(root, lockfile, &mut found)?;
+    }
+
     Ok(found)
+}
+
+/// Directories to skip during broad scan.
+const SKIP_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    ".cache",
+    ".cargo",
+    ".rustup",
+    "Library",
+    ".Trash",
+    ".npm",
+    ".local",
+    "venv",
+    ".venv",
+    "__pycache__",
+    ".tox",
+    "dist",
+    "build",
+    ".next",
+];
+
+/// Broad scan from a root directory looking for SKILL.md and agent .md files.
+fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) -> Result<()> {
+    // Collect known dirs to skip (already scanned in pass 1)
+    let known_dirs: Vec<PathBuf> = {
+        let mut dirs = vec![config::shared_skills_dir(), config::shared_agents_dir()];
+        for tool in &tools::installed_tools() {
+            if let Some(d) = tool.skills_dir() {
+                dirs.push(d);
+            }
+            if let Some(d) = tool.agents_dir() {
+                dirs.push(d);
+            }
+        }
+        dirs
+    };
+
+    for entry in walkdir::WalkDir::new(root)
+        .max_depth(6)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            // Skip noise directories
+            if e.file_type().is_dir() && SKIP_DIRS.contains(&name.as_ref()) {
+                return false;
+            }
+            // Skip directories already scanned in pass 1
+            if e.file_type().is_dir() && known_dirs.iter().any(|k| e.path() == k) {
+                return false;
+            }
+            true
+        })
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+
+        // Look for SKILL.md → parent is a skill directory
+        if entry.file_name() == "SKILL.md" && path.is_file() {
+            let skill_dir = match path.parent() {
+                Some(d) => d,
+                None => continue,
+            };
+            if skill_dir.is_symlink() {
+                continue;
+            }
+            let name = skill_dir.file_name().unwrap().to_string_lossy().to_string();
+            if cfg.find(&name, TrackedKind::Skill).is_some() {
+                continue;
+            }
+            if found
+                .iter()
+                .any(|d| d.name == name && d.kind == TrackedKind::Skill)
+            {
+                continue;
+            }
+            let content_hash = hash_resource(TrackedKind::Skill, skill_dir).ok();
+            found.push(DiscoveredResource {
+                name,
+                kind: TrackedKind::Skill,
+                found_in: vec![DiscoveryLocation {
+                    tool: "filesystem".to_string(),
+                    path: skill_dir.to_string_lossy().to_string(),
+                }],
+                content_hash,
+            });
+        }
+    }
+
+    Ok(())
 }
 
 fn scan_skills_dir(
@@ -62,21 +163,21 @@ fn scan_skills_dir(
     cfg: &Config,
     found: &mut Vec<DiscoveredResource>,
 ) -> Result<()> {
-    // Recursive traversal — find SKILL.md at any depth
-    for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_name() != "SKILL.md" {
+    // Convention: skills are {dir}/{name}/SKILL.md — one level deep.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let skill_dir = entry.path();
+
+        // Skip symlinks (managed) and non-directories
+        if skill_dir.is_symlink() || !skill_dir.is_dir() {
             continue;
         }
-        let skill_dir = entry.path().parent().unwrap();
 
-        // Skip symlinks — those are managed
-        if skill_dir
-            .symlink_metadata()
-            .is_ok_and(|m| m.file_type().is_symlink())
-        {
+        if !skill_dir.join("SKILL.md").exists() {
             continue;
         }
 
@@ -91,7 +192,7 @@ fn scan_skills_dir(
             path: skill_dir.to_string_lossy().to_string(),
         };
 
-        let content_hash = hash_resource(TrackedKind::Skill, skill_dir).ok();
+        let content_hash = hash_resource(TrackedKind::Skill, &skill_dir).ok();
 
         if let Some(existing) = found
             .iter_mut()
@@ -119,29 +220,24 @@ fn scan_agents_dir(
     cfg: &Config,
     found: &mut Vec<DiscoveredResource>,
 ) -> Result<()> {
-    // Recursive traversal — find agent .md files at any depth
-    for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    // Convention: agents are {dir}/{name}.md — flat files.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
-        if path.is_symlink() || entry.path_is_symlink() {
+
+        if path.is_symlink() {
             continue;
         }
         if path.extension().and_then(|e| e.to_str()) != Some("md") {
             continue;
         }
-        // Skip SKILL.md (handled by skill scanner) and AGENTS.md (project-level config, not a sub-agent)
+
         let fname = path.file_name().unwrap().to_string_lossy();
         if fname == "SKILL.md" || fname.eq_ignore_ascii_case("AGENTS.md") {
-            continue;
-        }
-
-        let content = std::fs::read_to_string(path).unwrap_or_default();
-        if !content.starts_with("---")
-            || !content.contains("name:")
-            || !content.contains("description:")
-        {
             continue;
         }
 
@@ -156,7 +252,7 @@ fn scan_agents_dir(
             path: path.to_string_lossy().to_string(),
         };
 
-        let content_hash = inventory::hash_file(path).ok();
+        let content_hash = inventory::hash_file(&path).ok();
 
         if let Some(existing) = found
             .iter_mut()
@@ -503,6 +599,7 @@ pub fn status(json: bool) -> Result<()> {
 }
 
 /// Scan decoded project roots for AGENTS.md, CLAUDE.md, and llms.txt.
+/// Only considers directories that are git repositories (contain .git).
 fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     let project_infos = memory::scan_project_infos();
 
@@ -510,6 +607,12 @@ fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
         let Some(ref pp) = p.project_path else {
             continue;
         };
+
+        // Only scan actual git repositories
+        if !pp.join(".git").exists() {
+            continue;
+        }
+
         let project_name = pp
             .file_name()
             .map(|n| n.to_string_lossy().to_string())

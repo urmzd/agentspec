@@ -11,6 +11,11 @@ use ratatui::prelude::*;
 
 use crate::error::Result;
 
+fn restore_terminal() {
+    let _ = disable_raw_mode();
+    let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+}
+
 pub async fn run() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -18,15 +23,17 @@ pub async fn run() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Restore terminal on panic so raw ANSI codes don't leak.
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_terminal();
+        original_hook(info);
+    }));
+
     let mut app = app::App::new()?;
     let result = app.run(&mut terminal).await;
 
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
+    restore_terminal();
     terminal.show_cursor()?;
 
     result

@@ -7,6 +7,12 @@ Universal agent skill and sub-agent manager with TUI.
 [![CI](https://github.com/urmzd/agentspec/actions/workflows/ci.yml/badge.svg)](https://github.com/urmzd/agentspec/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/agentspec.svg)](https://crates.io/crates/agentspec)
 
+<br>
+<a href="#usage">
+  <img src="showcase/tui.gif" alt="agentspec TUI" width="600">
+</a>
+<br>
+
 [Install](#installation) | [Usage](#usage) | [Architecture](#architecture)
 
 </div>

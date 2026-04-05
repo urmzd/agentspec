@@ -1,0 +1,133 @@
+[output]
+dir = "./showcase"
+
+[font]
+family = "MonaspiceNe Nerd Font"
+
+[[output.formats]]
+output_type = "png"
+
+# ── TUI showcase: launch agentspec, browse tabs ──
+[[scenes]]
+type = "terminal"
+name = "tui"
+theme = "dracula"
+cols = 120
+rows = 30
+formats = [{ output_type = "gif" }, { output_type = "png" }]
+frame_duration = 120
+
+# Launch the TUI
+[[scenes.interactions]]
+type = "type"
+text = "agentspec"
+speed = 50
+hidden = true
+
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+hidden = true
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+hidden = true
+
+# Skills tab (default)
+[[scenes.interactions]]
+type = "snapshot"
+name = "skills"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1000
+
+# Navigate down
+[[scenes.interactions]]
+type = "key"
+key = "down"
+[[scenes.interactions]]
+type = "wait"
+duration = 400
+[[scenes.interactions]]
+type = "key"
+key = "down"
+[[scenes.interactions]]
+type = "wait"
+duration = 400
+[[scenes.interactions]]
+type = "snapshot"
+
+# Switch to Agents tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "agents"
+
+# Switch to Tools tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "tools"
+
+# Switch to Sessions tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "sessions"
+
+# Switch to Memories tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "memories"
+
+# Demo filter
+[[scenes.interactions]]
+type = "key"
+key = "/"
+[[scenes.interactions]]
+type = "wait"
+duration = 400
+[[scenes.interactions]]
+type = "type"
+text = "user"
+speed = 80
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "filter"
+
+# Quit
+[[scenes.interactions]]
+type = "key"
+key = "escape"
+[[scenes.interactions]]
+type = "wait"
+duration = 300
+[[scenes.interactions]]
+type = "key"
+key = "q"

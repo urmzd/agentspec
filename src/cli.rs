@@ -22,7 +22,26 @@ pub enum Command {
         action: ManageAction,
     },
     /// Show managed and unmanaged resource inventory
-    Status,
+    Status {
+        /// Root directory for broad discovery (default: $HOME)
+        #[arg(long)]
+        root: Option<String>,
+        /// Skip broad discovery, only scan known tool dirs
+        #[arg(long)]
+        fast: bool,
+    },
+    /// Discover, adopt, link, and verify all resources
+    Sync {
+        /// Root directory for broad discovery (default: $HOME)
+        #[arg(long)]
+        root: Option<String>,
+        /// Skip broad scan, only check known dirs
+        #[arg(long)]
+        fast: bool,
+        /// Auto-adopt all discovered resources without prompting
+        #[arg(long)]
+        adopt: bool,
+    },
     /// Manage AI coding sessions
     Session {
         #[command(subcommand)]
