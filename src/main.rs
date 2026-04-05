@@ -12,11 +12,28 @@ mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{
-    AgentAction, Cli, Command, ManageAction, MemoryAction, SessionAction, SkillAction, ToolAction,
-};
+use cli::{Cli, Command, ManageAction, SessionAction};
 use inventory::TrackedKind;
 use ir::ResourceKind;
+
+fn resolve_kind(name: &str) -> ResourceKind {
+    let skill_dir = config::shared_skills_dir().join(name);
+    if skill_dir.exists() {
+        return ResourceKind::Skill;
+    }
+    let agent_file = config::shared_agents_dir().join(format!("{name}.md"));
+    if agent_file.exists() {
+        return ResourceKind::Agent;
+    }
+    // Fallback: check inventory config
+    if let Ok(cfg) = inventory::load_config()
+        && let Some(r) = cfg.resources.iter().find(|r| r.name == name)
+    {
+        return r.kind.into();
+    }
+    // Default to skill if unknown
+    ResourceKind::Skill
+}
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
@@ -36,68 +53,10 @@ async fn main() -> color_eyre::Result<()> {
         Some(Command::Tui) => {
             tui::run().await?;
         }
-        Some(Command::Skill { action }) => match action {
-            SkillAction::List { tool } => {
-                ops::list::list_skills(tool.as_deref(), cli.json)?;
-            }
-            SkillAction::Install {
-                source,
-                tools,
-                all_tools,
-            } => {
-                ops::install::install_skill(&source, tools.as_deref(), all_tools)?;
-            }
-            SkillAction::Remove { name } => {
-                ops::remove::remove_skill(&name)?;
-            }
-            SkillAction::Link { skill, tool } => {
-                ops::link::link(ResourceKind::Skill, &skill, &tool, false)?;
-            }
-            SkillAction::Unlink { skill, tool } => {
-                ops::link::unlink(ResourceKind::Skill, &skill, &tool)?;
-            }
-            SkillAction::Validate { path } => {
-                ops::validate::validate(path.as_deref())?;
-            }
-            SkillAction::Create { name } => {
-                ops::create::create_skill(name.as_deref())?;
-            }
-            SkillAction::Update { name: _ } => {
-                println!("Update not yet implemented");
-            }
-        },
-        Some(Command::Agent { action }) => match action {
-            AgentAction::List { tool } => {
-                ops::list::list_agents(tool.as_deref(), cli.json)?;
-            }
-            AgentAction::Install {
-                source,
-                tools,
-                all_tools,
-            } => {
-                ops::install::install_agent(&source, tools.as_deref(), all_tools)?;
-            }
-            AgentAction::Remove { name } => {
-                ops::remove::remove_agent(&name)?;
-            }
-            AgentAction::Link { agent, tool } => {
-                ops::link::link(ResourceKind::Agent, &agent, &tool, false)?;
-            }
-            AgentAction::Unlink { agent, tool } => {
-                ops::link::unlink(ResourceKind::Agent, &agent, &tool)?;
-            }
-            AgentAction::Validate { path } => {
-                ops::validate::validate(path.as_deref())?;
-            }
-            AgentAction::Create { name } => {
-                ops::create::create_agent(name.as_deref())?;
-            }
-        },
-        Some(Command::Tool { action }) => match action {
-            ToolAction::List => {
-                ops::list::list_tools(cli.json)?;
-            }
-        },
+        Some(Command::Status) => {
+            ops::discover::refresh_cache()?;
+            ops::discover::status(cli.json)?;
+        }
         Some(Command::Session { action }) => match action {
             SessionAction::Find => {
                 let (source, id) = session::find::run_find()?;
@@ -145,9 +104,6 @@ async fn main() -> color_eyre::Result<()> {
                 }
             }
         },
-        Some(Command::Search { query, limit }) => {
-            ops::search::search(&query, limit, cli.json).await?;
-        }
         Some(Command::Manage { action }) => match action {
             ManageAction::Add {
                 source,
@@ -156,11 +112,14 @@ async fn main() -> color_eyre::Result<()> {
                 all_tools,
                 copy,
             } => {
-                // Check if it's a discovered resource name
                 let cfg = inventory::load_config()?;
                 let tracked_kind = kind.as_deref().map(|k| match k {
                     "skill" => TrackedKind::Skill,
                     "agent" => TrackedKind::Agent,
+                    "session" => TrackedKind::Session,
+                    "memory" => TrackedKind::Memory,
+                    "project-config" => TrackedKind::ProjectConfig,
+                    "llms-txt" => TrackedKind::LlmsTxt,
                     _ => unreachable!("clap validates this"),
                 });
                 let is_discovered = cfg
@@ -180,30 +139,55 @@ async fn main() -> color_eyre::Result<()> {
                     ops::manage::manage(&source, tools.as_deref(), all_tools, copy)?;
                 }
             }
+            ManageAction::Remove { name } => {
+                let kind = resolve_kind(&name);
+                match kind {
+                    ResourceKind::Skill => ops::remove::remove_skill(&name)?,
+                    ResourceKind::Agent => ops::remove::remove_agent(&name)?,
+                    _ => {
+                        ops::remove::remove_tracked(&name, kind.into())?;
+                    }
+                }
+            }
             ManageAction::All { all_tools, copy } => {
                 ops::discover::adopt_all(all_tools, copy)?;
             }
-            ManageAction::List => {
-                ops::discover::status(cli.json)?;
+            ManageAction::List {
+                dedup,
+                by_hash,
+                by_name,
+            } => {
+                if dedup || by_hash || by_name {
+                    ops::dedup::dedup(by_hash, by_name, cli.json)?;
+                } else {
+                    ops::discover::status(cli.json)?;
+                }
             }
-        },
-        Some(Command::Dedup { by_hash, by_name }) => {
-            ops::dedup::dedup(by_hash, by_name, cli.json)?;
-        }
-        Some(Command::Memory { action }) => match action {
-            MemoryAction::List { project, mem_type } => {
+            ManageAction::Link { name, tool } => {
+                let kind = resolve_kind(&name);
+                ops::link::link(kind, &name, &tool, false)?;
+            }
+            ManageAction::Unlink { name, tool } => {
+                let kind = resolve_kind(&name);
+                ops::link::unlink(kind, &name, &tool)?;
+            }
+            ManageAction::Validate { path } => {
+                ops::validate::validate(path.as_deref())?;
+            }
+            ManageAction::Create { name, kind } => match kind.as_deref().unwrap_or("skill") {
+                "agent" => ops::create::create_agent(name.as_deref())?,
+                _ => ops::create::create_skill(name.as_deref())?,
+            },
+            ManageAction::Update { name: _ } => {
+                println!("Update not yet implemented");
+            }
+            ManageAction::Verify { accept, name } => {
+                ops::verify::verify(accept, name.as_deref(), cli.json)?;
+            }
+            ManageAction::Memory { project, mem_type } => {
                 ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.json)?;
             }
         },
-        Some(Command::Discover) => {
-            ops::discover::scan(cli.json)?;
-        }
-        Some(Command::Status) => {
-            ops::discover::status(cli.json)?;
-        }
-        Some(Command::Verify { accept, name }) => {
-            ops::verify::verify(accept, name.as_deref(), cli.json)?;
-        }
     }
 
     Ok(())

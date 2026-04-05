@@ -57,10 +57,14 @@ pub struct Resource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum ResourceKind {
     Skill,
     Agent,
+    Session,
+    Memory,
+    ProjectConfig,
+    LlmsTxt,
 }
 
 impl std::fmt::Display for ResourceKind {
@@ -68,6 +72,10 @@ impl std::fmt::Display for ResourceKind {
         match self {
             Self::Skill => write!(f, "skill"),
             Self::Agent => write!(f, "agent"),
+            Self::Session => write!(f, "session"),
+            Self::Memory => write!(f, "memory"),
+            Self::ProjectConfig => write!(f, "project-config"),
+            Self::LlmsTxt => write!(f, "llms-txt"),
         }
     }
 }
@@ -103,6 +111,33 @@ impl Resource {
     pub fn new_agent(name: String, description: String, body: String) -> Self {
         Self {
             kind: ResourceKind::Agent,
+            name,
+            description,
+            body,
+            tools: None,
+            disallowed_tools: None,
+            model: None,
+            max_turns: None,
+            temperature: None,
+            timeout_mins: None,
+            color: None,
+            license: None,
+            compatibility: None,
+            permission_mode: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
+            skills: None,
+            user_invocable: None,
+            metadata: HashMap::new(),
+            extensions: HashMap::new(),
+        }
+    }
+
+    pub fn new_simple(kind: ResourceKind, name: String, description: String, body: String) -> Self {
+        Self {
+            kind,
             name,
             description,
             body,

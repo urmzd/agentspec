@@ -2,8 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::error::{AppError, Result};
+use crate::error::Result;
 
+/// Legacy `.skill-lock.json` v3 format.
+/// Retained only for migration to the new inventory config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockFile {
     pub version: u32,
@@ -36,12 +38,6 @@ impl LockFile {
         Ok(lock)
     }
 
-    pub fn save(&self, path: &Path) -> Result<()> {
-        let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, data)?;
-        Ok(())
-    }
-
     pub fn empty() -> Self {
         Self {
             version: 3,
@@ -50,53 +46,4 @@ impl LockFile {
             last_selected_agents: Vec::new(),
         }
     }
-
-    pub fn add_entry(&mut self, name: String, entry: LockedEntry) {
-        self.skills.insert(name, entry);
-    }
-
-    pub fn remove_entry(&mut self, name: &str) -> Option<LockedEntry> {
-        self.skills.remove(name)
-    }
-}
-
-impl LockedEntry {
-    pub fn new_github(source: &str, skill_path: &str, hash: &str) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
-        Self {
-            source: source.to_string(),
-            source_type: "github".to_string(),
-            source_url: format!("https://github.com/{source}.git"),
-            skill_path: skill_path.to_string(),
-            skill_folder_hash: hash.to_string(),
-            installed_at: now.clone(),
-            updated_at: now,
-        }
-    }
-}
-
-pub fn compute_folder_hash(dir: &Path) -> Result<String> {
-    use sha1::{Digest, Sha1};
-    use walkdir::WalkDir;
-
-    let mut hasher = Sha1::new();
-    let mut paths: Vec<_> = WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .map(|e| e.into_path())
-        .collect();
-    paths.sort();
-
-    for path in paths {
-        let contents = std::fs::read(&path).map_err(|e| {
-            AppError::Io(std::io::Error::new(
-                e.kind(),
-                format!("{}: {e}", path.display()),
-            ))
-        })?;
-        hasher.update(&contents);
-    }
-
-    Ok(format!("{:x}", hasher.finalize()))
 }

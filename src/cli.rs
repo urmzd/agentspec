@@ -16,65 +16,17 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Manage skills
-    Skill {
-        #[command(subcommand)]
-        action: SkillAction,
-    },
-    /// Manage sub-agents
-    Agent {
-        #[command(subcommand)]
-        action: AgentAction,
-    },
-    /// List detected AI coding tools
-    Tool {
-        #[command(subcommand)]
-        action: ToolAction,
-    },
-    /// Search skills and agents
-    Search {
-        /// Search query
-        query: String,
-        /// Max results
-        #[arg(long, default_value = "20")]
-        limit: usize,
-    },
-    /// Manage AI coding sessions
-    Session {
-        #[command(subcommand)]
-        action: SessionAction,
-    },
-    /// Manage resources: bring under management from local path, git URL, owner/repo, or discovered name
+    /// Manage resources (skills, agents, memories)
     Manage {
         #[command(subcommand)]
         action: ManageAction,
     },
-    /// Discover unmanaged skills and agents across all installed tools
-    Discover,
-    /// Show managed + unmanaged resource inventory
+    /// Show managed and unmanaged resource inventory
     Status,
-    /// Verify integrity of managed resources (checksum validation)
-    Verify {
-        /// Accept current state and update hashes
-        #[arg(long)]
-        accept: bool,
-        /// Accept only this specific resource
-        #[arg(long)]
-        name: Option<String>,
-    },
-    /// Find duplicate resources (by content hash or name)
-    Dedup {
-        /// Only show content duplicates (same hash)
-        #[arg(long)]
-        by_hash: bool,
-        /// Only show name duplicates (same name in multiple locations)
-        #[arg(long)]
-        by_name: bool,
-    },
-    /// Manage Claude Code memories across projects
-    Memory {
+    /// Manage AI coding sessions
+    Session {
         #[command(subcommand)]
-        action: MemoryAction,
+        action: SessionAction,
     },
     /// Launch interactive TUI
     Tui,
@@ -87,7 +39,7 @@ pub enum ManageAction {
         /// Source: local path, git URL, owner/repo, or name of a discovered resource
         source: String,
         /// Override auto-detected kind
-        #[arg(long, value_parser = ["skill", "agent"])]
+        #[arg(long, value_parser = ["skill", "agent", "session", "memory", "project-config", "llms-txt"])]
         kind: Option<String>,
         /// Link to specific tools (comma-separated slugs)
         #[arg(long, value_delimiter = ',')]
@@ -99,6 +51,11 @@ pub enum ManageAction {
         #[arg(long)]
         copy: bool,
     },
+    /// Remove a managed resource
+    Remove {
+        /// Resource name
+        name: String,
+    },
     /// Manage all discovered resources at once
     All {
         /// Link to all detected tools
@@ -108,102 +65,61 @@ pub enum ManageAction {
         #[arg(long)]
         copy: bool,
     },
-    /// List all managed resources
-    List,
-}
-
-#[derive(Subcommand)]
-pub enum SkillAction {
-    /// Install a skill from GitHub or local path
-    Install {
-        /// Source: owner/repo or local path
-        source: String,
-        /// Link to specific tools (comma-separated slugs)
-        #[arg(long, value_delimiter = ',')]
-        tools: Option<Vec<String>>,
-        /// Link to all detected tools
-        #[arg(long)]
-        all_tools: bool,
-    },
-    /// Remove an installed skill
-    Remove {
-        /// Skill name
-        name: String,
-    },
-    /// List installed skills
+    /// List managed resources
     List {
-        /// Filter by linked tool
+        /// Show duplicate resources
         #[arg(long)]
-        tool: Option<String>,
+        dedup: bool,
+        /// Only show content duplicates (same hash)
+        #[arg(long)]
+        by_hash: bool,
+        /// Only show name duplicates (same name in multiple locations)
+        #[arg(long)]
+        by_name: bool,
     },
-    /// Link a skill to a tool
+    /// Link a resource to a tool
     Link {
-        /// Skill name
-        skill: String,
+        /// Resource name
+        name: String,
         /// Tool slug
         tool: String,
     },
-    /// Unlink a skill from a tool
+    /// Unlink a resource from a tool
     Unlink {
-        /// Skill name
-        skill: String,
+        /// Resource name
+        name: String,
         /// Tool slug
         tool: String,
     },
-    /// Validate a SKILL.md file
+    /// Validate a SKILL.md or AGENT.md file
     Validate {
-        /// Path to skill directory or SKILL.md (default: current dir)
+        /// Path to resource directory or markdown file (default: current dir)
         path: Option<String>,
     },
-    /// Create a new skill from template
+    /// Create a new resource from template
     Create {
-        /// Skill name
+        /// Resource name
         name: Option<String>,
+        /// Resource kind
+        #[arg(long, value_parser = ["skill", "agent", "session", "memory", "project-config", "llms-txt"])]
+        kind: Option<String>,
     },
-    /// Update installed skills
+    /// Update managed resources
     Update {
-        /// Skill name (all if omitted)
+        /// Resource name (all if omitted)
         name: Option<String>,
     },
-}
-
-#[derive(Subcommand)]
-pub enum AgentAction {
-    /// Install a sub-agent from GitHub or local path
-    Install {
-        source: String,
-        #[arg(long, value_delimiter = ',')]
-        tools: Option<Vec<String>>,
+    /// Verify integrity of managed resources (checksum validation)
+    Verify {
+        /// Accept current state and update hashes
         #[arg(long)]
-        all_tools: bool,
-    },
-    /// Remove a sub-agent
-    Remove { name: String },
-    /// List installed sub-agents
-    List {
+        accept: bool,
+        /// Accept only this specific resource
         #[arg(long)]
-        tool: Option<String>,
+        name: Option<String>,
     },
-    /// Link a sub-agent to a tool
-    Link { agent: String, tool: String },
-    /// Unlink a sub-agent from a tool
-    Unlink { agent: String, tool: String },
-    /// Validate an agent definition
-    Validate { path: Option<String> },
-    /// Create a new agent from template
-    Create { name: Option<String> },
-}
-
-#[derive(Subcommand)]
-pub enum ToolAction {
-    /// List detected AI coding tools
-    List,
-}
-
-#[derive(Subcommand)]
-pub enum MemoryAction {
     /// List memories across Claude Code projects
-    List {
+    Memory {
         /// Filter by project name or path
         #[arg(long)]
         project: Option<String>,
