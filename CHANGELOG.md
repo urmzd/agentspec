@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 (2026-04-05)
+
+### Features
+
+- unify all resource types under tagged entity model ([85797e8](https://github.com/urmzd/agentspec/commit/85797e854619232832e021f09101db8fd9afd2ba))
+
+### Refactoring
+
+- improve code formatting and consistency ([e8fd9ef](https://github.com/urmzd/agentspec/commit/e8fd9efb65a597413961f727a34c7a26e747cfca))
+- remove legacy lockfile consumers and dead code ([a40cab8](https://github.com/urmzd/agentspec/commit/a40cab86e495ce051c5895a485d98827a49d17cd))
+
+### Miscellaneous
+
+- merge remove-dead-code branch into unified entity model ([6a14e7c](https://github.com/urmzd/agentspec/commit/6a14e7cacf8c49816333bf5b3d2b244155330569))
+- **github**: update verification command in CI workflow ([72a832b](https://github.com/urmzd/agentspec/commit/72a832b1e95fd01e711c6a7b9d462f8dfce1080e))
+- **hooks**: add git commit message hook infrastructure ([4e03756](https://github.com/urmzd/agentspec/commit/4e03756cbf78f538ae5d60265621a1803463cba2))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.3.0...v0.4.0)
+
+
 ## 0.3.0 (2026-04-05)
 
 ### Features
