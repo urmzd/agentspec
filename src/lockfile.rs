@@ -73,7 +73,6 @@ impl LockedEntry {
             updated_at: now,
         }
     }
-
 }
 
 pub fn compute_folder_hash(dir: &Path) -> Result<String> {

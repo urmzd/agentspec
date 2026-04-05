@@ -60,50 +60,6 @@ impl Adapter for GeminiAdapter {
         Ok(r)
     }
 
-    fn emit(&self, resource: &Resource) -> Result<String> {
-        let mut fm = String::from("---\n");
-        fm.push_str(&format!("name: {}\n", resource.name));
-        fm.push_str("description: |\n");
-        for line in resource.description.lines() {
-            fm.push_str(&format!("  {line}\n"));
-        }
-        if let Some(tools) = &resource.tools {
-            fm.push_str("tools:\n");
-            for t in tools {
-                fm.push_str(&format!("  - {t}\n"));
-            }
-        }
-        if let Some(model) = &resource.model {
-            fm.push_str(&format!("model: {model}\n"));
-        }
-        if let Some(temp) = resource.temperature {
-            fm.push_str(&format!("temperature: {temp}\n"));
-        }
-        if let Some(mt) = resource.max_turns {
-            fm.push_str(&format!("max_turns: {mt}\n"));
-        }
-        if let Some(tm) = resource.timeout_mins {
-            fm.push_str(&format!("timeout_mins: {tm}\n"));
-        }
-
-        // Gemini-specific extensions
-        if let Some(serde_yaml::Value::Mapping(ext)) = resource.extensions.get("gemini-cli") {
-            if let Some(kind) = ext.get(serde_yaml::Value::String("kind".into()))
-                && let Some(k) = kind.as_str()
-            {
-                fm.push_str(&format!("kind: {k}\n"));
-            }
-            if let Some(mcp) = ext.get(serde_yaml::Value::String("mcpServers".into())) {
-                let val = serde_yaml::to_string(mcp).unwrap_or_default();
-                fm.push_str(&format!("mcpServers: {}", val.trim_start()));
-            }
-        }
-
-        fm.push_str("---\n\n");
-        fm.push_str(&resource.body);
-        Ok(fm)
-    }
-
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.name.is_empty() {
