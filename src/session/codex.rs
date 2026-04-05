@@ -1,6 +1,7 @@
 use crate::error::{AppError, Result};
 use chrono::{DateTime, Utc};
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use super::*;
@@ -19,27 +20,58 @@ fn sessions_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-fn find_all_session_files(dir: &Path) -> Result<Vec<PathBuf>> {
+/// Walk the known `year/month/day/` hierarchy to collect .jsonl files.
+fn find_all_session_files(root: &Path) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
-    collect_jsonl_files(dir, &mut files)?;
+
+    // year dirs
+    let years = match fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return Ok(files),
+    };
+    for year in years.filter_map(|e| e.ok()) {
+        if !year.path().is_dir() {
+            continue;
+        }
+        // month dirs
+        let months = match fs::read_dir(year.path()) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for month in months.filter_map(|e| e.ok()) {
+            if !month.path().is_dir() {
+                continue;
+            }
+            // day dirs
+            let days = match fs::read_dir(month.path()) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            for day in days.filter_map(|e| e.ok()) {
+                if !day.path().is_dir() {
+                    continue;
+                }
+                // .jsonl files in day dir
+                let entries = match fs::read_dir(day.path()) {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if path.extension().is_some_and(|e| e == "jsonl") {
+                        files.push(path);
+                    }
+                }
+            }
+        }
+    }
+
     files.sort_by(|a, b| b.cmp(a));
     Ok(files)
 }
 
-fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_jsonl_files(&path, files)?;
-        } else if path.extension().is_some_and(|e| e == "jsonl") {
-            files.push(path);
-        }
-    }
-    Ok(())
-}
-
-fn extract_session_id_from_filename(path: &Path) -> String {
+/// Extract session ID (UUID) from filename like `rollout-2025-11-24T06-05-13-{uuid}.jsonl`.
+fn extract_session_id(path: &Path) -> String {
     let stem = path
         .file_stem()
         .unwrap_or_default()
@@ -54,13 +86,89 @@ fn extract_session_id_from_filename(path: &Path) -> String {
     stem
 }
 
+/// Parse timestamp from filename like `rollout-2025-11-24T06-05-13-{uuid}.jsonl`.
+fn extract_timestamp(path: &Path) -> Option<DateTime<Utc>> {
+    let stem = path.file_stem()?.to_string_lossy().to_string();
+    let after = &stem[stem.find("rollout-")? + 8..];
+    if after.len() < 19 {
+        return None;
+    }
+    let raw = &after[..19]; // "2025-11-24T06-05-13"
+    let formatted = format!(
+        "{}-{}-{}T{}:{}:{}Z",
+        &raw[0..4],
+        &raw[5..7],
+        &raw[8..10],
+        &raw[11..13],
+        &raw[14..16],
+        &raw[17..19]
+    );
+    formatted.parse::<DateTime<Utc>>().ok()
+}
+
+/// Build metadata from filename alone — no file I/O.
+fn meta_from_filename(path: &Path) -> SessionMeta {
+    SessionMeta {
+        id: extract_session_id(path),
+        source: Source::Codex,
+        cwd: None,
+        started_at: extract_timestamp(path),
+        first_prompt: None,
+    }
+}
+
+/// Enrich metadata by reading the first few lines for cwd and first_prompt.
+fn enrich_meta(path: &Path, mut meta: SessionMeta) -> SessionMeta {
+    let file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return meta,
+    };
+    let reader = BufReader::new(file);
+
+    for line in reader.lines().take(20).filter_map(|l| l.ok()) {
+        let v: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let entry_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+        if entry_type == "session_meta" {
+            let payload = &v["payload"];
+            if meta.cwd.is_none() {
+                if let Some(c) = payload.get("cwd").and_then(|c| c.as_str()) {
+                    meta.cwd = Some(c.to_string());
+                }
+            }
+        }
+
+        if entry_type == "event_msg" {
+            let payload = &v["payload"];
+            let evt_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            if evt_type == "user_message"
+                && meta.first_prompt.is_none()
+                && let Some(msg) = payload.get("message").and_then(|m| m.as_str())
+                && !msg.is_empty()
+            {
+                meta.first_prompt = Some(msg.chars().take(100).collect());
+            }
+        }
+
+        if meta.cwd.is_some() && meta.first_prompt.is_some() {
+            break;
+        }
+    }
+
+    meta
+}
+
 fn parse_session_file(path: &Path) -> Result<Session> {
     let content = fs::read_to_string(path)?;
     let mut messages = Vec::new();
     let mut cwd = None;
-    let mut started_at = None;
+    let mut started_at = extract_timestamp(path);
     let mut first_prompt = None;
-    let mut session_id = extract_session_id_from_filename(path);
+    let session_id = extract_session_id(path);
 
     for line in content.lines() {
         let v: serde_json::Value = match serde_json::from_str(line) {
@@ -77,14 +185,13 @@ fn parse_session_file(path: &Path) -> Result<Session> {
         match entry_type {
             "session_meta" => {
                 let payload = &v["payload"];
-                if let Some(id) = payload.get("id").and_then(|i| i.as_str()) {
-                    session_id = id.to_string();
-                }
                 if let Some(c) = payload.get("cwd").and_then(|c| c.as_str()) {
                     cwd = Some(c.to_string());
                 }
-                if let Some(ts) = payload.get("timestamp").and_then(|t| t.as_str()) {
-                    started_at = ts.parse::<DateTime<Utc>>().ok();
+                if started_at.is_none() {
+                    if let Some(ts) = payload.get("timestamp").and_then(|t| t.as_str()) {
+                        started_at = ts.parse::<DateTime<Utc>>().ok();
+                    }
                 }
             }
             "response_item" => {
@@ -218,67 +325,14 @@ fn parse_codex_content(val: &serde_json::Value) -> Vec<ContentBlock> {
     blocks
 }
 
-fn quick_parse_meta(path: &Path) -> Result<SessionMeta> {
-    let session_id = extract_session_id_from_filename(path);
-    let content = fs::read_to_string(path)?;
-    let mut cwd = None;
-    let mut started_at = None;
-    let mut first_prompt = None;
-
-    for line in content.lines().take(20) {
-        let v: serde_json::Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-
-        let entry_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
-
-        if entry_type == "session_meta" {
-            let payload = &v["payload"];
-            if let Some(c) = payload.get("cwd").and_then(|c| c.as_str()) {
-                cwd = Some(c.to_string());
-            }
-            if let Some(ts) = payload.get("timestamp").and_then(|t| t.as_str()) {
-                started_at = ts.parse::<DateTime<Utc>>().ok();
-            }
-        }
-
-        if entry_type == "event_msg" {
-            let payload = &v["payload"];
-            let evt_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
-            if evt_type == "user_message"
-                && let Some(msg) = payload.get("message").and_then(|m| m.as_str())
-                && first_prompt.is_none()
-                && !msg.is_empty()
-            {
-                first_prompt = Some(msg.chars().take(100).collect());
-            }
-        }
-
-        if cwd.is_some() && started_at.is_some() && first_prompt.is_some() {
-            break;
-        }
-    }
-
-    Ok(SessionMeta {
-        id: session_id,
-        source: Source::Codex,
-        cwd,
-        started_at,
-        first_prompt,
-    })
-}
-
 impl SessionSource for CodexSource {
     fn list_sessions(&self) -> Result<Vec<SessionMeta>> {
         let dir = sessions_dir()?;
         let files = find_all_session_files(&dir)?;
-        let mut sessions = Vec::new();
-        for path in files {
-            if let Ok(meta) = quick_parse_meta(&path) {
-                sessions.push(meta);
-            }
-        }
+        let mut sessions: Vec<SessionMeta> = files
+            .iter()
+            .map(|p| enrich_meta(p, meta_from_filename(p)))
+            .collect();
         sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
         Ok(sessions)
     }
@@ -287,8 +341,7 @@ impl SessionSource for CodexSource {
         let dir = sessions_dir()?;
         let files = find_all_session_files(&dir)?;
         for path in &files {
-            let file_id = extract_session_id_from_filename(path);
-            if file_id == id {
+            if extract_session_id(path) == id {
                 return parse_session_file(path);
             }
         }

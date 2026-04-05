@@ -62,21 +62,21 @@ fn scan_skills_dir(
     cfg: &Config,
     found: &mut Vec<DiscoveredResource>,
 ) -> Result<()> {
-    // Recursive traversal — find SKILL.md at any depth
-    for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_name() != "SKILL.md" {
+    // Convention: skills are {dir}/{name}/SKILL.md — one level deep.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let skill_dir = entry.path();
+
+        // Skip symlinks (managed) and non-directories
+        if skill_dir.is_symlink() || !skill_dir.is_dir() {
             continue;
         }
-        let skill_dir = entry.path().parent().unwrap();
 
-        // Skip symlinks — those are managed
-        if skill_dir
-            .symlink_metadata()
-            .is_ok_and(|m| m.file_type().is_symlink())
-        {
+        if !skill_dir.join("SKILL.md").exists() {
             continue;
         }
 
@@ -91,7 +91,7 @@ fn scan_skills_dir(
             path: skill_dir.to_string_lossy().to_string(),
         };
 
-        let content_hash = hash_resource(TrackedKind::Skill, skill_dir).ok();
+        let content_hash = hash_resource(TrackedKind::Skill, &skill_dir).ok();
 
         if let Some(existing) = found
             .iter_mut()
@@ -119,29 +119,24 @@ fn scan_agents_dir(
     cfg: &Config,
     found: &mut Vec<DiscoveredResource>,
 ) -> Result<()> {
-    // Recursive traversal — find agent .md files at any depth
-    for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    // Convention: agents are {dir}/{name}.md — flat files.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
-        if path.is_symlink() || entry.path_is_symlink() {
+
+        if path.is_symlink() {
             continue;
         }
         if path.extension().and_then(|e| e.to_str()) != Some("md") {
             continue;
         }
-        // Skip SKILL.md (handled by skill scanner) and AGENTS.md (project-level config, not a sub-agent)
+
         let fname = path.file_name().unwrap().to_string_lossy();
         if fname == "SKILL.md" || fname.eq_ignore_ascii_case("AGENTS.md") {
-            continue;
-        }
-
-        let content = std::fs::read_to_string(path).unwrap_or_default();
-        if !content.starts_with("---")
-            || !content.contains("name:")
-            || !content.contains("description:")
-        {
             continue;
         }
 
@@ -156,7 +151,7 @@ fn scan_agents_dir(
             path: path.to_string_lossy().to_string(),
         };
 
-        let content_hash = inventory::hash_file(path).ok();
+        let content_hash = inventory::hash_file(&path).ok();
 
         if let Some(existing) = found
             .iter_mut()
@@ -503,6 +498,7 @@ pub fn status(json: bool) -> Result<()> {
 }
 
 /// Scan decoded project roots for AGENTS.md, CLAUDE.md, and llms.txt.
+/// Only considers directories that are git repositories (contain .git).
 fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     let project_infos = memory::scan_project_infos();
 
@@ -510,6 +506,12 @@ fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
         let Some(ref pp) = p.project_path else {
             continue;
         };
+
+        // Only scan actual git repositories
+        if !pp.join(".git").exists() {
+            continue;
+        }
+
         let project_name = pp
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
