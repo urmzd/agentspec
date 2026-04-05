@@ -177,6 +177,11 @@ impl Config {
             .find(|r| r.name == name && r.kind == kind)
     }
 
+    pub fn remove(&mut self, name: &str, kind: TrackedKind) {
+        self.resources
+            .retain(|r| !(r.name == name && r.kind == kind));
+    }
+
     pub fn add(&mut self, resource: TrackedResource) {
         if let Some(existing) = self.find_mut(&resource.name, resource.kind) {
             *existing = resource;

@@ -159,7 +159,6 @@ impl Resource {
             user_invocable: None,
             metadata: HashMap::new(),
             extensions: HashMap::new(),
-            source_path: None,
         }
     }
 }

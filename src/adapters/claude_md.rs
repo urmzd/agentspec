@@ -18,13 +18,8 @@ impl Adapter for ClaudeMdAdapter {
         let content = std::fs::read_to_string(path)?;
         let (name, description, body) = super::agents_md::parse_heading_doc(&content);
 
-        let mut r = Resource::new_simple(ResourceKind::ProjectConfig, name, description, body);
-        r.source_path = Some(path.to_path_buf());
+        let r = Resource::new_simple(ResourceKind::ProjectConfig, name, description, body);
         Ok(r)
-    }
-
-    fn emit(&self, resource: &Resource) -> Result<String> {
-        Ok(format!("# {}\n\n{}", resource.name, resource.body))
     }
 
     fn validate(&self, resource: &Resource) -> Vec<String> {
