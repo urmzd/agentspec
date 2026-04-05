@@ -53,9 +53,7 @@ pub fn remove_tracked(name: &str, kind: TrackedKind) -> Result<()> {
     let mut cfg = inventory::load_config()?;
 
     if cfg.find(name, kind).is_none() {
-        return Err(AppError::Other(format!(
-            "{kind} '{name}' is not tracked"
-        )));
+        return Err(AppError::Other(format!("{kind} '{name}' is not tracked")));
     }
 
     cfg.remove(name, kind);

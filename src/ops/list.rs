@@ -26,7 +26,11 @@ pub fn list_skills(tool_filter: Option<&str>, json: bool) -> Result<()> {
 
     let mut resources: Vec<(String, Option<Resource>, Vec<String>)> = Vec::new();
 
-    for tracked in cfg.resources.iter().filter(|r| r.kind == TrackedKind::Skill) {
+    for tracked in cfg
+        .resources
+        .iter()
+        .filter(|r| r.kind == TrackedKind::Skill)
+    {
         let name = &tracked.name;
         let skill_dir = skills_dir.join(name);
         let skill_md = skill_dir.join("SKILL.md");
