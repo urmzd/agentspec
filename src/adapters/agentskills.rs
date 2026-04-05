@@ -43,40 +43,7 @@ impl Adapter for AgentSkillsAdapter {
         r.compatibility = fm.compatibility;
         r.user_invocable = fm.user_invocable;
         r.metadata = fm.metadata.unwrap_or_default();
-        r.source_path = Some(path.to_path_buf());
         Ok(r)
-    }
-
-    fn emit(&self, resource: &Resource) -> Result<String> {
-        let mut fm = String::from("---\n");
-        fm.push_str(&format!("name: {}\n", resource.name));
-        fm.push_str("description: |\n");
-        for line in resource.description.lines() {
-            fm.push_str(&format!("  {line}\n"));
-        }
-        if let Some(tools) = &resource.tools {
-            fm.push_str(&format!("allowed-tools: {}\n", tools.join(" ")));
-        }
-        if let Some(license) = &resource.license {
-            fm.push_str(&format!("license: {license}\n"));
-        }
-        if let Some(compat) = &resource.compatibility {
-            fm.push_str(&format!("compatibility: {compat}\n"));
-        }
-        if let Some(true) = resource.user_invocable {
-            fm.push_str("user-invocable: true\n");
-        }
-        if !resource.metadata.is_empty() {
-            fm.push_str("metadata:\n");
-            for (k, v) in &resource.metadata {
-                let val = serde_yaml::to_string(v).unwrap_or_default();
-                fm.push_str(&format!("  {k}: {}", val.trim()));
-                fm.push('\n');
-            }
-        }
-        fm.push_str("---\n\n");
-        fm.push_str(&resource.body);
-        Ok(fm)
     }
 
     fn validate(&self, resource: &Resource) -> Vec<String> {
