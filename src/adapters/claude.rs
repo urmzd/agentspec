@@ -77,8 +77,6 @@ impl Adapter for ClaudeAdapter {
         r.effort = fm.effort;
         r.isolation = fm.isolation;
         r.initial_prompt = fm.initial_prompt;
-        r.source_path = Some(path.to_path_buf());
-
         // Stash vendor-specific fields in extensions
         let mut ext = serde_yaml::Mapping::new();
         if let Some(hooks) = fm.hooks {

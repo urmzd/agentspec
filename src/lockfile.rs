@@ -74,19 +74,6 @@ impl LockedEntry {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn new_local(path: &str, hash: &str) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
-        Self {
-            source: path.to_string(),
-            source_type: "local".to_string(),
-            source_url: String::new(),
-            skill_path: path.to_string(),
-            skill_folder_hash: hash.to_string(),
-            installed_at: now.clone(),
-            updated_at: now,
-        }
-    }
 }
 
 pub fn compute_folder_hash(dir: &Path) -> Result<String> {
