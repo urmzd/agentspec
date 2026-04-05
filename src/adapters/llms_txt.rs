@@ -18,18 +18,8 @@ impl Adapter for LlmsTxtAdapter {
         let content = std::fs::read_to_string(path)?;
         let (name, description, body) = parse_llms_txt(&content);
 
-        let mut r = Resource::new_simple(ResourceKind::LlmsTxt, name, description, body);
-        r.source_path = Some(path.to_path_buf());
+        let r = Resource::new_simple(ResourceKind::LlmsTxt, name, description, body);
         Ok(r)
-    }
-
-    fn emit(&self, resource: &Resource) -> Result<String> {
-        let mut out = format!("# {}\n\n", resource.name);
-        if !resource.description.is_empty() {
-            out.push_str(&format!("> {}\n\n", resource.description));
-        }
-        out.push_str(&resource.body);
-        Ok(out)
     }
 
     fn validate(&self, resource: &Resource) -> Vec<String> {
