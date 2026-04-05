@@ -88,11 +88,7 @@ const SKIP_DIRS: &[&str] = &[
 ];
 
 /// Broad scan from a root directory looking for SKILL.md and agent .md files.
-fn broad_scan(
-    root: &Path,
-    cfg: &Config,
-    found: &mut Vec<DiscoveredResource>,
-) -> Result<()> {
+fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) -> Result<()> {
     // Collect known dirs to skip (already scanned in pass 1)
     let known_dirs: Vec<PathBuf> = {
         let mut dirs = vec![config::shared_skills_dir(), config::shared_agents_dir()];
@@ -135,11 +131,7 @@ fn broad_scan(
             if skill_dir.is_symlink() {
                 continue;
             }
-            let name = skill_dir
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .to_string();
+            let name = skill_dir.file_name().unwrap().to_string_lossy().to_string();
             if cfg.find(&name, TrackedKind::Skill).is_some() {
                 continue;
             }

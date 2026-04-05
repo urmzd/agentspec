@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crossterm::event::{Event, KeyCode, KeyModifiers};
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::prelude::*;
 
 use crate::adapters::{self, Adapter};

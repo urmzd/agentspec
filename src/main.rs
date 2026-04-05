@@ -57,22 +57,15 @@ async fn main() -> color_eyre::Result<()> {
             let broad_root = if fast {
                 None
             } else {
-                Some(std::path::PathBuf::from(
-                    root.unwrap_or_else(|| {
-                        dirs::home_dir()
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_string()
-                    }),
-                ))
+                Some(std::path::PathBuf::from(root.unwrap_or_else(|| {
+                    dirs::home_dir().unwrap().to_string_lossy().to_string()
+                })))
             };
             ops::discover::refresh_cache_with_root(broad_root.as_deref())?;
             ops::discover::status(cli.json)?;
         }
         Some(Command::Sync { root, fast, adopt }) => {
-            let sync_root = root
-                .map(std::path::PathBuf::from)
-                .or_else(|| dirs::home_dir());
+            let sync_root = root.map(std::path::PathBuf::from).or_else(dirs::home_dir);
             ops::sync::sync(sync_root.as_deref(), fast, adopt, cli.json)?;
         }
         Some(Command::Session { action }) => match action {

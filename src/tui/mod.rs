@@ -13,11 +13,7 @@ use crate::error::Result;
 
 fn restore_terminal() {
     let _ = disable_raw_mode();
-    let _ = execute!(
-        std::io::stdout(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    );
+    let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
 }
 
 pub async fn run() -> Result<()> {
