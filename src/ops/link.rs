@@ -144,6 +144,72 @@ pub fn make_relative_public(from: &Path, to: &Path) -> std::path::PathBuf {
     make_relative(from, to)
 }
 
+/// Ensure all managed resources are symlinked to all installed tools.
+/// Creates missing symlinks, skips existing ones. Returns count of newly created links.
+pub fn ensure_all_links(copy: bool) -> Result<usize> {
+    use crate::inventory;
+
+    let cfg = inventory::load_config()?;
+    let installed = tools::installed_tools();
+    let mut created = 0;
+
+    for resource in &cfg.resources {
+        let kind: ResourceKind = resource.kind.into();
+        if !matches!(kind, ResourceKind::Skill | ResourceKind::Agent) {
+            continue;
+        }
+
+        for tool in &installed {
+            let tool_dir = match kind {
+                ResourceKind::Skill => tool.skills_dir(),
+                ResourceKind::Agent => tool.agents_dir(),
+                _ => None,
+            };
+            let Some(tool_dir) = tool_dir else { continue };
+
+            let link_path = match kind {
+                ResourceKind::Skill => tool_dir.join(&resource.name),
+                ResourceKind::Agent => tool_dir.join(format!("{}.md", resource.name)),
+                _ => continue,
+            };
+
+            // Already exists (symlink or file) — skip
+            if link_path.exists() || link_path.is_symlink() {
+                continue;
+            }
+
+            // Create parent dir if needed
+            std::fs::create_dir_all(&tool_dir)?;
+
+            let shared_path = match kind {
+                ResourceKind::Skill => config::shared_skills_dir().join(&resource.name),
+                ResourceKind::Agent => {
+                    config::shared_agents_dir().join(format!("{}.md", resource.name))
+                }
+                _ => continue,
+            };
+
+            if !shared_path.exists() {
+                continue;
+            }
+
+            if copy {
+                if shared_path.is_dir() {
+                    copy_dir_recursive(&shared_path, &link_path)?;
+                } else {
+                    std::fs::copy(&shared_path, &link_path)?;
+                }
+            } else {
+                let target = make_relative(&link_path, &shared_path);
+                std::os::unix::fs::symlink(&target, &link_path)?;
+            }
+            created += 1;
+        }
+    }
+
+    Ok(created)
+}
+
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in walkdir::WalkDir::new(src)

@@ -1,6 +1,8 @@
 use std::time::Duration;
 
 use crossterm::event::{Event, KeyCode, KeyModifiers};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::prelude::*;
 
 use crate::adapters::{self, Adapter};
@@ -349,63 +351,50 @@ impl App {
     }
 
     pub fn filtered_skills(&self) -> Vec<&SkillEntry> {
-        self.skills
-            .iter()
-            .filter(|s| {
-                self.filter.is_empty()
-                    || s.name.contains(&self.filter)
-                    || s.description
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-            })
-            .collect()
+        fuzzy_filter(&self.filter, self.skills.iter(), |s| {
+            format!("{} {}", s.name, s.description)
+        })
     }
 
     pub fn filtered_agents(&self) -> Vec<&AgentEntry> {
-        self.agents
-            .iter()
-            .filter(|a| {
-                self.filter.is_empty()
-                    || a.name.contains(&self.filter)
-                    || a.description
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-            })
-            .collect()
+        fuzzy_filter(&self.filter, self.agents.iter(), |a| {
+            format!("{} {}", a.name, a.description)
+        })
     }
 
     pub fn filtered_sessions(&self) -> Vec<&SessionEntry> {
-        self.sessions
-            .items()
-            .iter()
-            .filter(|s| {
-                self.filter.is_empty()
-                    || s.source
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-                    || s.prompt
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-            })
-            .collect()
+        fuzzy_filter(&self.filter, self.sessions.items().iter(), |s| {
+            format!("{} {}", s.source, s.prompt)
+        })
     }
 
     pub fn filtered_memories(&self) -> Vec<&MemoryEntry> {
-        self.memories
-            .items()
-            .iter()
-            .filter(|m| {
-                self.filter.is_empty()
-                    || m.name.to_lowercase().contains(&self.filter.to_lowercase())
-                    || m.project
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-                    || m.memory_type
-                        .to_lowercase()
-                        .contains(&self.filter.to_lowercase())
-            })
-            .collect()
+        fuzzy_filter(&self.filter, self.memories.items().iter(), |m| {
+            format!("{} {} {}", m.name, m.memory_type, m.project)
+        })
     }
+}
+
+/// Fuzzy-filter items by query, returning matches sorted by score (best first).
+/// Returns all items in original order when query is empty.
+fn fuzzy_filter<'a, T, I, F>(query: &str, items: I, searchable: F) -> Vec<&'a T>
+where
+    I: Iterator<Item = &'a T>,
+    F: Fn(&T) -> String,
+{
+    if query.is_empty() {
+        return items.collect();
+    }
+
+    let matcher = SkimMatcherV2::default();
+    let mut scored: Vec<(&T, i64)> = items
+        .filter_map(|item| {
+            let text = searchable(item);
+            matcher.fuzzy_match(&text, query).map(|score| (item, score))
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.into_iter().map(|(item, _)| item).collect()
 }
 
 // ---------------------------------------------------------------------------

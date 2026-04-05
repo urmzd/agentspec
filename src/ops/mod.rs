@@ -6,5 +6,6 @@ pub mod list;
 pub mod manage;
 pub mod memory;
 pub mod remove;
+pub mod sync;
 pub mod validate;
 pub mod verify;
