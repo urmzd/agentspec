@@ -43,7 +43,6 @@ impl Adapter for AgentSkillsAdapter {
         r.compatibility = fm.compatibility;
         r.user_invocable = fm.user_invocable;
         r.metadata = fm.metadata.unwrap_or_default();
-        r.source_path = Some(path.to_path_buf());
         Ok(r)
     }
 

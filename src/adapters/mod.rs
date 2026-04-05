@@ -10,7 +10,6 @@ use crate::ir::Resource;
 /// Trait for vendor-specific format adapters.
 /// Each adapter can parse a vendor's file format into the canonical IR
 /// and emit the IR back into that vendor's format.
-#[allow(dead_code)]
 pub trait Adapter: Send + Sync {
     /// Vendor identifier (e.g. "agentskills", "claude-code", "gemini-cli")
     fn vendor(&self) -> &str;
@@ -23,16 +22,6 @@ pub trait Adapter: Send + Sync {
 
     /// Validate vendor-specific constraints beyond the base IR.
     fn validate(&self, resource: &Resource) -> Vec<String>;
-}
-
-/// Get all registered adapters.
-#[allow(dead_code)]
-pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
-    vec![
-        Box::new(agentskills::AgentSkillsAdapter),
-        Box::new(claude::ClaudeAdapter),
-        Box::new(gemini::GeminiAdapter),
-    ]
 }
 
 /// Find the best adapter for a given file path.

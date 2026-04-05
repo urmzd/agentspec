@@ -41,8 +41,6 @@ impl Adapter for GeminiAdapter {
         r.temperature = fm.temperature;
         r.max_turns = fm.max_turns;
         r.timeout_mins = fm.timeout_mins;
-        r.source_path = Some(path.to_path_buf());
-
         // Stash Gemini-specific fields
         let mut ext = serde_yaml::Mapping::new();
         if let Some(kind) = fm.kind {

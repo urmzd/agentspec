@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// The canonical intermediate representation for any agent resource.
 /// Vendor-specific formats adapt to/from this IR.
@@ -55,10 +54,6 @@ pub struct Resource {
     /// e.g. { "claude-code": { "hooks": {...} }, "gemini-cli": { "kind": "local" } }
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub extensions: HashMap<String, serde_yaml::Value>,
-
-    /// Source path this resource was loaded from (not serialized to output).
-    #[serde(skip)]
-    pub source_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,7 +97,6 @@ impl Resource {
             user_invocable: None,
             metadata: HashMap::new(),
             extensions: HashMap::new(),
-            source_path: None,
         }
     }
 
@@ -130,7 +124,6 @@ impl Resource {
             user_invocable: None,
             metadata: HashMap::new(),
             extensions: HashMap::new(),
-            source_path: None,
         }
     }
 }
