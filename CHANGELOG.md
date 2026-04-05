@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 (2026-04-05)
+
+### Bug Fixes
+
+- improve session parsing performance and unicode-safe truncation (#6) ([343ea88](https://github.com/urmzd/agentspec/commit/343ea88fd18836e9909d074afc8f9e45d4a95e15))
+
+### Miscellaneous
+
+- add linguist overrides to fix language stats (#7) ([1f49ea1](https://github.com/urmzd/agentspec/commit/1f49ea19e0446e7c20e36052847460dc5523e8de))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.4.0...v0.4.1)
+
+
 ## 0.4.0 (2026-04-05)
 
 ### Features
