@@ -61,4 +61,4 @@ jobs:
       - name: Verify binary runs
         run: |
           ./target/release/agentspec --help
-          ./target/release/agentspec tool list --json
+          ./target/release/agentspec status --json
