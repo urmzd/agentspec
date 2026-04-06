@@ -6,6 +6,7 @@ use crate::config;
 use crate::error::{AppError, Result};
 use crate::inventory::{self, Config, SourceType, TrackedKind, TrackedResource, hash_resource};
 use crate::ir::ResourceKind;
+use crate::ops::discover;
 use crate::ops::link;
 use crate::tools;
 
@@ -192,11 +193,7 @@ fn install_from_dir(
             continue;
         }
 
-        let content = std::fs::read_to_string(path).unwrap_or_default();
-        if !content.starts_with("---")
-            || !content.contains("name:")
-            || !content.contains("description:")
-        {
+        if !discover::has_valid_agent_frontmatter(path) {
             continue;
         }
 
