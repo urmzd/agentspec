@@ -29,6 +29,9 @@ pub enum Command {
         /// Skip broad discovery, only scan known tool dirs
         #[arg(long)]
         fast: bool,
+        /// Extra paths to scan (bypasses SKIP_DIRS)
+        #[arg(long, value_delimiter = ',')]
+        path: Option<Vec<String>>,
     },
     /// Discover, adopt, link, and verify all resources
     Sync {
@@ -41,6 +44,9 @@ pub enum Command {
         /// Auto-adopt all discovered resources without prompting
         #[arg(long)]
         adopt: bool,
+        /// Extra paths to scan (bypasses SKIP_DIRS)
+        #[arg(long, value_delimiter = ',')]
+        path: Option<Vec<String>>,
     },
     /// Manage AI coding sessions
     Session {
