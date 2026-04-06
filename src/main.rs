@@ -53,7 +53,7 @@ async fn main() -> color_eyre::Result<()> {
         Some(Command::Tui) => {
             tui::run().await?;
         }
-        Some(Command::Status { root, fast }) => {
+        Some(Command::Status { root, fast, path }) => {
             let broad_root = if fast {
                 None
             } else {
@@ -61,12 +61,27 @@ async fn main() -> color_eyre::Result<()> {
                     dirs::home_dir().unwrap().to_string_lossy().to_string()
                 })))
             };
-            ops::discover::refresh_cache_with_root(broad_root.as_deref())?;
+            let extra_paths: Vec<std::path::PathBuf> = path
+                .unwrap_or_default()
+                .into_iter()
+                .map(std::path::PathBuf::from)
+                .collect();
+            ops::discover::refresh_cache_with_root(broad_root.as_deref(), &extra_paths)?;
             ops::discover::status(cli.json)?;
         }
-        Some(Command::Sync { root, fast, adopt }) => {
+        Some(Command::Sync {
+            root,
+            fast,
+            adopt,
+            path,
+        }) => {
             let sync_root = root.map(std::path::PathBuf::from).or_else(dirs::home_dir);
-            ops::sync::sync(sync_root.as_deref(), fast, adopt, cli.json)?;
+            let extra_paths: Vec<std::path::PathBuf> = path
+                .unwrap_or_default()
+                .into_iter()
+                .map(std::path::PathBuf::from)
+                .collect();
+            ops::sync::sync(sync_root.as_deref(), fast, adopt, cli.json, &extra_paths)?;
         }
         Some(Command::Session { action }) => match action {
             SessionAction::Find => {

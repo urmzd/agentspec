@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use console::style;
 
@@ -6,14 +6,20 @@ use crate::error::Result;
 use crate::ops::{discover, link, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
-pub fn sync(root: Option<&Path>, fast: bool, auto_adopt: bool, json: bool) -> Result<()> {
+pub fn sync(
+    root: Option<&Path>,
+    fast: bool,
+    auto_adopt: bool,
+    json: bool,
+    extra_paths: &[PathBuf],
+) -> Result<()> {
     // 1. Discover
     if !json {
         println!("  {} Scanning for resources...", style("→").cyan());
     }
 
     let broad_root = if fast { None } else { root };
-    discover::refresh_cache_with_root(broad_root)?;
+    discover::refresh_cache_with_root(broad_root, extra_paths)?;
 
     let cfg = crate::inventory::load_config()?;
     let discovered_count = cfg.discovered.len();
