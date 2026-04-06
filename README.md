@@ -1,45 +1,46 @@
-<div align="center">
+<p align="center">
+  <h1 align="center">agentspec</h1>
+  <p align="center">
+    Universal agent skill and sub-agent manager with TUI.
+    <br /><br />
+    <a href="#installation">Install</a>
+    &middot;
+    <a href="https://github.com/urmzd/agentspec/issues">Report Bug</a>
+    &middot;
+    <a href="https://crates.io/crates/agentspec">Crates.io</a>
+  </p>
+</p>
 
-# agentspec
+<p align="center">
+  <a href="https://github.com/urmzd/agentspec/actions/workflows/ci.yml"><img src="https://github.com/urmzd/agentspec/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://crates.io/crates/agentspec"><img src="https://img.shields.io/crates/v/agentspec.svg" alt="crates.io"></a>
+</p>
 
-Universal agent skill and sub-agent manager with TUI.
+<p align="center">
+  <img src="showcase/tui.gif" alt="agentspec TUI" width="80%">
+</p>
 
-[![CI](https://github.com/urmzd/agentspec/actions/workflows/ci.yml/badge.svg)](https://github.com/urmzd/agentspec/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/agentspec.svg)](https://crates.io/crates/agentspec)
+## Features
 
-<br>
-<a href="#usage">
-  <img src="showcase/tui.gif" alt="agentspec TUI" width="600">
-</a>
-<br>
-
-[Install](#installation) | [Usage](#usage) | [Architecture](#architecture)
-
-</div>
-
-## Overview
-
-`agentspec` manages [agentskills.io](https://agentskills.io) skills and sub-agent definitions across all your AI coding tools from a single CLI. It uses an **IR (intermediate representation)** layer so vendor-specific formats (Claude Code, Gemini CLI, etc.) are translated to a canonical form, eliminating vendor lock-in.
+- **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, and llms-txt across tools.
+- **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
+- **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
+- **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex) as markdown.
+- **Memory browser.** Browse Claude Code memories across projects, filter by type.
+- **Deduplication.** Find duplicate resources by content hash or name.
+- **TUI.** Interactive terminal UI with tabbed views and link picker.
+- **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini).
 
 ### Supported tools
 
 Claude Code, Cline, Windsurf, OpenHands, Gemini CLI, GitHub Copilot, Amp, Cursor, Codex, OpenCode, Kimi CLI
-
-## Features
-
-- **Skills & Agents** — install, remove, link, unlink, create, validate, and update across tools
-- **Sessions** — list, fuzzy-find, and export AI coding sessions (Claude, Codex) as markdown
-- **Tool detection** — auto-discovers installed AI coding tools on your machine
-- **Search** — find skills on GitHub directly from the CLI
-- **TUI** — interactive terminal UI with tabbed views and link picker
-- **IR layer** — canonical representation with vendor adapters (agentskills, Claude, Gemini)
 
 ## Installation
 
 ### Script
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/scripts/install.sh | sh
 ```
 
 ### Cargo
@@ -56,70 +57,56 @@ cd agentspec
 cargo build --release
 ```
 
+## Quick Start
+
+```sh
+# Launch the interactive TUI
+agentspec
+
+# Discover all resources and link to every detected tool
+agentspec sync --adopt
+
+# Add a skill from GitHub and link to all tools
+agentspec manage add owner/repo --all-tools
+```
+
 ## Usage
 
 ```
-agentspec                                # Launch interactive TUI
+agentspec                                    # Launch interactive TUI
 
-# Skills
-agentspec skill list                     # List installed skills with tool linkage
-agentspec skill install owner/repo       # Install from GitHub
-agentspec skill link <skill> <tool>      # Symlink skill to a tool
-agentspec skill unlink <skill> <tool>
-agentspec skill validate [path]          # Validate SKILL.md
-agentspec skill create [name]            # Scaffold a new skill
-agentspec skill remove <name>
+# Status & sync
+agentspec status                             # Show managed and unmanaged resources
+agentspec status --fast                      # Skip broad filesystem scan
+agentspec sync                               # Discover, adopt, link, and verify
+agentspec sync --adopt                       # Auto-adopt all discovered resources
 
-# Agents
-agentspec agent list                     # List sub-agents across tools
-agentspec agent install owner/repo
-agentspec agent link <agent> <tool>
-agentspec agent validate [path]
-agentspec agent create [name]
-agentspec agent remove <name>
+# Resource management
+agentspec manage add <source>                # Add resource (path, git URL, owner/repo)
+agentspec manage add <source> --all-tools    # Add and link to all detected tools
+agentspec manage add <source> --kind agent   # Override auto-detected kind
+agentspec manage remove <name>               # Remove a managed resource
+agentspec manage all --all-tools             # Adopt all discovered resources
+agentspec manage list                        # List managed resources
+agentspec manage list --dedup                # Show duplicate resources
+agentspec manage link <name> <tool>          # Link a resource to a tool
+agentspec manage unlink <name> <tool>        # Unlink a resource from a tool
+agentspec manage validate [path]             # Validate a SKILL.md or AGENT.md
+agentspec manage create [name] --kind skill  # Scaffold a new resource
+agentspec manage verify                      # Verify resource integrity (checksums)
+agentspec manage verify --accept             # Accept current state and update hashes
+agentspec manage memory                      # Browse Claude Code memories
+agentspec manage memory --type feedback      # Filter memories by type
 
 # Sessions
-agentspec session find                   # Fuzzy-find a session across sources
-agentspec session list claude            # List sessions for a source
-agentspec session export claude          # Export most recent session
-agentspec session export claude <id>     # Export a specific session
-agentspec session export claude -o f.md  # Write export to file
-
-# Tools
-agentspec tool list                      # Show detected AI coding tools
-
-# Search
-agentspec search <query>                 # Search GitHub for skills
+agentspec session find                       # Fuzzy-find a session across sources
+agentspec session list claude                # List sessions for a source
+agentspec session export claude --last       # Export most recent session
+agentspec session export claude <id>         # Export a specific session
+agentspec session export claude --last -o f.md  # Write export to file
 
 # Global flags
-agentspec skill list --json              # Machine-readable JSON output
-```
-
-## Architecture
-
-```
-Vendor Formats              Canonical IR                Vendor Formats
-                                                    
-  SKILL.md        ──┐                          ┌──▸  SKILL.md
-  (agentskills)     │    ┌──────────────┐      │    (agentskills)
-                    ├───▸│   Resource   │──────┤
-  Claude agent    ──┤    │  (kind,name, │      ├──▸  Claude agent
-  (.md + YAML)      │    │  description,│      │    (.md + YAML)
-                    │    │  tools,model,│      │
-  Gemini agent    ──┘    │  body,       │      └──▸  Gemini agent
-  (.md + YAML)           │  extensions) │           (.md + YAML)
-                         └──────────────┘
-```
-
-Each vendor gets an **adapter** implementing `parse()`, `emit()`, and `validate()`. Adding a new vendor = one file.
-
-### Directory layout
-
-```
-~/.agents/skills/<name>/SKILL.md     # Shared skill store
-~/.agents/agents/<name>.md           # Shared agent store
-~/.claude/skills/<name>  → symlink   # Per-tool symlinks
-~/.gemini/agents/<name>.md → symlink
+agentspec manage list --json                 # Machine-readable JSON output
 ```
 
 ## License
