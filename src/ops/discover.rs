@@ -4,6 +4,7 @@ use console::style;
 
 use crate::config;
 use crate::error::{AppError, Result};
+use crate::frontmatter;
 use crate::inventory::{
     self, Config, DiscoveredResource, DiscoveryLocation, LinkStrategy, ResourceLink, SourceType,
     TrackedKind, TrackedResource, hash_resource,
@@ -14,9 +15,13 @@ use crate::ops::memory;
 use crate::tools::{self, CodingTool};
 
 /// Refresh the discovery cache. Pass `broad_root` for a broad scan from a root directory.
-pub fn refresh_cache_with_root(broad_root: Option<&Path>) -> Result<()> {
+/// Pass `extra_paths` for targeted scans that bypass SKIP_DIRS.
+pub fn refresh_cache_with_root(
+    broad_root: Option<&Path>,
+    extra_paths: &[PathBuf],
+) -> Result<()> {
     let lockfile = inventory::load_config()?;
-    let discovered = discover_unmanaged(&lockfile, broad_root)?;
+    let discovered = discover_unmanaged(&lockfile, broad_root, extra_paths)?;
 
     let mut cfg = inventory::load_config()?;
     cfg.discovered = discovered;
@@ -27,9 +32,11 @@ pub fn refresh_cache_with_root(broad_root: Option<&Path>) -> Result<()> {
 
 /// Discover all unmanaged resources. Pass 1 scans known tool dirs, pass 2 (if `broad_root` set)
 /// walks from a root directory looking for SKILL.md and agent .md files anywhere.
+/// Pass 3 (if `extra_paths` non-empty) does targeted scans without SKIP_DIRS filtering.
 fn discover_unmanaged(
     lockfile: &Config,
     broad_root: Option<&Path>,
+    extra_paths: &[PathBuf],
 ) -> Result<Vec<DiscoveredResource>> {
     let installed = tools::installed_tools();
     let mut found: Vec<DiscoveredResource> = Vec::new();
@@ -63,6 +70,11 @@ fn discover_unmanaged(
         broad_scan(root, lockfile, &mut found)?;
     }
 
+    // Pass 3: targeted scan of user-specified paths (bypasses SKIP_DIRS)
+    if !extra_paths.is_empty() {
+        targeted_scan(extra_paths, lockfile, &mut found)?;
+    }
+
     Ok(found)
 }
 
@@ -86,6 +98,113 @@ const SKIP_DIRS: &[&str] = &[
     "build",
     ".next",
 ];
+
+/// Check whether a file has valid agent frontmatter (YAML with `name` + `description` fields).
+pub fn has_valid_agent_frontmatter(path: &Path) -> bool {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let parsed = match frontmatter::parse(&content) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    let fm: serde_yaml::Value = match serde_yaml::from_str(&parsed.frontmatter) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let Some(map) = fm.as_mapping() else {
+        return false;
+    };
+    map.contains_key(&serde_yaml::Value::String("name".into()))
+        && map.contains_key(&serde_yaml::Value::String("description".into()))
+}
+
+/// Scan entries inside a directory during broad/targeted scan, discovering both
+/// SKILL.md files and agent `.md` files inside `agents/` directories.
+fn scan_walk_entry(
+    entry: &walkdir::DirEntry,
+    cfg: &Config,
+    found: &mut Vec<DiscoveredResource>,
+) {
+    let path = entry.path();
+
+    // Look for SKILL.md → parent is a skill directory
+    if entry.file_name() == "SKILL.md" && path.is_file() {
+        let skill_dir = match path.parent() {
+            Some(d) => d,
+            None => return,
+        };
+        if skill_dir.is_symlink() {
+            return;
+        }
+        let name = skill_dir.file_name().unwrap().to_string_lossy().to_string();
+        if cfg.find(&name, TrackedKind::Skill).is_some() {
+            return;
+        }
+        if found
+            .iter()
+            .any(|d| d.name == name && d.kind == TrackedKind::Skill)
+        {
+            return;
+        }
+        let content_hash = hash_resource(TrackedKind::Skill, skill_dir).ok();
+        found.push(DiscoveredResource {
+            name,
+            kind: TrackedKind::Skill,
+            found_in: vec![DiscoveryLocation {
+                tool: "filesystem".to_string(),
+                path: skill_dir.to_string_lossy().to_string(),
+            }],
+            content_hash,
+        });
+        return;
+    }
+
+    // Look for agents/ directories → scan .md files inside for valid agent frontmatter
+    if entry.file_type().is_dir() && entry.file_name() == "agents" {
+        let entries = match std::fs::read_dir(path) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for child in entries.filter_map(|e| e.ok()) {
+            let child_path = child.path();
+            if child_path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            if child_path.is_symlink() {
+                continue;
+            }
+            let fname = child_path.file_name().unwrap().to_string_lossy();
+            if fname == "SKILL.md" || fname.eq_ignore_ascii_case("AGENTS.md") {
+                continue;
+            }
+            if !has_valid_agent_frontmatter(&child_path) {
+                continue;
+            }
+            let name = child_path.file_stem().unwrap().to_string_lossy().to_string();
+            if cfg.find(&name, TrackedKind::Agent).is_some() {
+                continue;
+            }
+            if found
+                .iter()
+                .any(|d| d.name == name && d.kind == TrackedKind::Agent)
+            {
+                continue;
+            }
+            let content_hash = inventory::hash_file(&child_path).ok();
+            found.push(DiscoveredResource {
+                name,
+                kind: TrackedKind::Agent,
+                found_in: vec![DiscoveryLocation {
+                    tool: "filesystem".to_string(),
+                    path: child_path.to_string_lossy().to_string(),
+                }],
+                content_hash,
+            });
+        }
+    }
+}
 
 /// Broad scan from a root directory looking for SKILL.md and agent .md files.
 fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) -> Result<()> {
@@ -120,40 +239,31 @@ fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) ->
         })
         .filter_map(|e| e.ok())
     {
-        let path = entry.path();
-
-        // Look for SKILL.md → parent is a skill directory
-        if entry.file_name() == "SKILL.md" && path.is_file() {
-            let skill_dir = match path.parent() {
-                Some(d) => d,
-                None => continue,
-            };
-            if skill_dir.is_symlink() {
-                continue;
-            }
-            let name = skill_dir.file_name().unwrap().to_string_lossy().to_string();
-            if cfg.find(&name, TrackedKind::Skill).is_some() {
-                continue;
-            }
-            if found
-                .iter()
-                .any(|d| d.name == name && d.kind == TrackedKind::Skill)
-            {
-                continue;
-            }
-            let content_hash = hash_resource(TrackedKind::Skill, skill_dir).ok();
-            found.push(DiscoveredResource {
-                name,
-                kind: TrackedKind::Skill,
-                found_in: vec![DiscoveryLocation {
-                    tool: "filesystem".to_string(),
-                    path: skill_dir.to_string_lossy().to_string(),
-                }],
-                content_hash,
-            });
-        }
+        scan_walk_entry(&entry, cfg, found);
     }
 
+    Ok(())
+}
+
+/// Targeted scan of user-specified paths. Same discovery logic as broad_scan but
+/// without SKIP_DIRS filtering, allowing discovery in paths like `.local`.
+fn targeted_scan(
+    paths: &[PathBuf],
+    cfg: &Config,
+    found: &mut Vec<DiscoveredResource>,
+) -> Result<()> {
+    for scan_root in paths {
+        if !scan_root.exists() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(scan_root)
+            .max_depth(6)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            scan_walk_entry(&entry, cfg, found);
+        }
+    }
     Ok(())
 }
 
