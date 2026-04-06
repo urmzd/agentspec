@@ -1,12 +1,11 @@
-# Resources: Open Standards for AI Agent Configuration
+# Resource Conventions
 
-A reference of open standards, specifications, and conventions that define how AI agents discover context, capabilities, and project instructions. These standards inform how `agentspec` discovers and verifies resources.
+Authoritative reference for all resource types agentspec manages. Each section documents the convention, file format, frontmatter schema, directory layout, and discovery strategy.
 
 ---
 
-## Agent Skills (agentskills.io)
+## Skills (agentskills.io)
 
-- **Website**: https://agentskills.io
 - **Spec**: https://agentskills.io/specification
 - **GitHub**: https://github.com/agentskills/agentskills
 - **Example skills**: https://github.com/anthropics/skills
@@ -16,32 +15,49 @@ An open format for extending AI agents with specialized knowledge and workflows.
 ### Directory Structure
 
 ```
-skill-name/
-├── SKILL.md          # Required: metadata + instructions
-├── scripts/          # Optional: executable code
-├── references/       # Optional: documentation
-├── assets/           # Optional: templates, resources
+{name}/
+├── SKILL.md           # Required: metadata + instructions
+├── scripts/           # Optional: executable code
+├── references/        # Optional: documentation
+└── assets/            # Optional: templates, resources
 ```
+
+### Locations
+
+| Scope | Path | Notes |
+|-------|------|-------|
+| Project | `.{tool}/skills/{name}/SKILL.md` | Tool-specific (`.claude/`, `.gemini/`, etc.) |
+| Project | `.agents/skills/{name}/SKILL.md` | Cross-tool interop (Codex, Copilot) |
+| User | `~/.{tool}/skills/{name}/SKILL.md` | Tool-specific user skills |
+| User | `~/.agents/skills/{name}/SKILL.md` | Cross-tool user skills (shared store) |
 
 ### SKILL.md Frontmatter
 
-| Field           | Required | Description                                                              |
-|-----------------|----------|--------------------------------------------------------------------------|
-| `name`          | Yes      | 1-64 chars, lowercase alphanumeric + hyphens, must match directory name  |
-| `description`   | Yes      | 1-1024 chars, describes what the skill does and when to use it           |
-| `license`       | No       | License name or reference to bundled license file                        |
-| `compatibility` | No       | 1-500 chars, environment requirements                                    |
-| `metadata`      | No       | Arbitrary key-value mapping                                              |
-| `allowed-tools` | No       | Space-delimited list of pre-approved tools (experimental)                |
+| Field | Required | Constraints |
+|-------|----------|-------------|
+| `name` | Yes | 1-64 chars, lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens, must match parent directory name |
+| `description` | Yes | 1-1024 chars, what the skill does and when to use it |
+| `license` | No | License name or reference to bundled license file |
+| `compatibility` | No | Max 500 chars, environment requirements |
+| `metadata` | No | Arbitrary key-value mapping |
+| `allowed-tools` | No | Space-delimited list of pre-approved tools (experimental) |
 
-### Discovery Paths
+### Claude Code Extensions
 
-| Scope   | Path                                | Purpose                       |
-|---------|-------------------------------------|-------------------------------|
-| Project | `<project>/.<client>/skills/`       | Client-specific skills        |
-| Project | `<project>/.agents/skills/`         | Cross-client interop          |
-| User    | `~/.<client>/skills/`               | Client-specific user skills   |
-| User    | `~/.agents/skills/`                 | Cross-client user skills      |
+Fields beyond the agentskills.io spec:
+
+| Field | Description |
+|-------|-------------|
+| `disable-model-invocation` | `true` to prevent Claude from auto-loading |
+| `user-invocable` | `false` to hide from `/` menu |
+| `model` | Model override |
+| `effort` | Effort level: `low`, `medium`, `high`, `max` |
+| `context` | `fork` to run in a subagent |
+| `agent` | Which subagent type when `context: fork` |
+| `hooks` | Lifecycle hooks scoped to this skill |
+| `paths` | Glob patterns limiting auto-activation |
+| `argument-hint` | Hint shown during autocomplete |
+| `shell` | `bash` or `powershell` |
 
 ### Progressive Disclosure
 
@@ -49,77 +65,140 @@ skill-name/
 2. **Instructions** (<5000 tokens): Full SKILL.md body on activation
 3. **Resources** (varies): Scripts/references/assets loaded on demand
 
-### Supported Agents
+### Supported Tools
 
-Claude Code, Cursor, VS Code (Copilot), GitHub Copilot, Gemini CLI, OpenCode, OpenHands, Goose, Roo Code, Amp, Junie (JetBrains), Kiro, OpenAI Codex, Letta, and many more.
+Claude Code, Gemini CLI, Codex, Cursor, VS Code (Copilot), GitHub Copilot, OpenCode, OpenHands, Goose, Roo Code, Amp, Junie, Kiro, Letta, and others.
 
----
+### Discovery
 
-## llms.txt (llmstxt.org)
-
-- **Website**: https://llmstxt.org
-- **Spec**: https://llmstxt.org/llms.txt
-
-A standard for adding a Markdown file at a website's root to provide LLM-friendly content, enabling language models to understand websites efficiently without parsing complex HTML.
-
-### File Location
-
-`/llms.txt` at the root path of a website (or optionally in subpaths).
-
-### Format (Markdown)
-
-```markdown
-# Project Name                          (required: H1 heading)
-
-> Brief summary with key info            (optional: blockquote)
-
-Additional details as markdown body      (optional: paragraphs, lists, etc.)
-
-## Section Name                          (optional: H2-delimited file lists)
-- [Link title](https://url): Description
-
-## Optional                              (special: skippable for shorter contexts)
-- [Secondary resource](https://url): Description
-```
-
-### Variants
-
-| File            | Purpose                                    |
-|-----------------|--------------------------------------------|
-| `/llms.txt`     | Curated overview with key links            |
-| `/llms-full.txt`| Complete detailed documentation for LLMs   |
+Match `SKILL.md` filename during filesystem walk. Parent directory name = skill name.
 
 ---
 
-## AGENTS.md (agents.md)
+## Agents / Subagents
+
+Specialized AI assistants delegated to by the main agent. Each runs in its own context window with a custom system prompt and tool restrictions.
+
+### Convention by Tool
+
+| Tool | Format | File Pattern |
+|------|--------|-------------|
+| Claude Code | YAML frontmatter + Markdown | `agents/{name}.md` |
+| Gemini CLI | YAML frontmatter + Markdown | `agents/{name}.md` |
+| Codex | TOML | `agents/{name}.toml` |
+
+### Locations
+
+| Scope | Claude Code | Gemini CLI | Codex |
+|-------|-------------|------------|-------|
+| Project | `.claude/agents/{name}.md` | `.gemini/agents/{name}.md` | `.codex/agents/{name}.toml` |
+| User | `~/.claude/agents/{name}.md` | `~/.gemini/agents/{name}.md` | `~/.codex/agents/{name}.toml` |
+| Shared | `~/.agents/agents/{name}.md` | `~/.agents/agents/{name}.md` | — |
+
+### Claude Code Frontmatter
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique identifier, lowercase letters and hyphens |
+| `description` | Yes | When Claude should delegate to this subagent |
+| `tools` | No | Comma-separated string or YAML list. Inherits all if omitted |
+| `disallowedTools` | No | Tools to deny, removed from inherited/specified list |
+| `model` | No | `sonnet`, `opus`, `haiku`, full model ID, or `inherit` (default) |
+| `permissionMode` | No | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan` |
+| `maxTurns` | No | Maximum agentic turns before subagent stops |
+| `skills` | No | Skills to preload into subagent context at startup |
+| `mcpServers` | No | MCP servers scoped to this subagent (inline or reference) |
+| `hooks` | No | Lifecycle hooks scoped to this subagent |
+| `memory` | No | Persistent memory scope: `user`, `project`, `local` |
+| `background` | No | `true` to always run as background task |
+| `effort` | No | `low`, `medium`, `high`, `max` |
+| `isolation` | No | `worktree` for git worktree isolation |
+| `color` | No | `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink`, `cyan` |
+| `initialPrompt` | No | Auto-submitted first user turn when running as main agent via `--agent` |
+
+Built-in agents: `Explore`, `Plan`, `general-purpose`, `statusline-setup`, `claude-code-guide`.
+
+### Gemini CLI Frontmatter
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `name` | Yes | — | Lowercase letters, numbers, hyphens, underscores |
+| `description` | Yes | — | When to invoke this subagent |
+| `kind` | No | `local` | `local` or `remote` |
+| `tools` | No | inherited | Tool names, supports wildcards (`*`, `mcp_*`, `mcp_server_*`) |
+| `mcpServers` | No | — | Inline MCP server configs isolated to this agent |
+| `model` | No | inherited | Model override |
+| `temperature` | No | `1` | 0.0-2.0 |
+| `max_turns` | No | `30` | Max conversation turns |
+| `timeout_mins` | No | `10` | Max execution time in minutes |
+
+### Codex Agent Format (TOML)
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Agent identifier used when spawning |
+| `description` | Yes | Human-facing usage guidance |
+| `developer_instructions` | Yes | Core behavioral instructions |
+| `nickname_candidates` | No | Display name pool (ASCII letters, digits, spaces, hyphens, underscores; unique) |
+| `model` | No | Model override (inherits from parent session) |
+| `model_reasoning_effort` | No | Reasoning effort override |
+| `sandbox_mode` | No | Sandbox config override |
+| `mcp_servers` | No | MCP server definitions |
+| `skills.config` | No | Skills configuration |
+
+Codex global settings (`[agents]` in `config.toml`):
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `max_threads` | `6` | Concurrent open agent thread cap |
+| `max_depth` | `1` | Spawned agent nesting depth |
+| `job_max_runtime_seconds` | `1800` | Timeout per worker for CSV batch jobs |
+
+Built-in agents: `default`, `worker`, `explorer`.
+
+### Discovery
+
+Scan `.md` (or `.toml` for Codex) files inside directories named `agents`. Validate by parsing frontmatter for required `name` + `description` fields.
+
+---
+
+## AGENTS.md (Project Config)
 
 - **Website**: https://agents.md
 - **Stewarded by**: Agentic AI Foundation (Linux Foundation)
 
-An open format to guide AI coding agents through project contexts and workflows. Described as "a README for agents" — it separates agent-focused technical guidance from human-oriented documentation.
+Root-level markdown file providing project instructions to coding agents. Tool-agnostic equivalent of CLAUDE.md — described as "a README for agents."
 
-### Design Principles
+### Location
 
-1. **Clarity for agents**: A clear, predictable place for instructions
-2. **Human-focused READMEs**: Keeps README.md concise for humans
-3. **Complementary guidance**: Precise agent-focused guidance alongside existing docs
+Project root: `./AGENTS.md`
 
 ### Format
 
-Standard Markdown with no mandatory fields or sections. Common sections include:
+Plain markdown. No required YAML frontmatter. Common sections:
 
-- Project overview
+- Project overview and architecture
 - Build and test commands
-- Code style guidelines
+- Code style conventions
 - Testing instructions
 - Security considerations
-- Development environment tips
 - PR/commit message guidelines
-- Deployment steps
 
 ### Hierarchical Resolution
 
 For monorepos, nested `AGENTS.md` files take precedence based on file proximity — the closest file to the working directory wins.
+
+### Relationship to CLAUDE.md
+
+Claude Code reads `CLAUDE.md`, not `AGENTS.md`. To share instructions, `CLAUDE.md` can import it:
+
+```markdown
+@AGENTS.md
+```
+
+### Discovery
+
+Filename match (`AGENTS.md`) in project roots (directories containing `.git`).
 
 ### Adoption
 
@@ -127,31 +206,138 @@ For monorepos, nested `AGENTS.md` files take precedence based on file proximity 
 
 ---
 
-## Model Context Protocol (MCP)
+## CLAUDE.md (Claude Code Config)
+
+- **Docs**: https://code.claude.com/docs/en/memory
+
+Root-level markdown file providing persistent instructions to Claude Code.
+
+### Locations
+
+| Scope | Location |
+|-------|----------|
+| Managed policy | `/Library/Application Support/ClaudeCode/CLAUDE.md` (macOS), `/etc/claude-code/CLAUDE.md` (Linux) |
+| Project | `./CLAUDE.md` or `./.claude/CLAUDE.md` |
+| User | `~/.claude/CLAUDE.md` |
+| Local | `./CLAUDE.local.md` (gitignored) |
+
+### Format
+
+Plain markdown with optional features:
+
+- `@path/to/file` imports (relative or absolute, max 5 hops deep)
+- `.claude/rules/*.md` for modular path-scoped rules (with `paths:` YAML frontmatter)
+- HTML comments stripped before context injection
+
+### Discovery
+
+Walk up directory tree from cwd, checking each level for `CLAUDE.md` and `CLAUDE.local.md`. Subdirectory files load on demand when Claude reads files in those directories.
+
+---
+
+## llms.txt
+
+- **Website**: https://llmstxt.org
+- **Spec**: https://llmstxt.org/llms.txt
+
+Root-level file providing LLM-friendly project summaries. Analogous to `/robots.txt`.
+
+### Location
+
+Project root: `./llms.txt`
+
+### Format (required order)
+
+1. **H1 heading** (required) — project/site name
+2. **Blockquote** (optional) — brief summary with key info
+3. **Body content** (optional) — project details as paragraphs or lists
+4. **H2 sections** (optional) — curated resource links as `[name](url): description`
+5. **"Optional" H2** (optional) — secondary info skippable under context constraints
+
+### Variants
+
+| File | Purpose |
+|------|---------|
+| `/llms.txt` | Curated overview with key links |
+| `/llms-full.txt` | Complete detailed documentation |
+
+### Discovery
+
+Filename match (`llms.txt`) in project roots.
+
+---
+
+## Memories (Claude Code)
+
+Auto-memory files managed by Claude Code across sessions.
+
+### Location
+
+`~/.claude/projects/<project>/memory/`
+
+Project path derived from git repository root. All worktrees share one memory directory.
+
+### Structure
+
+```
+memory/
+├── MEMORY.md          # Index (first 200 lines / 25KB loaded at session start)
+├── {topic}.md         # Detailed topic files (loaded on demand)
+└── ...
+```
+
+### Memory File Frontmatter
+
+| Field | Description |
+|-------|-------------|
+| `name` | Memory name |
+| `description` | One-line description for relevance matching |
+| `type` | `user`, `feedback`, `project`, `reference` |
+
+### Discovery
+
+Scan Claude Code project directories (`~/.claude/projects/*/memory/`) for `.md` files with YAML frontmatter.
+
+---
+
+## Sessions
+
+Tool-specific session history exports.
+
+### Sources
+
+| Tool | Location |
+|------|----------|
+| Claude Code | `~/.claude/projects/*/sessions/` |
+| Codex | Tool-specific paths |
+
+### Format
+
+JSON (tool-specific schema). Exportable as markdown via `agentspec session export`.
+
+### Discovery
+
+Known tool-specific paths. Sessions identified by ID and timestamp.
+
+---
+
+## MCP (Model Context Protocol)
 
 - **Website**: https://modelcontextprotocol.io
 - **Spec**: https://modelcontextprotocol.io/docs/learn/architecture
 
-An open-source protocol for connecting AI applications to external systems — data sources, tools, and workflows. Analogous to USB-C for AI: a standardized way to connect.
-
-### Key Concepts
-
-- **Servers**: Expose data sources, tools, and prompts
-- **Clients**: AI applications that connect to MCP servers
-- **Tools**: Executable capabilities servers expose to agents
-- **Resources**: Data and content servers make available
-- **Prompts**: Reusable prompt templates
+Open protocol for connecting AI applications to external data sources, tools, and workflows.
 
 ### Configuration Files
 
-| Agent       | File              | Location               |
-|-------------|-------------------|------------------------|
-| Claude Code | `.mcp.json`       | Project root           |
-| Claude Code | `~/.claude.json`  | User-level (mcpServers key) |
-| Claude Code | `managed-mcp.json`| System dirs (macOS: /Library/Application Support/ClaudeCode/) |
-| Cursor      | `.cursor/mcp.json`| Project root           |
-| Gemini CLI  | `settings.json`   | `~/.gemini/`           |
-| VS Code     | `.vscode/mcp.json`| Project root           |
+| Tool | File | Location |
+|------|------|----------|
+| Claude Code | `.mcp.json` | Project root |
+| Claude Code | `~/.claude.json` | User-level (`mcpServers` key) |
+| Claude Code | `managed-mcp.json` | System dirs |
+| Cursor | `.cursor/mcp.json` | Project root |
+| Gemini CLI | `settings.json` | `~/.gemini/` |
+| VS Code | `.vscode/mcp.json` | Project root |
 
 ### .mcp.json Format
 
@@ -161,9 +347,7 @@ An open-source protocol for connecting AI applications to external systems — d
     "server-name": {
       "command": "/path/to/server",
       "args": ["--flag", "value"],
-      "env": {
-        "API_KEY": "${API_KEY}"
-      }
+      "env": { "API_KEY": "${API_KEY}" }
     }
   }
 }
@@ -171,141 +355,31 @@ An open-source protocol for connecting AI applications to external systems — d
 
 ### Server Types
 
-| Type             | Transport          | Use case                    |
-|------------------|--------------------|-----------------------------|
-| stdio            | stdin/stdout       | Local process servers       |
-| sse              | Server-Sent Events | Remote streaming servers    |
-| streamable-http  | HTTP POST + SSE    | Remote servers (recommended)|
-
-### Server Definition Fields
-
-| Field     | Required | Description                                      |
-|-----------|----------|--------------------------------------------------|
-| `command` | Yes*     | Executable path for stdio servers                |
-| `args`    | No       | Command arguments array                          |
-| `env`     | No       | Environment variables (supports `${VAR}` expansion)|
-| `url`     | Yes*     | URL for HTTP/SSE transport servers               |
-| `type`    | No       | Transport type (stdio, sse, streamable-http)     |
-
-\* One of `command` or `url` required depending on transport type.
-
-### Scopes
-
-| Scope   | Storage                        | Shared? |
-|---------|--------------------------------|---------|
-| Local   | `~/.claude.json` (per-project) | No      |
-| Project | `.mcp.json` in project root    | Yes     |
-| User    | `~/.claude.json` (mcpServers)  | No      |
-| Managed | `managed-mcp.json` (system)    | IT-deployed |
-
-### MCP Registry
-
-Anthropic hosts an MCP server registry at `https://api.anthropic.com/mcp-registry/v0/servers` for discovering available servers.
+| Type | Transport | Use Case |
+|------|-----------|----------|
+| stdio | stdin/stdout | Local process servers |
+| sse | Server-Sent Events | Remote streaming servers |
+| streamable-http | HTTP POST + SSE | Remote servers (recommended) |
 
 ---
 
-## Claude Code Configuration
+## Cross-Resource Comparison
 
-- **Docs**: https://code.claude.com/docs/en/settings
-- **CLI Reference**: https://code.claude.com/docs/en/cli-reference
-
-### CLAUDE.md (Memory Files)
-
-Instructions and context that Claude loads at startup. Markdown format, no schema.
-
-| Location                          | Scope                                   |
-|-----------------------------------|-----------------------------------------|
-| `~/.claude/CLAUDE.md`             | User — applies to all projects          |
-| `CLAUDE.md` or `.claude/CLAUDE.md`| Project — shared with team via git      |
-| `CLAUDE.local.md`                 | Local — personal, gitignored            |
-
-### settings.json
-
-| Scope   | Location                           | Shared? |
-|---------|------------------------------------|---------|
-| Managed | System-level `managed-settings.json` | IT-deployed |
-| User    | `~/.claude/settings.json`          | No      |
-| Project | `.claude/settings.json`            | Yes     |
-| Local   | `.claude/settings.local.json`      | No      |
-
-Precedence (highest to lowest): Managed > CLI args > Local > Project > User.
-
-### Key Settings
-
-| Key                    | Description                                           |
-|------------------------|-------------------------------------------------------|
-| `permissions.allow`    | Tools/patterns allowed without prompting               |
-| `permissions.deny`     | Tools/patterns always denied                           |
-| `hooks`                | Lifecycle event commands                               |
-| `env`                  | Environment variables for every session                |
-| `model`                | Default model override                                 |
-| `agent`                | Run main thread as named subagent                      |
-| `attribution`          | Git commit/PR attribution customization                |
-| `enabledPlugins`       | Plugin enable/disable map                              |
-| `sandbox`              | Filesystem/network sandbox configuration               |
-
-### Subagents
-
-Markdown files with YAML frontmatter stored in:
-- `~/.claude/agents/` (user-level)
-- `.claude/agents/` (project-level)
-
-### Skills
-
-Discovered from `.claude/skills/` directories following the Agent Skills specification.
+| Resource | File Pattern | Format | Discovery Strategy |
+|----------|-------------|--------|-------------------|
+| Skills | `{name}/SKILL.md` | YAML + Markdown | `SKILL.md` filename match |
+| Agents | `agents/{name}.md` | YAML + Markdown | `agents/` parent dir + frontmatter validation |
+| Agents (Codex) | `agents/{name}.toml` | TOML | `agents/` parent dir |
+| AGENTS.md | `AGENTS.md` | Markdown | Filename match in project roots |
+| CLAUDE.md | `CLAUDE.md` | Markdown | Directory tree walk |
+| llms.txt | `llms.txt` | Markdown | Filename match in project roots |
+| Memories | `memory/*.md` | YAML + Markdown | Known Claude Code project paths |
+| Sessions | `sessions/*.json` | JSON | Known tool-specific paths |
+| MCP | `.mcp.json` | JSON | Known config file locations |
 
 ---
 
-## Gemini CLI Configuration
-
-- **GitHub**: https://github.com/google-gemini/gemini-cli
-
-### GEMINI.md
-
-Project-specific context file (analogous to CLAUDE.md). Markdown, no schema.
-
-### settings.json
-
-Located at `~/.gemini/settings.json`. Supports MCP server configuration.
-
-### Other Files
-
-| File              | Purpose                        |
-|-------------------|--------------------------------|
-| `.geminiignore`   | File exclusion patterns         |
-| `GEMINI.md`       | Project context for Gemini CLI  |
-
----
-
-## Cursor Configuration
-
-- **Docs**: https://cursor.com/docs
-
-### .cursor/rules
-
-Project-level AI configuration directory. Supports rules files that guide Cursor's AI behavior.
-
-### .cursorrules (Legacy)
-
-Single file at project root with AI instructions (deprecated in favor of `.cursor/rules/`).
-
----
-
-## Cross-Standard Comparison
-
-| Standard      | File(s)                  | Format       | Discovery         | Purpose                  |
-|---------------|--------------------------|--------------|-------------------|--------------------------|
-| Agent Skills  | `SKILL.md`               | YAML + MD    | Directory scan    | Agent capabilities       |
-| llms.txt      | `/llms.txt`              | Markdown     | HTTP root path    | LLM-friendly site info   |
-| AGENTS.md     | `AGENTS.md`              | Markdown     | Filesystem walk   | Agent project guidance   |
-| MCP           | `.mcp.json`              | JSON         | Config files      | Tool/data integration    |
-| CLAUDE.md     | `CLAUDE.md`              | Markdown     | Known paths       | Project instructions     |
-| GEMINI.md     | `GEMINI.md`              | Markdown     | Known paths       | Project instructions     |
-| .cursorrules  | `.cursor/rules/`         | Markdown     | Known paths       | Project instructions     |
-
----
-
-## Relevant Links
+## Links
 
 ### Specifications
 - https://agentskills.io/specification
@@ -313,16 +387,15 @@ Single file at project root with AI instructions (deprecated in favor of `.curso
 - https://agents.md
 - https://modelcontextprotocol.io
 
-### Agent Tools
-- https://code.claude.com/docs/en/settings
-- https://code.claude.com/docs/en/cli-reference
-- https://github.com/google-gemini/gemini-cli
-- https://cursor.com/docs
+### Tool Documentation
+- https://code.claude.com/docs/en/skills
+- https://code.claude.com/docs/en/sub-agents
+- https://geminicli.com/docs/core/subagents/
+- https://geminicli.com/docs/cli/skills/
+- https://developers.openai.com/codex/skills/
+- https://developers.openai.com/codex/subagents
 
 ### Repositories
 - https://github.com/agentskills/agentskills
 - https://github.com/anthropics/skills
 - https://github.com/modelcontextprotocol
-
-### Community
-- https://discord.gg/MKPE9g8aUy (Agent Skills Discord)
