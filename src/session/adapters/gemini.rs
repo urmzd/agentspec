@@ -31,10 +31,7 @@ fn find_session_files(root: &Path) -> Vec<(PathBuf, String)> {
         if !project_dir.is_dir() {
             continue;
         }
-        let project_name = project_entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        let project_name = project_entry.file_name().to_string_lossy().to_string();
         let chats_dir = project_dir.join("chats");
         if !chats_dir.exists() {
             continue;
@@ -66,7 +63,9 @@ fn lookup_cwd(project_name: &str) -> Option<String> {
         .join("history")
         .join(project_name)
         .join(".project_root");
-    fs::read_to_string(root_file).ok().map(|s| s.trim().to_string())
+    fs::read_to_string(root_file)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 fn quick_parse_meta(path: &Path, project_name: &str) -> Result<SessionMetaIR> {
@@ -177,10 +176,7 @@ fn parse_session(path: &Path, project_name: &str) -> Result<SessionIR> {
                 "gemini" => {
                     if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
                         if model.is_none() {
-                            model = msg
-                                .get("model")
-                                .and_then(|m| m.as_str())
-                                .map(String::from);
+                            model = msg.get("model").and_then(|m| m.as_str()).map(String::from);
                         }
                         if !text.is_empty() {
                             messages.push(MessageIR {
