@@ -1,5 +1,7 @@
+pub mod action;
 mod app;
 mod event;
+pub mod modal;
 mod screens;
 
 use crossterm::{
