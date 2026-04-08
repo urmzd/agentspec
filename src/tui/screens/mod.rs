@@ -4,6 +4,7 @@ use ratatui::widgets::*;
 use super::app::{App, Tab};
 
 mod agent_list;
+mod config_list;
 mod info;
 mod link_picker;
 mod memory_list;
@@ -12,13 +13,17 @@ mod skill_list;
 mod tool_list;
 
 pub fn draw(f: &mut Frame, app: &App) {
+    // Calculate tab row count for dynamic height
+    let tab_row_count = compute_tab_rows(f.area().width, app);
+    let tab_height = (tab_row_count as u16) + 2; // +2 for borders
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // tabs
-            Constraint::Length(3), // help bar + filter
-            Constraint::Min(0),    // content
-            Constraint::Length(3), // status bar
+            Constraint::Length(tab_height), // tabs (dynamic)
+            Constraint::Length(3),          // help bar + filter
+            Constraint::Min(0),            // content
+            Constraint::Length(3),          // status bar
         ])
         .split(f.area());
 
@@ -31,6 +36,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Tools => tool_list::draw(f, chunks[2], app),
         Tab::Sessions => session_list::draw(f, chunks[2], app),
         Tab::Memories => memory_list::draw(f, chunks[2], app),
+        Tab::Configs => config_list::draw(f, chunks[2], app),
         Tab::Info => info::draw(f, chunks[2], app),
     }
 
@@ -41,45 +47,122 @@ pub fn draw(f: &mut Frame, app: &App) {
     }
 }
 
+/// Calculate how many rows the tab bar needs.
+fn compute_tab_rows(terminal_width: u16, app: &App) -> usize {
+    let available = terminal_width.saturating_sub(4) as usize;
+    let mut row_count = 1;
+    let mut row_width = 0;
+
+    for tab in Tab::all() {
+        let count = app.tab_count(*tab);
+        let label_width = if count > 0 || !matches!(tab, Tab::Info) {
+            format!(" {} ({}) ", tab.label(), count).len() + 2
+        } else {
+            format!(" {} ", tab.label()).len() + 2
+        };
+
+        if row_width > 0 && row_width + label_width > available {
+            row_count += 1;
+            row_width = 0;
+        }
+        row_width += label_width;
+    }
+
+    row_count
+}
+
 fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
-    let titles: Vec<Line> = Tab::all()
+    let all_tabs = Tab::all();
+
+    // Compute tab labels with counts
+    let labels: Vec<(String, bool)> = all_tabs
         .iter()
         .map(|t| {
-            let count = match t {
-                Tab::Skills => app.skills.len(),
-                Tab::Agents => app.agents.len(),
-                Tab::Tools => app.tool_entries.len(),
-                Tab::Sessions => app.sessions.len(),
-                Tab::Memories => app.memories.len(),
-                Tab::Info => 0,
+            let count = app.tab_count(*t);
+            let label = if count > 0 || !matches!(t, Tab::Info) {
+                format!(" {} ({}) ", t.label(), count)
+            } else {
+                format!(" {} ", t.label())
             };
-            let style = if *t == app.tab {
+            (*t == app.tab, label)
+        })
+        .map(|(active, label)| (label, active))
+        .collect();
+
+    // Calculate how many tabs fit on one row
+    let available_width = area.width.saturating_sub(4) as usize; // borders + padding
+    let mut rows: Vec<Vec<(usize, &str, bool)>> = Vec::new();
+    let mut current_row: Vec<(usize, &str, bool)> = Vec::new();
+    let mut row_width = 0;
+
+    for (idx, (label, active)) in labels.iter().enumerate() {
+        let tab_width = label.len() + 2; // separator padding
+        if !current_row.is_empty() && row_width + tab_width > available_width {
+            rows.push(std::mem::take(&mut current_row));
+            row_width = 0;
+        }
+        current_row.push((idx, label.as_str(), *active));
+        row_width += tab_width;
+    }
+    if !current_row.is_empty() {
+        rows.push(current_row);
+    }
+
+    let row_count = rows.len().max(1) as u16;
+    let tab_height = row_count + 2; // +2 for borders
+
+    // Split the tab area to accommodate multiple rows
+    let tab_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: tab_height.min(area.height),
+    };
+
+    // Render as a block with manually placed tab text
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(" agentspec ")
+        .title_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(block, tab_area);
+
+    let inner = Rect {
+        x: tab_area.x + 1,
+        y: tab_area.y + 1,
+        width: tab_area.width.saturating_sub(2),
+        height: tab_area.height.saturating_sub(2),
+    };
+
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx as u16 >= inner.height {
+            break;
+        }
+        let mut spans = Vec::new();
+        for (_, label, active) in row {
+            let style = if *active {
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
-            Line::from(format!(" {} ({}) ", t.label(), count)).style(style)
-        })
-        .collect();
-
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray))
-                .title(" agentspec ")
-                .title_style(
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                ),
-        )
-        .select(Tab::all().iter().position(|t| *t == app.tab).unwrap_or(0))
-        .highlight_style(Style::default().fg(Color::Cyan));
-
-    f.render_widget(tabs, area);
+            spans.push(Span::styled(*label, style));
+            spans.push(Span::styled(" ", Style::default().fg(Color::DarkGray)));
+        }
+        let line = Line::from(spans);
+        let row_area = Rect {
+            x: inner.x,
+            y: inner.y + row_idx as u16,
+            width: inner.width,
+            height: 1,
+        };
+        f.render_widget(Paragraph::new(line), row_area);
+    }
 }
 
 fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
@@ -90,7 +173,9 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
             Tab::Skills | Tab::Agents => {
                 "[/] Filter  [l] Link  [Tab] Switch  [j/k] Navigate  [q] Quit"
             }
-            Tab::Sessions | Tab::Memories => "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit",
+            Tab::Sessions | Tab::Memories | Tab::Configs => {
+                "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit"
+            }
             Tab::Tools | Tab::Info => "[Tab] Switch  [q] Quit",
         };
         format!("  {keys}")
@@ -163,6 +248,14 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
             let memories = app.filtered_memories();
             if let Some(m) = memories.get(app.selected) {
                 format!("  {} | {} | {}", m.name, m.memory_type, m.project)
+            } else {
+                String::new()
+            }
+        }
+        Tab::Configs => {
+            let configs = app.filtered_configs();
+            if let Some(c) = configs.get(app.selected) {
+                format!("  {} | {} | {}", c.name, c.project, c.path)
             } else {
                 String::new()
             }

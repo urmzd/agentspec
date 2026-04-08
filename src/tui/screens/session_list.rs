@@ -1,29 +1,20 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::tui::app::{App, LazyTab};
+use crate::tui::app::App;
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
-    if app.sessions.is_unloaded() {
-        let msg = Paragraph::new("  Press Tab to load sessions...")
-            .style(Style::default().fg(Color::DarkGray))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray)),
-            );
-        f.render_widget(msg, area);
-        return;
-    }
-
-    if let LazyTab::Error(ref e) = app.sessions {
-        let msg = Paragraph::new(format!("  Error: {e}"))
-            .style(Style::default().fg(Color::Red))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray)),
-            );
+    if !app.sessions.is_loaded() {
+        let msg = Paragraph::new(format!(
+            "  {} session(s) found. Loading...",
+            app.sessions.count()
+        ))
+        .style(Style::default().fg(Color::DarkGray))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        );
         f.render_widget(msg, area);
         return;
     }
@@ -60,7 +51,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(12),
+            Constraint::Length(16),
             Constraint::Length(18),
             Constraint::Min(30),
         ],
