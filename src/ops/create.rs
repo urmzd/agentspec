@@ -63,6 +63,61 @@ pub fn create_agent(name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+pub fn create_project_config(name: Option<&str>) -> Result<()> {
+    let variant = name.unwrap_or("AGENTS.md");
+    let filename = match variant {
+        "claude" | "CLAUDE.md" => "CLAUDE.md",
+        "gemini" | "GEMINI.md" => "GEMINI.md",
+        _ => "AGENTS.md",
+    };
+
+    let file = std::env::current_dir()?.join(filename);
+    if file.exists() {
+        return Err(AppError::AlreadyExists(format!(
+            "{filename} already exists"
+        )));
+    }
+
+    let project_name = std::env::current_dir()?
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "project".to_string());
+
+    let content = format!(
+        "# {project_name}\n\n## Identity\n\nDescribe the project purpose and architecture.\n\n## Code Style\n\n<!-- Add conventions, formatting rules, patterns -->\n\n## Commands\n\n```sh\n# build\n# test\n# lint\n```\n"
+    );
+    std::fs::write(&file, content)?;
+
+    println!(
+        "  {} Created {filename} in current directory",
+        style("✓").green().bold()
+    );
+    Ok(())
+}
+
+pub fn create_llms_txt(_name: Option<&str>) -> Result<()> {
+    let file = std::env::current_dir()?.join("llms.txt");
+    if file.exists() {
+        return Err(AppError::AlreadyExists("llms.txt already exists".into()));
+    }
+
+    let project_name = std::env::current_dir()?
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "project".to_string());
+
+    let content = format!(
+        "# {project_name}\n\n> Brief description of the project.\n\n## Overview\n\nDescribe the project for LLM consumption.\n\n## Quickstart\n\n## API\n\n## Architecture\n"
+    );
+    std::fs::write(&file, content)?;
+
+    println!(
+        "  {} Created llms.txt in current directory",
+        style("✓").green().bold()
+    );
+    Ok(())
+}
+
 fn validate_name(name: &str) -> Result<()> {
     if name.is_empty() {
         return Err(AppError::Other("name cannot be empty".into()));

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use console::style;
 
 use crate::error::Result;
-use crate::ops::{discover, link, verify};
+use crate::ops::{discover, link, project_sync, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
 pub fn sync(
@@ -53,7 +53,13 @@ pub fn sync(
         );
     }
 
-    // 4. Verify integrity
+    // 4. Resync tracked projects
+    if !json {
+        println!("  {} Resyncing tracked projects...", style("→").cyan());
+    }
+    let _ = project_sync::resync_all(false);
+
+    // 5. Verify integrity
     let issues = verify::verify_integrity()?;
 
     // 5. Report
