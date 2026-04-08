@@ -6,6 +6,7 @@ pub mod list;
 pub mod manage;
 pub mod memory;
 pub mod project_sync;
+pub mod prune;
 pub mod remove;
 pub mod sync;
 pub mod validate;

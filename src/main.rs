@@ -38,7 +38,10 @@ fn resolve_kind(name: &str) -> ResourceKind {
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    color_eyre::install()?;
+    color_eyre::config::HookBuilder::default()
+        .capture_span_trace_by_default(false)
+        .display_env_section(false)
+        .install()?;
     config::ensure_dirs()?;
 
     let cli = Cli::parse();
@@ -149,6 +152,9 @@ async fn main() -> color_eyre::Result<()> {
                 }
             }
         },
+        Some(Command::Prune { yes }) => {
+            ops::prune::prune(!yes, cli.json)?;
+        }
         Some(Command::Manage { action }) => match action {
             ManageAction::Add {
                 source,

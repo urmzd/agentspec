@@ -60,6 +60,12 @@ pub enum Command {
     },
     /// Launch interactive TUI
     Tui,
+    /// Remove broken resources, stale symlinks, and orphaned entries
+    Prune {
+        /// Actually remove — default is dry-run (show only)
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
