@@ -59,12 +59,17 @@ pub struct Resource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResourceKind {
+    // Managed — live in ~/.agents/, agentspec is source of truth
     Skill,
     Agent,
-    Session,
-    Memory,
+
+    // Synced-in — originals elsewhere, copies in ~/.agents/, source always wins
     ProjectConfig,
+    InstructionFile,
     LlmsTxt,
+    Memory,
+    Session,
+    Plan,
 }
 
 impl std::fmt::Display for ResourceKind {
@@ -72,10 +77,12 @@ impl std::fmt::Display for ResourceKind {
         match self {
             Self::Skill => write!(f, "skill"),
             Self::Agent => write!(f, "agent"),
-            Self::Session => write!(f, "session"),
-            Self::Memory => write!(f, "memory"),
             Self::ProjectConfig => write!(f, "project-config"),
+            Self::InstructionFile => write!(f, "instruction-file"),
             Self::LlmsTxt => write!(f, "llms-txt"),
+            Self::Memory => write!(f, "memory"),
+            Self::Session => write!(f, "session"),
+            Self::Plan => write!(f, "plan"),
         }
     }
 }
