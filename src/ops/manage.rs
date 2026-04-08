@@ -11,53 +11,111 @@ use crate::ops::link;
 use crate::tools;
 
 #[derive(Debug)]
-enum SourceKind {
-    Local(String),
-    Git { url: String, branch: Option<String> },
+struct GitSource {
+    url: String,
+    branch: Option<String>,
+    subpath: Option<String>,
 }
 
+#[derive(Debug)]
+enum SourceKind {
+    Local(String),
+    Git(GitSource),
+}
+
+/// Parse `owner/repo[#branch][@subpath]` or explicit URL with the same suffixes.
+///
+/// Examples:
+///   owner/repo                          → default branch, repo root
+///   owner/repo@subfolder                → default branch, subfolder
+///   owner/repo#branch                   → specific branch, repo root
+///   owner/repo#branch@subfolder         → specific branch, subfolder
+///   https://host/repo.git#branch@sub    → same for explicit URLs
 fn resolve_source(input: &str) -> SourceKind {
     // Local path
     if Path::new(input).exists() {
         return SourceKind::Local(input.to_string());
     }
 
-    // Explicit git URL (https://, git://, ssh://) — also handles enterprise/proxy URLs.
-    // Supports optional @branch suffix after .git: https://host/repo.git@branch
+    // Explicit git URL (https://, git://, ssh://)
     if input.starts_with("https://")
         || input.starts_with("git://")
         || input.starts_with("ssh://")
         || input.ends_with(".git")
+        || input.contains(".git#")
         || input.contains(".git@")
     {
-        let (url, branch) = split_url_branch(input);
-        return SourceKind::Git { url, branch };
+        let gs = parse_git_url(input);
+        return SourceKind::Git(gs);
     }
 
-    // GitHub shorthand: owner/repo[@branch]
+    // GitHub shorthand: owner/repo[#branch][@subpath]
     if input.contains('/') {
-        let (repo_part, branch) = if let Some((repo, branch)) = input.split_once('@') {
-            (repo, Some(branch.to_string()))
-        } else {
-            (input, None)
-        };
-        let url = format!("https://github.com/{repo_part}.git");
-        return SourceKind::Git { url, branch };
+        let gs = parse_shorthand(input);
+        return SourceKind::Git(gs);
     }
 
     // Fall back to local path (will fail later if it doesn't exist)
     SourceKind::Local(input.to_string())
 }
 
-/// Split `https://host/repo.git@branch` into (`https://host/repo.git`, `Some("branch")`).
-/// Returns the input unchanged with `None` if there is no `@branch` suffix.
-fn split_url_branch(input: &str) -> (String, Option<String>) {
-    if let Some(pos) = input.find(".git@") {
-        let url = format!("{}.git", &input[..pos]);
-        let branch = input[pos + 5..].to_string();
-        (url, Some(branch))
+/// Parse explicit URL: `https://host/repo.git[#branch][@subpath]`
+fn parse_git_url(input: &str) -> GitSource {
+    // Find .git boundary — suffixes come after it
+    let git_pos = input.find(".git").unwrap_or(input.len());
+    let base_url = format!("{}.git", &input[..git_pos]);
+    let suffix = &input[git_pos + 4..]; // everything after ".git"
+
+    let (branch, subpath) = parse_suffixes(suffix);
+    GitSource { url: base_url, branch, subpath }
+}
+
+/// Parse GitHub shorthand: `owner/repo[#branch][@subpath]`
+fn parse_shorthand(input: &str) -> GitSource {
+    // Split off #branch and @subpath from the repo identifier
+    let (repo_part, branch, subpath) = {
+        let (rest, subpath) = if let Some(pos) = input.find('@') {
+            (&input[..pos], Some(input[pos + 1..].to_string()))
+        } else {
+            (input, None)
+        };
+        // Now check for #branch in the remaining part
+        let (repo, branch) = if let Some(pos) = rest.find('#') {
+            (&rest[..pos], Some(rest[pos + 1..].to_string()))
+        } else {
+            (rest, None)
+        };
+        (repo, branch, subpath)
+    };
+
+    GitSource {
+        url: format!("https://github.com/{repo_part}.git"),
+        branch,
+        subpath,
+    }
+}
+
+/// Parse `[#branch][@subpath]` suffix string (leading `#` or `@` already stripped from the
+/// appropriate position by the caller — this receives the raw suffix after `.git`).
+fn parse_suffixes(suffix: &str) -> (Option<String>, Option<String>) {
+    if suffix.is_empty() {
+        return (None, None);
+    }
+    // suffix starts with '#' for branch or '@' for subpath
+    if let Some(rest) = suffix.strip_prefix('#') {
+        // #branch[@subpath]
+        if let Some(pos) = rest.find('@') {
+            let branch = rest[..pos].to_string();
+            let subpath = rest[pos + 1..].to_string();
+            (Some(branch), Some(subpath))
+        } else {
+            (Some(rest.to_string()), None)
+        }
+    } else if let Some(rest) = suffix.strip_prefix('@') {
+        // @subpath only (no branch)
+        (None, Some(rest.to_string()))
     } else {
-        (input.to_string(), None)
+        (None, None)
     }
 }
 
@@ -69,7 +127,7 @@ pub fn manage(
 ) -> Result<()> {
     match resolve_source(source) {
         SourceKind::Local(path) => manage_local(&path, source, tool_slugs, all_tools, copy),
-        SourceKind::Git { url, branch } => manage_git(&url, branch.as_deref(), source, tool_slugs, all_tools, copy),
+        SourceKind::Git(gs) => manage_git(&gs, source, tool_slugs, all_tools, copy),
     }
 }
 
@@ -104,8 +162,7 @@ fn manage_local(
 }
 
 fn manage_git(
-    url: &str,
-    branch: Option<&str>,
+    gs: &GitSource,
     source: &str,
     tool_slugs: Option<&[String]>,
     all_tools: bool,
@@ -117,10 +174,10 @@ fn manage_git(
 
     let mut cmd = std::process::Command::new("git");
     cmd.args(["clone", "--depth", "1"]);
-    if let Some(b) = branch {
+    if let Some(b) = &gs.branch {
         cmd.args(["--branch", b]);
     }
-    cmd.args([url, tmp.path().to_str().unwrap()]);
+    cmd.args([gs.url.as_str(), tmp.path().to_str().unwrap()]);
 
     let status = cmd
         .stdout(std::process::Stdio::null())
@@ -129,12 +186,24 @@ fn manage_git(
         .map_err(|e| AppError::Git(format!("failed to run git: {e}")))?;
 
     if !status.success() {
-        return Err(AppError::Git(format!("git clone failed for {url}")));
+        return Err(AppError::Git(format!("git clone failed for {}", gs.url)));
     }
+
+    let install_dir = if let Some(sub) = &gs.subpath {
+        let p = tmp.path().join(sub);
+        if !p.exists() {
+            return Err(AppError::Other(format!(
+                "subpath '{sub}' not found in cloned repo"
+            )));
+        }
+        p
+    } else {
+        tmp.path().to_path_buf()
+    };
 
     let mut lockfile = inventory::load_config()?;
     let installed = install_from_dir(
-        tmp.path(),
+        &install_dir,
         source,
         &mut lockfile,
         tool_slugs,
