@@ -46,6 +46,20 @@ pub fn remove_agent(name: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn remove_unmanaged_agent(name: &str, paths: &[std::path::PathBuf]) -> Result<()> {
+    for path in paths {
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+    }
+
+    println!(
+        "  {} Removed unmanaged agent '{name}'",
+        style("✓").green().bold()
+    );
+    Ok(())
+}
+
 /// Remove tracking for a resource without deleting the underlying file.
 /// Used for memories, project configs, llms.txt — files owned by their
 /// respective tools, not by agentspec.
