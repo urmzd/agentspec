@@ -7,12 +7,13 @@ mod inventory;
 mod ir;
 mod lockfile;
 mod ops;
+mod project_files;
 mod session;
 mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{Cli, Command, ManageAction, SessionAction};
+use cli::{Cli, Command, ManageAction, ProjectAction, SessionAction};
 use inventory::TrackedKind;
 use ir::ResourceKind;
 
@@ -83,14 +84,32 @@ async fn main() -> color_eyre::Result<()> {
                 .collect();
             ops::sync::sync(sync_root.as_deref(), fast, adopt, cli.json, &extra_paths)?;
         }
+        Some(Command::Project { action }) => match action {
+            ProjectAction::Sync { project } => {
+                if let Some(name) = project {
+                    ops::project_sync::sync_project(&name, cli.json)?;
+                } else {
+                    ops::project_sync::sync_all(cli.json)?;
+                }
+            }
+            ProjectAction::Desync { project } => {
+                ops::project_sync::desync_project(&project, cli.json)?;
+            }
+            ProjectAction::Remove { project } => {
+                ops::project_sync::remove_synced_project(&project, cli.json)?;
+            }
+            ProjectAction::Status { project } => {
+                ops::project_sync::project_status(project.as_deref(), cli.json)?;
+            }
+        },
         Some(Command::Session { action }) => match action {
             SessionAction::Find => {
                 let (source, id) = session::find::run_find()?;
                 println!("{source} {id}");
             }
             SessionAction::List { source } => {
-                let src = session::get_source(&source)?;
-                let sessions = src.list_sessions()?;
+                let adapter = session::get_adapter(&source)?;
+                let sessions = adapter.list_sessions()?;
                 if sessions.is_empty() {
                     eprintln!("No sessions found for {source}");
                 } else {
@@ -110,11 +129,11 @@ async fn main() -> color_eyre::Result<()> {
                 last,
                 output,
             } => {
-                let src = session::get_source(&source)?;
+                let adapter = session::get_adapter(&source)?;
                 let sess = if last {
-                    src.latest_session()?
+                    adapter.latest_session()?
                 } else if let Some(id) = id {
-                    src.load_session(&id)?
+                    adapter.load_session(&id)?
                 } else {
                     return Err(error::AppError::Other(
                         "Provide a session ID or use --last".into(),
@@ -142,10 +161,12 @@ async fn main() -> color_eyre::Result<()> {
                 let tracked_kind = kind.as_deref().map(|k| match k {
                     "skill" => TrackedKind::Skill,
                     "agent" => TrackedKind::Agent,
-                    "session" => TrackedKind::Session,
-                    "memory" => TrackedKind::Memory,
                     "project-config" => TrackedKind::ProjectConfig,
+                    "instruction-file" => TrackedKind::InstructionFile,
                     "llms-txt" => TrackedKind::LlmsTxt,
+                    "memory" => TrackedKind::Memory,
+                    "session" => TrackedKind::Session,
+                    "plan" => TrackedKind::Plan,
                     _ => unreachable!("clap validates this"),
                 });
                 let is_discovered = cfg
@@ -202,6 +223,8 @@ async fn main() -> color_eyre::Result<()> {
             }
             ManageAction::Create { name, kind } => match kind.as_deref().unwrap_or("skill") {
                 "agent" => ops::create::create_agent(name.as_deref())?,
+                "project-config" => ops::create::create_project_config(name.as_deref())?,
+                "llms-txt" => ops::create::create_llms_txt(name.as_deref())?,
                 _ => ops::create::create_skill(name.as_deref())?,
             },
             ManageAction::Update { name: _ } => {

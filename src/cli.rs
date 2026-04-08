@@ -53,6 +53,11 @@ pub enum Command {
         #[command(subcommand)]
         action: SessionAction,
     },
+    /// Manage project sync (sync instruction files into ~/.agents/projects/)
+    Project {
+        #[command(subcommand)]
+        action: ProjectAction,
+    },
     /// Launch interactive TUI
     Tui,
 }
@@ -64,7 +69,7 @@ pub enum ManageAction {
         /// Source: local path, git URL, owner/repo, or name of a discovered resource
         source: String,
         /// Override auto-detected kind
-        #[arg(long, value_parser = ["skill", "agent", "session", "memory", "project-config", "llms-txt"])]
+        #[arg(long, value_parser = ["skill", "agent", "project-config", "instruction-file", "llms-txt", "memory", "session", "plan"])]
         kind: Option<String>,
         /// Link to specific tools (comma-separated slugs)
         #[arg(long, value_delimiter = ',')]
@@ -126,7 +131,7 @@ pub enum ManageAction {
         /// Resource name
         name: Option<String>,
         /// Resource kind
-        #[arg(long, value_parser = ["skill", "agent", "session", "memory", "project-config", "llms-txt"])]
+        #[arg(long, value_parser = ["skill", "agent", "project-config", "instruction-file", "llms-txt", "memory", "session", "plan"])]
         kind: Option<String>,
     },
     /// Update managed resources
@@ -155,17 +160,42 @@ pub enum ManageAction {
 }
 
 #[derive(Subcommand)]
+pub enum ProjectAction {
+    /// Sync a project's instruction files into ~/.agents/projects/
+    Sync {
+        /// Project name or path (syncs all if omitted)
+        project: Option<String>,
+    },
+    /// Stop auto-sync for a project (copy stays but goes stale)
+    Desync {
+        /// Project name
+        project: String,
+    },
+    /// Remove a project's synced copy from ~/.agents/ (originals untouched)
+    Remove {
+        /// Project name
+        project: String,
+    },
+    /// Show synced/desynced/discovered project status
+    Status {
+        /// Show detailed status for a specific project
+        #[arg(long)]
+        project: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum SessionAction {
     /// List sessions for a source
     List {
-        /// Source to list (claude, codex)
+        /// Source to list (claude, codex, copilot, gemini)
         source: String,
     },
     /// Fuzzy-find a session across all sources
     Find,
     /// Export a session as markdown
     Export {
-        /// Source (claude, codex)
+        /// Source (claude, codex, copilot, gemini)
         source: String,
         /// Session ID (omit if using --last)
         id: Option<String>,
