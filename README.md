@@ -132,6 +132,10 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 
 `manage link` creates symlinks from tool directories (e.g. `~/.claude/skills/foo`) pointing into the shared store (`~/.agents/skills/foo`). Use `--copy` to copy instead of symlinking, and `--all-tools` to link to every detected tool at once.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features, including cross-tool session sync, memory sync, MCP server management, and more.
+
 ## License
 
 [Apache-2.0](LICENSE)
