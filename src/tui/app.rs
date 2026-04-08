@@ -23,51 +23,56 @@ pub enum Tab {
     Tools,
     Sessions,
     Memories,
+    Configs,
     Info,
 }
 
 impl Tab {
     pub fn all() -> &'static [Tab] {
         &[
+            Tab::Info,
             Tab::Skills,
             Tab::Agents,
             Tab::Tools,
             Tab::Sessions,
             Tab::Memories,
-            Tab::Info,
+            Tab::Configs,
         ]
     }
 
     pub fn label(&self) -> &str {
         match self {
+            Tab::Info => "Info",
             Tab::Skills => "Skills",
             Tab::Agents => "Agents",
             Tab::Tools => "Tools",
             Tab::Sessions => "Sessions",
             Tab::Memories => "Memories",
-            Tab::Info => "Info",
+            Tab::Configs => "Configs",
         }
     }
 
     pub fn next(&self) -> Self {
         match self {
+            Tab::Info => Tab::Skills,
             Tab::Skills => Tab::Agents,
             Tab::Agents => Tab::Tools,
             Tab::Tools => Tab::Sessions,
             Tab::Sessions => Tab::Memories,
-            Tab::Memories => Tab::Info,
-            Tab::Info => Tab::Skills,
+            Tab::Memories => Tab::Configs,
+            Tab::Configs => Tab::Info,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
+            Tab::Info => Tab::Configs,
             Tab::Skills => Tab::Info,
             Tab::Agents => Tab::Skills,
             Tab::Tools => Tab::Agents,
             Tab::Sessions => Tab::Tools,
             Tab::Memories => Tab::Sessions,
-            Tab::Info => Tab::Memories,
+            Tab::Configs => Tab::Memories,
         }
     }
 }
@@ -113,15 +118,27 @@ pub struct MemoryEntry {
     pub project: String,
 }
 
+pub struct ConfigEntry {
+    pub name: String,
+    pub kind: String,
+    pub project: String,
+    pub path: String,
+}
+
+
 // ---------------------------------------------------------------------------
-// Lazy loading
+// App
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
+// ---------------------------------------------------------------------------
+// Lazy loading with eager counts
+// ---------------------------------------------------------------------------
+
 pub enum LazyTab<T> {
-    Unloaded,
+    /// Count known but data not yet loaded
+    CountOnly(usize),
+    /// Fully loaded
     Loaded(Vec<T>),
-    Error(String),
 }
 
 impl<T> LazyTab<T> {
@@ -132,12 +149,15 @@ impl<T> LazyTab<T> {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.items().len()
+    pub fn count(&self) -> usize {
+        match self {
+            LazyTab::CountOnly(n) => *n,
+            LazyTab::Loaded(v) => v.len(),
+        }
     }
 
-    pub fn is_unloaded(&self) -> bool {
-        matches!(self, LazyTab::Unloaded)
+    pub fn is_loaded(&self) -> bool {
+        matches!(self, LazyTab::Loaded(_))
     }
 }
 
@@ -152,6 +172,7 @@ pub struct App {
     pub tool_entries: Vec<ToolEntry>,
     pub sessions: LazyTab<SessionEntry>,
     pub memories: LazyTab<MemoryEntry>,
+    pub configs: LazyTab<ConfigEntry>,
     pub installed_tools: Vec<String>,
     pub selected: usize,
     pub filter: String,
@@ -170,13 +191,19 @@ impl App {
         let agents = load_agents(&installed);
         let tool_entries = load_tool_entries(&installed);
 
+        // Eager lightweight counts — full data loads on tab select
+        let session_count = count_sessions();
+        let memory_count = memory::scan_memories().len();
+        let config_count = count_configs();
+
         Ok(Self {
-            tab: Tab::Skills,
+            tab: Tab::Info,
             skills,
             agents,
             tool_entries,
-            sessions: LazyTab::Unloaded,
-            memories: LazyTab::Unloaded,
+            sessions: LazyTab::CountOnly(session_count),
+            memories: LazyTab::CountOnly(memory_count),
+            configs: LazyTab::CountOnly(config_count),
             installed_tools: installed_slugs,
             selected: 0,
             filter: String::new(),
@@ -201,14 +228,17 @@ impl App {
         Ok(())
     }
 
-    /// Load data for the current tab if it hasn't been loaded yet.
+    /// Load full data for the current tab if only counts are loaded.
     fn ensure_tab_loaded(&mut self) {
         match self.tab {
-            Tab::Sessions if self.sessions.is_unloaded() => {
-                self.sessions = load_sessions();
+            Tab::Sessions if !self.sessions.is_loaded() => {
+                self.sessions = LazyTab::Loaded(load_sessions());
             }
-            Tab::Memories if self.memories.is_unloaded() => {
-                self.memories = load_memories();
+            Tab::Memories if !self.memories.is_loaded() => {
+                self.memories = LazyTab::Loaded(load_memories());
+            }
+            Tab::Configs if !self.configs.is_loaded() => {
+                self.configs = LazyTab::Loaded(load_configs());
             }
             _ => {}
         }
@@ -352,6 +382,20 @@ impl App {
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.filtered_sessions().len(),
             Tab::Memories => self.filtered_memories().len(),
+            Tab::Configs => self.filtered_configs().len(),
+            Tab::Info => 0,
+        }
+    }
+
+    /// Total count for a tab (works even before full data is loaded).
+    pub fn tab_count(&self, tab: Tab) -> usize {
+        match tab {
+            Tab::Skills => self.skills.len(),
+            Tab::Agents => self.agents.len(),
+            Tab::Tools => self.tool_entries.len(),
+            Tab::Sessions => self.sessions.count(),
+            Tab::Memories => self.memories.count(),
+            Tab::Configs => self.configs.count(),
             Tab::Info => 0,
         }
     }
@@ -377,6 +421,12 @@ impl App {
     pub fn filtered_memories(&self) -> Vec<&MemoryEntry> {
         fuzzy_filter(&self.filter, self.memories.items().iter(), |m| {
             format!("{} {} {}", m.name, m.memory_type, m.project)
+        })
+    }
+
+    pub fn filtered_configs(&self) -> Vec<&ConfigEntry> {
+        fuzzy_filter(&self.filter, self.configs.items().iter(), |c| {
+            format!("{} {} {}", c.name, c.kind, c.project)
         })
     }
 }
@@ -533,36 +583,54 @@ fn load_tool_entries(_installed: &[Box<dyn CodingTool>]) -> Vec<ToolEntry> {
         .collect()
 }
 
-fn load_sessions() -> LazyTab<SessionEntry> {
-    let mut entries = Vec::new();
+/// Lightweight session count — avoids loading full session data.
+fn count_sessions() -> usize {
+    session::adapters::available_session_adapters()
+        .iter()
+        .filter_map(|a| a.list_sessions().ok())
+        .map(|s| s.len())
+        .sum()
+}
 
-    for source_name in &["claude", "codex"] {
-        let Ok(src) = session::get_source(source_name) else {
-            continue;
-        };
-        let Ok(sessions) = src.list_sessions() else {
-            continue;
-        };
-        for s in sessions {
-            entries.push(SessionEntry {
+/// Lightweight config count — just count files, don't parse.
+fn count_configs() -> usize {
+    use crate::project_files;
+    memory::scan_project_infos()
+        .iter()
+        .filter_map(|p| p.project_path.as_ref())
+        .filter(|pp| pp.join(".git").exists())
+        .map(|pp| project_files::find_in_project(pp).len())
+        .sum()
+}
+
+fn load_sessions() -> Vec<SessionEntry> {
+    let all = match session::discover::discover_all_sessions() {
+        Ok(sessions) => sessions,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut entries: Vec<SessionEntry> = all
+        .into_iter()
+        .map(|s| {
+            let source_name = session::adapters::tool_name_for_slug(&s.tool_slug);
+            SessionEntry {
                 id: s.id,
-                source: source_name.to_string(),
+                source: source_name,
                 date: s
                     .started_at
                     .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
                 prompt: s.first_prompt.unwrap_or_else(|| "(no prompt)".to_string()),
-            });
-        }
-    }
+            }
+        })
+        .collect();
 
     entries.sort_by(|a, b| b.date.cmp(&a.date));
-    LazyTab::Loaded(entries)
+    entries
 }
 
-fn load_memories() -> LazyTab<MemoryEntry> {
-    let mems = memory::scan_memories();
-    let entries = mems
+fn load_memories() -> Vec<MemoryEntry> {
+    memory::scan_memories()
         .into_iter()
         .map(|m| MemoryEntry {
             name: m.name,
@@ -570,6 +638,37 @@ fn load_memories() -> LazyTab<MemoryEntry> {
             memory_type: m.memory_type,
             project: m.project_path.unwrap_or(m.project_name),
         })
-        .collect();
-    LazyTab::Loaded(entries)
+        .collect()
+}
+
+fn load_configs() -> Vec<ConfigEntry> {
+    use crate::project_files;
+
+    let infos = memory::scan_project_infos();
+    let mut entries = Vec::new();
+
+    for p in &infos {
+        let Some(ref pp) = p.project_path else {
+            continue;
+        };
+        if !pp.join(".git").exists() {
+            continue;
+        }
+        let project = pp
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| p.encoded_name.clone());
+
+        for (spec, file_path) in project_files::find_in_project(pp) {
+            entries.push(ConfigEntry {
+                name: spec.filename.to_string(),
+                kind: format!("{}", spec.kind),
+                project: project.clone(),
+                path: file_path.to_string_lossy().to_string(),
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| a.project.cmp(&b.project).then(a.name.cmp(&b.name)));
+    entries
 }

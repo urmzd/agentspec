@@ -4,10 +4,10 @@ use ratatui::widgets::*;
 use crate::tui::app::App;
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
-    if !app.memories.is_loaded() {
+    if !app.configs.is_loaded() {
         let msg = Paragraph::new(format!(
-            "  {} memory file(s) found. Loading...",
-            app.memories.count()
+            "  {} config file(s) found. Loading...",
+            app.configs.count()
         ))
         .style(Style::default().fg(Color::DarkGray))
         .block(
@@ -19,19 +19,19 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let memories = app.filtered_memories();
+    let configs = app.filtered_configs();
 
     let header = Row::new(vec![
-        Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Type").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("File").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("Kind").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Project").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Description").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("Path").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
 
-    let rows: Vec<Row> = memories
+    let rows: Vec<Row> = configs
         .iter()
         .enumerate()
-        .map(|(i, m)| {
+        .map(|(i, c)| {
             let style = if i == app.selected {
                 Style::default()
                     .fg(Color::Cyan)
@@ -41,10 +41,10 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             };
 
             Row::new(vec![
-                Cell::from(m.name.clone()).style(Style::default().fg(Color::Cyan)),
-                Cell::from(m.memory_type.clone()).style(Style::default().fg(Color::Yellow)),
-                Cell::from(truncate(&m.project, 25)).style(Style::default().fg(Color::DarkGray)),
-                Cell::from(truncate(&m.description, 40)),
+                Cell::from(c.name.clone()).style(Style::default().fg(Color::Cyan)),
+                Cell::from(c.kind.clone()).style(Style::default().fg(Color::Yellow)),
+                Cell::from(truncate(&c.project, 25)).style(Style::default().fg(Color::Green)),
+                Cell::from(truncate(&c.path, 50)).style(Style::default().fg(Color::DarkGray)),
             ])
             .style(style)
         })
@@ -53,8 +53,8 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(25),
-            Constraint::Length(12),
+            Constraint::Length(14),
+            Constraint::Length(14),
             Constraint::Length(27),
             Constraint::Min(30),
         ],
