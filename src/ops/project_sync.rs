@@ -5,9 +5,9 @@ use console::style;
 
 use crate::config;
 use crate::error::{AppError, Result};
-use crate::project_files;
-use crate::inventory::{self, TrackedProject, hash_file, hash_dir};
+use crate::inventory::{self, TrackedProject, hash_dir, hash_file};
 use crate::ops::memory;
+use crate::project_files;
 
 // ---------------------------------------------------------------------------
 // Sync a single project
@@ -104,9 +104,9 @@ pub fn sync_project(name: &str, json: bool) -> Result<()> {
 pub fn desync_project(name: &str, json: bool) -> Result<()> {
     let mut cfg = inventory::load_config()?;
 
-    let project = cfg.find_project_mut(name).ok_or_else(|| {
-        AppError::Other(format!("Project '{name}' is not synced"))
-    })?;
+    let project = cfg
+        .find_project_mut(name)
+        .ok_or_else(|| AppError::Other(format!("Project '{name}' is not synced")))?;
 
     project.sync = false;
     inventory::save_config(&cfg)?;
@@ -140,9 +140,7 @@ pub fn remove_synced_project(name: &str, json: bool) -> Result<()> {
     let mut cfg = inventory::load_config()?;
 
     if cfg.find_project(name).is_none() {
-        return Err(AppError::Other(format!(
-            "Project '{name}' is not tracked"
-        )));
+        return Err(AppError::Other(format!("Project '{name}' is not tracked")));
     }
 
     let dest_dir = config::shared_project_dir(name);
@@ -203,11 +201,7 @@ pub fn resync_all(json: bool) -> Result<()> {
             Ok(updated) => total_updated += updated,
             Err(e) => {
                 if !json {
-                    eprintln!(
-                        "  {} Could not resync '{}': {e}",
-                        style("✗").red(),
-                        name
-                    );
+                    eprintln!("  {} Could not resync '{}': {e}", style("✗").red(), name);
                 }
             }
         }
@@ -234,9 +228,10 @@ pub fn resync_all(json: bool) -> Result<()> {
 /// Resync a single project. Returns the number of files updated.
 fn resync_project(name: &str) -> Result<usize> {
     let mut cfg = inventory::load_config()?;
-    let project = cfg.find_project(name).ok_or_else(|| {
-        AppError::Other(format!("Project '{name}' not found"))
-    })?.clone();
+    let project = cfg
+        .find_project(name)
+        .ok_or_else(|| AppError::Other(format!("Project '{name}' not found")))?
+        .clone();
 
     let project_path = PathBuf::from(&project.path);
     if !project_path.exists() {
@@ -312,11 +307,7 @@ pub fn sync_all(json: bool) -> Result<()> {
 
         if let Err(e) = sync_project(&name, json) {
             if !json {
-                eprintln!(
-                    "  {} Could not sync '{}': {e}",
-                    style("✗").red(),
-                    name
-                );
+                eprintln!("  {} Could not sync '{}': {e}", style("✗").red(), name);
             }
         } else {
             synced += 1;
@@ -343,9 +334,9 @@ pub fn project_status(project_name: Option<&str>, json: bool) -> Result<()> {
     let cfg = inventory::load_config()?;
 
     if let Some(name) = project_name {
-        let project = cfg.find_project(name).ok_or_else(|| {
-            AppError::Other(format!("Project '{name}' is not synced"))
-        })?;
+        let project = cfg
+            .find_project(name)
+            .ok_or_else(|| AppError::Other(format!("Project '{name}' is not synced")))?;
 
         if json {
             println!(
@@ -434,11 +425,7 @@ pub fn project_status(project_name: Option<&str>, json: bool) -> Result<()> {
     if !desynced.is_empty() {
         println!("\n  {}", style("Desynced Projects").bold().underlined());
         for p in &desynced {
-            println!(
-                "  {} {:<30} (stale)",
-                style("○").yellow(),
-                p.name,
-            );
+            println!("  {} {:<30} (stale)", style("○").yellow(), p.name,);
         }
     }
 
@@ -495,11 +482,7 @@ fn find_project_path(name: &str) -> Result<PathBuf> {
 }
 
 /// Copy project-specific memory files into the synced project directory.
-fn sync_project_memories(
-    _project_name: &str,
-    project_path: &Path,
-    dest_dir: &Path,
-) -> Result<()> {
+fn sync_project_memories(_project_name: &str, project_path: &Path, dest_dir: &Path) -> Result<()> {
     let memories = memory::scan_memories();
     let project_path_str = project_path.to_string_lossy().to_string();
 
