@@ -13,7 +13,7 @@ use crate::tools;
 #[derive(Debug)]
 enum SourceKind {
     Local(String),
-    Git(String),
+    Git { url: String, branch: Option<String> },
 }
 
 fn resolve_source(input: &str) -> SourceKind {
@@ -22,22 +22,43 @@ fn resolve_source(input: &str) -> SourceKind {
         return SourceKind::Local(input.to_string());
     }
 
-    // Explicit git URL
+    // Explicit git URL (https://, git://, ssh://) — also handles enterprise/proxy URLs.
+    // Supports optional @branch suffix after .git: https://host/repo.git@branch
     if input.starts_with("https://")
         || input.starts_with("git://")
         || input.starts_with("ssh://")
         || input.ends_with(".git")
+        || input.contains(".git@")
     {
-        return SourceKind::Git(input.to_string());
+        let (url, branch) = split_url_branch(input);
+        return SourceKind::Git { url, branch };
     }
 
-    // GitHub shorthand: owner/repo
+    // GitHub shorthand: owner/repo[@branch]
     if input.contains('/') {
-        return SourceKind::Git(format!("https://github.com/{input}.git"));
+        let (repo_part, branch) = if let Some((repo, branch)) = input.split_once('@') {
+            (repo, Some(branch.to_string()))
+        } else {
+            (input, None)
+        };
+        let url = format!("https://github.com/{repo_part}.git");
+        return SourceKind::Git { url, branch };
     }
 
     // Fall back to local path (will fail later if it doesn't exist)
     SourceKind::Local(input.to_string())
+}
+
+/// Split `https://host/repo.git@branch` into (`https://host/repo.git`, `Some("branch")`).
+/// Returns the input unchanged with `None` if there is no `@branch` suffix.
+fn split_url_branch(input: &str) -> (String, Option<String>) {
+    if let Some(pos) = input.find(".git@") {
+        let url = format!("{}.git", &input[..pos]);
+        let branch = input[pos + 5..].to_string();
+        (url, Some(branch))
+    } else {
+        (input.to_string(), None)
+    }
 }
 
 pub fn manage(
@@ -48,7 +69,7 @@ pub fn manage(
 ) -> Result<()> {
     match resolve_source(source) {
         SourceKind::Local(path) => manage_local(&path, source, tool_slugs, all_tools, copy),
-        SourceKind::Git(url) => manage_git(&url, source, tool_slugs, all_tools, copy),
+        SourceKind::Git { url, branch } => manage_git(&url, branch.as_deref(), source, tool_slugs, all_tools, copy),
     }
 }
 
@@ -84,6 +105,7 @@ fn manage_local(
 
 fn manage_git(
     url: &str,
+    branch: Option<&str>,
     source: &str,
     tool_slugs: Option<&[String]>,
     all_tools: bool,
@@ -93,8 +115,14 @@ fn manage_git(
 
     println!("  {} Cloning {source}...", style("↓").cyan().bold());
 
-    let status = std::process::Command::new("git")
-        .args(["clone", "--depth", "1", url, tmp.path().to_str().unwrap()])
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["clone", "--depth", "1"]);
+    if let Some(b) = branch {
+        cmd.args(["--branch", b]);
+    }
+    cmd.args([url, tmp.path().to_str().unwrap()]);
+
+    let status = cmd
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
