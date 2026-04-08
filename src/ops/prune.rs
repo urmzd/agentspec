@@ -29,19 +29,14 @@ pub fn prune(dry_run: bool, json: bool) -> Result<()> {
 
     // 2. Broken symlinks in all tool dirs
     for tool in tools::installed_tools() {
-        for dir_fn in [tool.skills_dir(), tool.agents_dir()]
-            .into_iter()
-            .flatten()
-        {
+        for dir_fn in [tool.skills_dir(), tool.agents_dir()].into_iter().flatten() {
             let Ok(entries) = std::fs::read_dir(&dir_fn) else {
                 continue;
             };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_symlink() && !path.exists() {
-                    report
-                        .broken_symlinks
-                        .push(path.display().to_string());
+                    report.broken_symlinks.push(path.display().to_string());
                 }
             }
         }
@@ -49,9 +44,10 @@ pub fn prune(dry_run: bool, json: bool) -> Result<()> {
 
     // 3. Stale discovery cache entries (all locations gone)
     for disc in &cfg.discovered {
-        let all_gone = disc.found_in.iter().all(|loc| {
-            !std::path::Path::new(&loc.path).exists()
-        });
+        let all_gone = disc
+            .found_in
+            .iter()
+            .all(|loc| !std::path::Path::new(&loc.path).exists());
         if all_gone {
             report.stale_discovered.push(disc.name.clone());
         }
@@ -134,11 +130,7 @@ pub fn prune(dry_run: bool, json: bool) -> Result<()> {
         );
     } else {
         apply(&mut cfg, &report)?;
-        println!(
-            "\n  {} Pruned {} item(s)",
-            style("✓").green().bold(),
-            total,
-        );
+        println!("\n  {} Pruned {} item(s)", style("✓").green().bold(), total,);
     }
 
     Ok(())
@@ -184,4 +176,3 @@ fn parse_tracked_kind(s: &str) -> inventory::TrackedKind {
         _ => inventory::TrackedKind::Skill,
     }
 }
-

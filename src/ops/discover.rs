@@ -5,7 +5,6 @@ use console::style;
 use crate::config;
 use crate::error::{AppError, Result};
 use crate::frontmatter;
-use crate::project_files;
 use crate::inventory::{
     self, Config, DiscoveredResource, DiscoveryLocation, LinkStrategy, ResourceLink, SourceType,
     TrackedKind, TrackedResource, hash_resource,
@@ -13,14 +12,12 @@ use crate::inventory::{
 use crate::ir::ResourceKind;
 use crate::ops::link;
 use crate::ops::memory;
+use crate::project_files;
 use crate::tools::{self, CodingTool};
 
 /// Refresh the discovery cache. Pass `broad_root` for a broad scan from a root directory.
 /// Pass `extra_paths` for targeted scans that bypass SKIP_DIRS.
-pub fn refresh_cache_with_root(
-    broad_root: Option<&Path>,
-    extra_paths: &[PathBuf],
-) -> Result<()> {
+pub fn refresh_cache_with_root(broad_root: Option<&Path>, extra_paths: &[PathBuf]) -> Result<()> {
     let lockfile = inventory::load_config()?;
     let discovered = discover_unmanaged(&lockfile, broad_root, extra_paths)?;
 
@@ -123,11 +120,7 @@ pub fn has_valid_agent_frontmatter(path: &Path) -> bool {
 
 /// Scan entries inside a directory during broad/targeted scan, discovering both
 /// SKILL.md files and agent `.md` files inside `agents/` directories.
-fn scan_walk_entry(
-    entry: &walkdir::DirEntry,
-    cfg: &Config,
-    found: &mut Vec<DiscoveredResource>,
-) {
+fn scan_walk_entry(entry: &walkdir::DirEntry, cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     let path = entry.path();
 
     // Look for SKILL.md → parent is a skill directory
@@ -183,7 +176,11 @@ fn scan_walk_entry(
             if !has_valid_agent_frontmatter(&child_path) {
                 continue;
             }
-            let name = child_path.file_stem().unwrap().to_string_lossy().to_string();
+            let name = child_path
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             if cfg.find(&name, TrackedKind::Agent).is_some() {
                 continue;
             }
@@ -733,9 +730,7 @@ fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
         // Single loop: discover all project files from the registry
         for (spec, file_path) in project_files::find_in_project(pp) {
             let name = format!("{project_name}/{}", spec.filename);
-            if cfg.find(&name, spec.kind).is_none()
-                && !found.iter().any(|d| d.name == name)
-            {
+            if cfg.find(&name, spec.kind).is_none() && !found.iter().any(|d| d.name == name) {
                 let content_hash = if spec.is_directory {
                     inventory::hash_dir(&file_path).ok()
                 } else {
@@ -757,9 +752,7 @@ fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     // Global files (instruction files with global_path set)
     for (spec, file_path) in project_files::find_global() {
         let name = format!("global/{}", spec.filename);
-        if cfg.find(&name, spec.kind).is_none()
-            && !found.iter().any(|d| d.name == name)
-        {
+        if cfg.find(&name, spec.kind).is_none() && !found.iter().any(|d| d.name == name) {
             let content_hash = if spec.is_directory {
                 inventory::hash_dir(&file_path).ok()
             } else {

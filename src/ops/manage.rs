@@ -67,7 +67,11 @@ fn parse_git_url(input: &str) -> GitSource {
     let suffix = &input[git_pos + 4..]; // everything after ".git"
 
     let (branch, subpath) = parse_suffixes(suffix);
-    GitSource { url: base_url, branch, subpath }
+    GitSource {
+        url: base_url,
+        branch,
+        subpath,
+    }
 }
 
 /// Parse GitHub shorthand: `owner/repo[#branch][@subpath]`
