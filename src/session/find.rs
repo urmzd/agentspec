@@ -2,28 +2,15 @@ use crate::error::{AppError, Result};
 use skim::prelude::*;
 use std::io::Cursor;
 
-use super::SessionMeta;
-use crate::session;
+use super::discover;
+use super::ir::SessionMetaIR;
 
 pub fn run_find() -> Result<(String, String)> {
-    let mut all_sessions: Vec<SessionMeta> = Vec::new();
-
-    if let Ok(source) = session::get_source("claude")
-        && let Ok(sessions) = source.list_sessions()
-    {
-        all_sessions.extend(sessions);
-    }
-    if let Ok(source) = session::get_source("codex")
-        && let Ok(sessions) = source.list_sessions()
-    {
-        all_sessions.extend(sessions);
-    }
+    let all_sessions: Vec<SessionMetaIR> = discover::discover_all_sessions()?;
 
     if all_sessions.is_empty() {
         return Err(AppError::Other("No sessions found from any source".into()));
     }
-
-    all_sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
 
     let lines: Vec<String> = all_sessions
         .iter()
@@ -38,7 +25,7 @@ pub fn run_find() -> Result<(String, String)> {
                 .as_deref()
                 .and_then(|c| c.rsplit('/').next())
                 .unwrap_or("");
-            format!("[{}] {} | {} | {}", s.source, date, cwd, prompt)
+            format!("[{}] {} | {} | {}", s.tool_slug, date, cwd, prompt)
         })
         .collect();
 
@@ -74,5 +61,5 @@ pub fn run_find() -> Result<(String, String)> {
         .ok_or_else(|| AppError::Other("Selected item not found".into()))?;
 
     let s = &all_sessions[idx];
-    Ok((s.source.to_string(), s.id.clone()))
+    Ok((s.tool_slug.clone(), s.id.clone()))
 }
