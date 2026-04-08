@@ -5,8 +5,14 @@ use crate::tui::app::{App, Tab};
 
 pub fn draw(f: &mut Frame, app: &App) {
     let name = match app.tab {
-        Tab::Skills => app.filtered_skills().get(app.selected).map(|s| s.name.clone()),
-        Tab::Agents => app.filtered_agents().get(app.selected).map(|a| a.name.clone()),
+        Tab::Skills => app
+            .filtered_skills()
+            .get(app.selected)
+            .map(|s| s.name.clone()),
+        Tab::Agents => app
+            .filtered_agents()
+            .get(app.selected)
+            .map(|a| a.name.clone()),
         _ => None,
     };
     let name = name.unwrap_or_default();
@@ -27,16 +33,19 @@ pub fn draw(f: &mut Frame, app: &App) {
         Line::from(""),
         Line::from(vec![
             Span::raw("  Remove "),
-            Span::styled(&name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &name,
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("?"),
         ]),
         Line::from(""),
-        Line::from(
-            Span::styled(
-                "  [y/Enter] Yes   [Esc/n] No",
-                Style::default().fg(Color::DarkGray),
-            ),
-        ),
+        Line::from(Span::styled(
+            "  [y/Enter] Yes   [Esc/n] No",
+            Style::default().fg(Color::DarkGray),
+        )),
     ];
 
     f.render_widget(Paragraph::new(text), inner);

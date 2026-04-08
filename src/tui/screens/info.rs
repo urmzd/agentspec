@@ -5,10 +5,17 @@ use crate::config;
 use crate::tools;
 
 pub fn draw(f: &mut Frame, area: Rect, _app: &crate::tui::app::App) {
-    let heading =
-        |s: &'static str| Line::from(s).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+    let heading = |s: &'static str| {
+        Line::from(s).style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+    };
 
-    let label_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+    let label_style = Style::default()
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD);
     let dim_style = Style::default().fg(Color::DarkGray);
 
     let mut lines = vec![

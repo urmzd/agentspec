@@ -126,7 +126,6 @@ pub struct ConfigEntry {
     pub path: String,
 }
 
-
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -449,7 +448,8 @@ impl App {
         let name = self.link_picker_name.clone();
 
         for (i, (slug, now_checked)) in self.link_picker_checks.iter().enumerate() {
-            let was_checked = self.link_picker_original
+            let was_checked = self
+                .link_picker_original
                 .get(i)
                 .map(|(_, c)| *c)
                 .unwrap_or(false);

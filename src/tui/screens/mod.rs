@@ -23,7 +23,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(tab_height), // tabs (dynamic)
             Constraint::Length(3),          // help bar + filter
-            Constraint::Min(0),            // content
+            Constraint::Min(0),             // content
             Constraint::Length(3),          // status bar
         ])
         .split(f.area());
