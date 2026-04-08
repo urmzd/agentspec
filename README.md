@@ -109,6 +109,29 @@ agentspec session export claude --last -o f.md  # Write export to file
 agentspec manage list --json                 # Machine-readable JSON output
 ```
 
+## Configuration
+
+### Storage
+
+```
+~/.agents/skills/<name>/SKILL.md    Shared skill store
+~/.agents/agents/<name>.md          Shared agent store
+~/.config/agentspec/config.yml      Inventory and discovery cache
+```
+
+### Discovery
+
+`agentspec status` and `agentspec sync` scan two places:
+
+- **Tool directories.** Known paths for each detected tool (e.g. `~/.claude/skills/`, `~/.gemini/agents/`).
+- **Broad filesystem walk.** Walks from `$HOME` up to 6 levels deep, looking for `SKILL.md`, agent markdown files, `AGENTS.md`, `CLAUDE.md`, and `llms.txt`. Skipped with `--fast`.
+
+Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --adopt` or `manage add <name>` to adopt them into the shared store.
+
+### Linking
+
+`manage link` creates symlinks from tool directories (e.g. `~/.claude/skills/foo`) pointing into the shared store (`~/.agents/skills/foo`). Use `--copy` to copy instead of symlinking, and `--all-tools` to link to every detected tool at once.
+
 ## License
 
 [Apache-2.0](LICENSE)
