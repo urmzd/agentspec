@@ -62,16 +62,16 @@ macro_rules! define_tool {
 }
 
 define_tool!(Claude,    "Claude Code",     "claude-code",     skills: Some(".claude/skills"),           agents: Some(".claude/agents"));
-define_tool!(Cline,     "Cline",           "cline",           skills: Some(".cline/skills"),            agents: None);
-define_tool!(Windsurf,  "Windsurf",        "windsurf",        skills: Some(".codeium/windsurf/skills"), agents: None);
-define_tool!(OpenHands, "OpenHands",       "openhands",       skills: Some(".openhands/skills"),        agents: None);
+define_tool!(Cline,     "Cline",           "cline",           skills: Some(".cline/skills"),            agents: Some(".cline/agents"));
+define_tool!(Windsurf,  "Windsurf",        "windsurf",        skills: Some(".codeium/windsurf/skills"), agents: Some(".codeium/windsurf/agents"));
+define_tool!(OpenHands, "OpenHands",       "openhands",       skills: Some(".openhands/skills"),        agents: Some(".openhands/agents"));
 define_tool!(Gemini,    "Gemini CLI",      "gemini-cli",      skills: Some(".gemini/skills"),           agents: Some(".gemini/agents"));
-define_tool!(Copilot,   "GitHub Copilot",  "github-copilot",  skills: Some(".copilot/skills"),          agents: None);
-define_tool!(Amp,       "Amp",             "amp",             skills: Some(".amp/skills"),              agents: None);
-define_tool!(Cursor,    "Cursor",          "cursor",          skills: Some(".cursor/skills"),           agents: None);
-define_tool!(Codex,     "Codex",           "codex",           skills: Some(".codex/skills"),            agents: None);
-define_tool!(OpenCode,  "OpenCode",        "opencode",        skills: Some(".opencode/skills"),         agents: None);
-define_tool!(Kimi,      "Kimi CLI",        "kimi-cli",        skills: Some(".kimi-cli/skills"),         agents: None);
+define_tool!(Copilot,   "GitHub Copilot",  "github-copilot",  skills: Some(".copilot/skills"),          agents: Some(".copilot/agents"));
+define_tool!(Amp,       "Amp",             "amp",             skills: Some(".amp/skills"),              agents: Some(".amp/agents"));
+define_tool!(Cursor,    "Cursor",          "cursor",          skills: Some(".cursor/skills"),           agents: Some(".cursor/agents"));
+define_tool!(Codex,     "Codex",           "codex",           skills: Some(".codex/skills"),            agents: Some(".codex/agents"));
+define_tool!(OpenCode,  "OpenCode",        "opencode",        skills: Some(".opencode/skills"),         agents: Some(".opencode/agents"));
+define_tool!(Kimi,      "Kimi CLI",        "kimi-cli",        skills: Some(".kimi-cli/skills"),         agents: Some(".kimi-cli/agents"));
 
 pub fn all_tools() -> Vec<Box<dyn CodingTool>> {
     vec![
