@@ -10,11 +10,13 @@ use crate::config;
 use crate::error::Result;
 use crate::inventory::{self, TrackedKind};
 use crate::ir::ResourceKind;
-use crate::ops::{link as link_ops, memory, remove as remove_ops};
+use crate::ops::memory;
 use crate::session;
 use crate::tools::{self, CodingTool};
 
+use super::action::{AgentSource, ReloadTarget};
 use super::event::poll_event;
+use super::modal::{DeleteConfirm, LinkPicker, Modal, ModalResult};
 use super::screens;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +96,7 @@ pub struct AgentEntry {
     pub description: String,
     pub model: Option<String>,
     pub linked_tools: Vec<String>,
+    pub source: AgentSource,
 }
 
 pub struct ToolEntry {
@@ -125,10 +128,6 @@ pub struct ConfigEntry {
     pub project: String,
     pub path: String,
 }
-
-// ---------------------------------------------------------------------------
-// App
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Lazy loading with eager counts
@@ -178,12 +177,8 @@ pub struct App {
     pub filter: String,
     pub filtering: bool,
     pub should_quit: bool,
-    pub show_link_picker: bool,
-    pub link_picker_checks: Vec<(String, bool)>,
-    pub link_picker_name: String,
-    pub link_picker_original: Vec<(String, bool)>,
+    pub modal: Modal,
     pub status_message: Option<String>,
-    pub show_delete_confirm: bool,
 }
 
 impl App {
@@ -213,12 +208,8 @@ impl App {
             filter: String::new(),
             filtering: false,
             should_quit: false,
-            show_link_picker: false,
-            link_picker_checks: Vec::new(),
-            link_picker_name: String::new(),
-            link_picker_original: Vec::new(),
+            modal: Modal::None,
             status_message: None,
-            show_delete_confirm: false,
         })
     }
 
@@ -252,20 +243,28 @@ impl App {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Key handling
+    // -----------------------------------------------------------------------
+
     fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
         // Clear transient status on any keypress
         self.status_message = None;
 
-        if self.show_delete_confirm {
-            self.handle_delete_confirm_key(key);
+        // 1. Delegate to modal if active
+        if let Some(result) = self.modal.handle_key(key) {
+            match result {
+                ModalResult::Continue => {}
+                ModalResult::Dismiss => self.modal = Modal::None,
+                ModalResult::Execute(actions) => {
+                    self.modal = Modal::None;
+                    self.dispatch_all(actions);
+                }
+            }
             return;
         }
 
-        if self.show_link_picker {
-            self.handle_link_picker_key(key);
-            return;
-        }
-
+        // 2. Filter mode
         if self.filtering {
             match key.code {
                 KeyCode::Esc => {
@@ -286,6 +285,7 @@ impl App {
             return;
         }
 
+        // 3. Main navigation / modal-opening keys
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -321,163 +321,128 @@ impl App {
             }
             KeyCode::Char('d') => {
                 if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 {
-                    self.show_delete_confirm = true;
+                    self.open_delete_confirm();
                 }
             }
             _ => {}
         }
     }
 
-    fn handle_delete_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Enter => {
-                self.show_delete_confirm = false;
-                let kind = self.tab;
-                let name = match kind {
-                    Tab::Skills => self
-                        .filtered_skills()
-                        .get(self.selected)
-                        .map(|s| s.name.clone()),
-                    Tab::Agents => self
-                        .filtered_agents()
-                        .get(self.selected)
-                        .map(|a| a.name.clone()),
-                    _ => None,
-                };
-                let Some(name) = name else { return };
-                let result = match kind {
-                    Tab::Skills => remove_ops::remove_skill(&name),
-                    Tab::Agents => remove_ops::remove_agent(&name),
-                    _ => return,
-                };
-                match result {
-                    Ok(()) => {
-                        self.status_message = Some(format!("Deleted '{name}'"));
-                        self.reload_skills_agents();
-                        let max = self.current_list_len();
-                        if max > 0 {
-                            self.selected = self.selected.min(max - 1);
-                        } else {
-                            self.selected = 0;
-                        }
-                    }
-                    Err(e) => {
-                        self.status_message = Some(format!("Error: {e}"));
-                    }
+    // -----------------------------------------------------------------------
+    // Dispatch — execute actions and react to results
+    // -----------------------------------------------------------------------
+
+    fn dispatch_all(&mut self, actions: Vec<super::action::Action>) {
+        for action in &actions {
+            match action.execute() {
+                Ok(()) => {
+                    self.status_message = Some(action.success_message());
+                    self.reload(action.reload_target());
+                    self.clamp_selection();
                 }
-            }
-            _ => {
-                self.show_delete_confirm = false;
+                Err(e) => {
+                    self.status_message = Some(format!("Error: {e}"));
+                    break;
+                }
             }
         }
     }
 
-    fn handle_link_picker_key(&mut self, key: crossterm::event::KeyEvent) {
-        match key.code {
-            KeyCode::Esc => self.show_link_picker = false,
-            KeyCode::Enter => {
-                self.apply_link_picker();
-                self.show_link_picker = false;
+    fn reload(&mut self, target: ReloadTarget) {
+        match target {
+            ReloadTarget::SkillsAndAgents => {
+                let installed = tools::installed_tools();
+                self.installed_tools =
+                    installed.iter().map(|t| t.slug().to_string()).collect();
+                self.skills = load_skills(&installed);
+                self.agents = load_agents(&installed);
+                self.tool_entries = load_tool_entries(&installed);
             }
-            KeyCode::Char(' ') => {
-                if let Some((_, checked)) = self.link_picker_checks.get_mut(self.selected) {
-                    *checked = !*checked;
-                }
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if !self.link_picker_checks.is_empty() {
-                    self.selected = (self.selected + 1).min(self.link_picker_checks.len() - 1);
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.selected = self.selected.saturating_sub(1);
-            }
-            _ => {}
         }
     }
 
-    fn open_link_picker(&mut self) {
-        let name = match self.tab {
-            Tab::Skills => self
-                .filtered_skills()
-                .get(self.selected)
-                .map(|s| s.name.clone()),
-            Tab::Agents => self
-                .filtered_agents()
-                .get(self.selected)
-                .map(|a| a.name.clone()),
-            _ => None,
+    fn clamp_selection(&mut self) {
+        let max = self.current_list_len();
+        if max > 0 {
+            self.selected = self.selected.min(max - 1);
+        } else {
+            self.selected = 0;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Modal openers
+    // -----------------------------------------------------------------------
+
+    fn open_delete_confirm(&mut self) {
+        let (name, agent_source) = match self.tab {
+            Tab::Skills => {
+                let filtered = self.filtered_skills();
+                let name = filtered.get(self.selected).map(|s| s.name.clone());
+                (name, None)
+            }
+            Tab::Agents => {
+                let filtered = self.filtered_agents();
+                match filtered.get(self.selected) {
+                    Some(a) => (Some(a.name.clone()), Some(a.source.clone())),
+                    None => (None, None),
+                }
+            }
+            _ => return,
         };
 
         let Some(name) = name else { return };
 
-        let linked = match self.tab {
-            Tab::Skills => self
-                .skills
-                .iter()
-                .find(|s| s.name == name)
-                .map(|s| &s.linked_tools),
-            Tab::Agents => self
-                .agents
-                .iter()
-                .find(|a| a.name == name)
-                .map(|a| &a.linked_tools),
-            _ => None,
+        self.modal = Modal::DeleteConfirm(DeleteConfirm {
+            name,
+            tab: self.tab,
+            agent_source,
+        });
+    }
+
+    fn open_link_picker(&mut self) {
+        let (name, linked) = match self.tab {
+            Tab::Skills => {
+                let filtered = self.filtered_skills();
+                match filtered.get(self.selected) {
+                    Some(s) => (s.name.clone(), s.linked_tools.clone()),
+                    None => return,
+                }
+            }
+            Tab::Agents => {
+                let filtered = self.filtered_agents();
+                match filtered.get(self.selected) {
+                    Some(a) => (a.name.clone(), a.linked_tools.clone()),
+                    None => return,
+                }
+            }
+            _ => return,
         };
 
-        let Some(linked) = linked else { return };
+        let kind = match self.tab {
+            Tab::Skills => ResourceKind::Skill,
+            Tab::Agents => ResourceKind::Agent,
+            _ => return,
+        };
 
         let checks: Vec<(String, bool)> = self
             .installed_tools
             .iter()
             .map(|slug| (slug.clone(), linked.contains(slug)))
             .collect();
-        self.link_picker_name = name;
-        self.link_picker_original = checks.clone();
-        self.link_picker_checks = checks;
-        self.selected = 0;
-        self.show_link_picker = true;
+
+        self.modal = Modal::LinkPicker(LinkPicker {
+            name,
+            kind,
+            original: checks.clone(),
+            checks,
+            selected: 0,
+        });
     }
 
-    fn apply_link_picker(&mut self) {
-        let kind = match self.tab {
-            Tab::Skills => ResourceKind::Skill,
-            Tab::Agents => ResourceKind::Agent,
-            _ => return,
-        };
-        let name = self.link_picker_name.clone();
-
-        for (i, (slug, now_checked)) in self.link_picker_checks.iter().enumerate() {
-            let was_checked = self
-                .link_picker_original
-                .get(i)
-                .map(|(_, c)| *c)
-                .unwrap_or(false);
-            if *now_checked && !was_checked {
-                if let Err(e) = link_ops::link(kind, &name, slug, false) {
-                    self.status_message = Some(format!("Error linking to {slug}: {e}"));
-                    return;
-                }
-            } else if !now_checked
-                && was_checked
-                && let Err(e) = link_ops::unlink(kind, &name, slug)
-            {
-                self.status_message = Some(format!("Error unlinking from {slug}: {e}"));
-                return;
-            }
-        }
-
-        self.status_message = Some(format!("Updated links for '{name}'"));
-        self.reload_skills_agents();
-    }
-
-    fn reload_skills_agents(&mut self) {
-        let installed = tools::installed_tools();
-        self.installed_tools = installed.iter().map(|t| t.slug().to_string()).collect();
-        self.skills = load_skills(&installed);
-        self.agents = load_agents(&installed);
-        self.tool_entries = load_tool_entries(&installed);
-    }
+    // -----------------------------------------------------------------------
+    // List helpers
+    // -----------------------------------------------------------------------
 
     pub fn current_list_len(&self) -> usize {
         match self.tab {
@@ -605,6 +570,7 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
     let mut entries = Vec::new();
     let agents_dir = config::shared_agents_dir();
 
+    // Pass 1: managed agents from shared store
     if agents_dir.exists()
         && let Ok(dir) = std::fs::read_dir(&agents_dir)
     {
@@ -630,10 +596,12 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
                     .unwrap_or_default(),
                 model: resource.as_ref().and_then(|r| r.model.clone()),
                 linked_tools,
+                source: AgentSource::Managed,
             });
         }
     }
 
+    // Pass 2: unmanaged agents from tool-specific directories
     for tool in installed {
         if let Some(dir) = tool.agents_dir() {
             if !dir.exists() {
@@ -645,11 +613,17 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
                     if path.extension().and_then(|e| e.to_str()) != Some("md") {
                         continue;
                     }
+                    // Symlinks point to the shared store — already counted in Pass 1
                     if path.is_symlink() {
                         continue;
                     }
                     let name = path.file_stem().unwrap().to_string_lossy().to_string();
-                    if entries.iter().any(|e| e.name == name) {
+
+                    // Merge paths if same-name unmanaged agent exists across tools
+                    if let Some(existing) = entries.iter_mut().find(|e| e.name == name) {
+                        if let AgentSource::Unmanaged(ref mut paths) = existing.source {
+                            paths.push(path.clone());
+                        }
                         continue;
                     }
 
@@ -664,6 +638,7 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
                             .unwrap_or_default(),
                         model: resource.as_ref().and_then(|r| r.model.clone()),
                         linked_tools: vec![tool.slug().to_string()],
+                        source: AgentSource::Unmanaged(vec![path.clone()]),
                     });
                 }
             }
