@@ -5,6 +5,7 @@ use super::app::{App, Tab};
 
 mod agent_list;
 mod config_list;
+mod delete_confirm;
 mod info;
 mod link_picker;
 mod memory_list;
@@ -44,6 +45,10 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     if app.show_link_picker {
         link_picker::draw(f, app);
+    }
+
+    if app.show_delete_confirm {
+        delete_confirm::draw(f, app);
     }
 }
 
@@ -171,7 +176,7 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
     } else {
         let keys = match app.tab {
             Tab::Skills | Tab::Agents => {
-                "[/] Filter  [l] Link  [Tab] Switch  [j/k] Navigate  [q] Quit"
+                "[/] Filter  [l] Link/Unlink  [d] Delete  [Tab] Switch  [j/k] Navigate  [q] Quit"
             }
             Tab::Sessions | Tab::Memories | Tab::Configs => {
                 "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit"
@@ -193,6 +198,13 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
+    if let Some(msg) = &app.status_message {
+        let bar = Paragraph::new(format!("  {msg}"))
+            .style(Style::default().fg(Color::Yellow).bg(Color::DarkGray));
+        f.render_widget(bar, area);
+        return;
+    }
+
     let info = match app.tab {
         Tab::Skills => {
             let skills = app.filtered_skills();

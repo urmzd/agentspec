@@ -9,7 +9,8 @@ use crate::adapters::{self, Adapter};
 use crate::config;
 use crate::error::Result;
 use crate::inventory::{self, TrackedKind};
-use crate::ops::memory;
+use crate::ir::ResourceKind;
+use crate::ops::{link as link_ops, memory, remove as remove_ops};
 use crate::session;
 use crate::tools::{self, CodingTool};
 
@@ -180,6 +181,10 @@ pub struct App {
     pub should_quit: bool,
     pub show_link_picker: bool,
     pub link_picker_checks: Vec<(String, bool)>,
+    pub link_picker_name: String,
+    pub link_picker_original: Vec<(String, bool)>,
+    pub status_message: Option<String>,
+    pub show_delete_confirm: bool,
 }
 
 impl App {
@@ -211,6 +216,10 @@ impl App {
             should_quit: false,
             show_link_picker: false,
             link_picker_checks: Vec::new(),
+            link_picker_name: String::new(),
+            link_picker_original: Vec::new(),
+            status_message: None,
+            show_delete_confirm: false,
         })
     }
 
@@ -245,6 +254,14 @@ impl App {
     }
 
     fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
+        // Clear transient status on any keypress
+        self.status_message = None;
+
+        if self.show_delete_confirm {
+            self.handle_delete_confirm_key(key);
+            return;
+        }
+
         if self.show_link_picker {
             self.handle_link_picker_key(key);
             return;
@@ -303,7 +320,56 @@ impl App {
                     self.open_link_picker();
                 }
             }
+            KeyCode::Char('d') => {
+                if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 {
+                    self.show_delete_confirm = true;
+                }
+            }
             _ => {}
+        }
+    }
+
+    fn handle_delete_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => {
+                self.show_delete_confirm = false;
+                let kind = self.tab;
+                let name = match kind {
+                    Tab::Skills => self
+                        .filtered_skills()
+                        .get(self.selected)
+                        .map(|s| s.name.clone()),
+                    Tab::Agents => self
+                        .filtered_agents()
+                        .get(self.selected)
+                        .map(|a| a.name.clone()),
+                    _ => None,
+                };
+                let Some(name) = name else { return };
+                let result = match kind {
+                    Tab::Skills => remove_ops::remove_skill(&name),
+                    Tab::Agents => remove_ops::remove_agent(&name),
+                    _ => return,
+                };
+                match result {
+                    Ok(()) => {
+                        self.status_message = Some(format!("Deleted '{name}'"));
+                        self.reload_skills_agents();
+                        let max = self.current_list_len();
+                        if max > 0 {
+                            self.selected = self.selected.min(max - 1);
+                        } else {
+                            self.selected = 0;
+                        }
+                    }
+                    Err(e) => {
+                        self.status_message = Some(format!("Error: {e}"));
+                    }
+                }
+            }
+            _ => {
+                self.show_delete_confirm = false;
+            }
         }
     }
 
@@ -362,17 +428,54 @@ impl App {
 
         let Some(linked) = linked else { return };
 
-        self.link_picker_checks = self
+        let checks: Vec<(String, bool)> = self
             .installed_tools
             .iter()
             .map(|slug| (slug.clone(), linked.contains(slug)))
             .collect();
+        self.link_picker_name = name;
+        self.link_picker_original = checks.clone();
+        self.link_picker_checks = checks;
         self.selected = 0;
         self.show_link_picker = true;
     }
 
     fn apply_link_picker(&mut self) {
-        // TODO: actually create/remove symlinks based on changed checks
+        let kind = match self.tab {
+            Tab::Skills => ResourceKind::Skill,
+            Tab::Agents => ResourceKind::Agent,
+            _ => return,
+        };
+        let name = self.link_picker_name.clone();
+
+        for (i, (slug, now_checked)) in self.link_picker_checks.iter().enumerate() {
+            let was_checked = self.link_picker_original
+                .get(i)
+                .map(|(_, c)| *c)
+                .unwrap_or(false);
+            if *now_checked && !was_checked {
+                if let Err(e) = link_ops::link(kind, &name, slug, false) {
+                    self.status_message = Some(format!("Error linking to {slug}: {e}"));
+                    return;
+                }
+            } else if !now_checked && was_checked {
+                if let Err(e) = link_ops::unlink(kind, &name, slug) {
+                    self.status_message = Some(format!("Error unlinking from {slug}: {e}"));
+                    return;
+                }
+            }
+        }
+
+        self.status_message = Some(format!("Updated links for '{name}'"));
+        self.reload_skills_agents();
+    }
+
+    fn reload_skills_agents(&mut self) {
+        let installed = tools::installed_tools();
+        self.installed_tools = installed.iter().map(|t| t.slug().to_string()).collect();
+        self.skills = load_skills(&installed);
+        self.agents = load_agents(&installed);
+        self.tool_entries = load_tool_entries(&installed);
     }
 
     pub fn current_list_len(&self) -> usize {
