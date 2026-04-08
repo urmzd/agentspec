@@ -116,8 +116,8 @@ pub fn has_valid_agent_frontmatter(path: &Path) -> bool {
     let Some(map) = fm.as_mapping() else {
         return false;
     };
-    map.contains_key(&serde_yaml::Value::String("name".into()))
-        && map.contains_key(&serde_yaml::Value::String("description".into()))
+    map.contains_key(serde_yaml::Value::String("name".into()))
+        && map.contains_key(serde_yaml::Value::String("description".into()))
 }
 
 /// Scan entries inside a directory during broad/targeted scan, discovering both
