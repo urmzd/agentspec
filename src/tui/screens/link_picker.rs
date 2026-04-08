@@ -1,20 +1,20 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::tui::app::App;
+use crate::tui::modal::LinkPicker;
 
-pub fn draw(f: &mut Frame, app: &App) {
+pub fn draw(f: &mut Frame, lp: &LinkPicker) {
     let area = centered_rect(40, 60, f.area());
 
     f.render_widget(Clear, area);
 
-    let items: Vec<Row> = app
-        .link_picker_checks
+    let items: Vec<Row> = lp
+        .checks
         .iter()
         .enumerate()
         .map(|(i, (slug, checked))| {
             let marker = if *checked { "[x]" } else { "[ ]" };
-            let style = if i == app.selected {
+            let style = if i == lp.selected {
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
@@ -38,7 +38,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     );
 
     let mut state = TableState::default();
-    state.select(Some(app.selected));
+    state.select(Some(lp.selected));
 
     f.render_stateful_widget(table, area, &mut state);
 
