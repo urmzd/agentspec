@@ -458,11 +458,12 @@ impl App {
                     self.status_message = Some(format!("Error linking to {slug}: {e}"));
                     return;
                 }
-            } else if !now_checked && was_checked {
-                if let Err(e) = link_ops::unlink(kind, &name, slug) {
-                    self.status_message = Some(format!("Error unlinking from {slug}: {e}"));
-                    return;
-                }
+            } else if !now_checked
+                && was_checked
+                && let Err(e) = link_ops::unlink(kind, &name, slug)
+            {
+                self.status_message = Some(format!("Error unlinking from {slug}: {e}"));
+                return;
             }
         }
 
