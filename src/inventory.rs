@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,26 @@ pub struct Config {
     pub resources: Vec<TrackedResource>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub discovered: Vec<DiscoveredResource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projects: Vec<TrackedProject>,
+}
+
+/// A project tracked by agentspec with synced-in resources.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackedProject {
+    pub name: String,
+    pub path: String,
+    /// Whether auto-sync is enabled
+    #[serde(default)]
+    pub sync: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synced_at: Option<String>,
+    /// Hash of the merged canonical AGENTS.md in ~/.agents/projects/{name}/
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_hash: Option<String>,
+    /// Source file hashes for change detection on resync
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub source_hashes: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,10 +70,12 @@ pub struct TrackedResource {
 pub enum TrackedKind {
     Skill,
     Agent,
-    Session,
-    Memory,
     ProjectConfig,
+    InstructionFile,
     LlmsTxt,
+    Memory,
+    Session,
+    Plan,
 }
 
 impl From<ResourceKind> for TrackedKind {
@@ -60,10 +83,12 @@ impl From<ResourceKind> for TrackedKind {
         match k {
             ResourceKind::Skill => TrackedKind::Skill,
             ResourceKind::Agent => TrackedKind::Agent,
-            ResourceKind::Session => TrackedKind::Session,
-            ResourceKind::Memory => TrackedKind::Memory,
             ResourceKind::ProjectConfig => TrackedKind::ProjectConfig,
+            ResourceKind::InstructionFile => TrackedKind::InstructionFile,
             ResourceKind::LlmsTxt => TrackedKind::LlmsTxt,
+            ResourceKind::Memory => TrackedKind::Memory,
+            ResourceKind::Session => TrackedKind::Session,
+            ResourceKind::Plan => TrackedKind::Plan,
         }
     }
 }
@@ -73,10 +98,12 @@ impl From<TrackedKind> for ResourceKind {
         match k {
             TrackedKind::Skill => ResourceKind::Skill,
             TrackedKind::Agent => ResourceKind::Agent,
-            TrackedKind::Session => ResourceKind::Session,
-            TrackedKind::Memory => ResourceKind::Memory,
             TrackedKind::ProjectConfig => ResourceKind::ProjectConfig,
+            TrackedKind::InstructionFile => ResourceKind::InstructionFile,
             TrackedKind::LlmsTxt => ResourceKind::LlmsTxt,
+            TrackedKind::Memory => ResourceKind::Memory,
+            TrackedKind::Session => ResourceKind::Session,
+            TrackedKind::Plan => ResourceKind::Plan,
         }
     }
 }
@@ -86,10 +113,12 @@ impl std::fmt::Display for TrackedKind {
         match self {
             TrackedKind::Skill => write!(f, "skill"),
             TrackedKind::Agent => write!(f, "agent"),
-            TrackedKind::Session => write!(f, "session"),
-            TrackedKind::Memory => write!(f, "memory"),
             TrackedKind::ProjectConfig => write!(f, "project-config"),
+            TrackedKind::InstructionFile => write!(f, "instruction-file"),
             TrackedKind::LlmsTxt => write!(f, "llms-txt"),
+            TrackedKind::Memory => write!(f, "memory"),
+            TrackedKind::Session => write!(f, "session"),
+            TrackedKind::Plan => write!(f, "plan"),
         }
     }
 }
@@ -162,6 +191,7 @@ impl Config {
             last_scan: None,
             resources: Vec::new(),
             discovered: Vec::new(),
+            projects: Vec::new(),
         }
     }
 
@@ -188,6 +218,26 @@ impl Config {
         } else {
             self.resources.push(resource);
         }
+    }
+
+    pub fn find_project(&self, name: &str) -> Option<&TrackedProject> {
+        self.projects.iter().find(|p| p.name == name)
+    }
+
+    pub fn find_project_mut(&mut self, name: &str) -> Option<&mut TrackedProject> {
+        self.projects.iter_mut().find(|p| p.name == name)
+    }
+
+    pub fn add_project(&mut self, project: TrackedProject) {
+        if let Some(existing) = self.find_project_mut(&project.name) {
+            *existing = project;
+        } else {
+            self.projects.push(project);
+        }
+    }
+
+    pub fn remove_project(&mut self, name: &str) {
+        self.projects.retain(|p| p.name != name);
     }
 
     /// Migrate from the legacy `.skill-lock.json` v3 format.
@@ -286,7 +336,9 @@ pub fn hash_resource(kind: TrackedKind, abs_path: &Path) -> Result<String> {
         | TrackedKind::Session
         | TrackedKind::Memory
         | TrackedKind::ProjectConfig
-        | TrackedKind::LlmsTxt => hash_file(abs_path),
+        | TrackedKind::InstructionFile
+        | TrackedKind::LlmsTxt
+        | TrackedKind::Plan => hash_file(abs_path),
     }
 }
 
@@ -337,6 +389,7 @@ pub fn load_config() -> Result<Config> {
             last_scan: None,
             resources: old.resources,
             discovered: Vec::new(),
+            projects: Vec::new(),
         };
         cfg.save(&cfg_path)?;
         let _ = std::fs::remove_file(&old_inv);
