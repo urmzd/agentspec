@@ -3,6 +3,7 @@ pub mod agentskills;
 pub mod claude;
 pub mod claude_md;
 pub mod gemini;
+pub mod instruction_file;
 pub mod llms_txt;
 
 use std::path::Path;
@@ -34,6 +35,15 @@ pub fn adapter_for_path(path: &Path) -> Option<Box<dyn Adapter>> {
         "AGENTS.md" => return Some(Box::new(agents_md::AgentsMdAdapter)),
         "CLAUDE.md" => return Some(Box::new(claude_md::ClaudeMdAdapter)),
         "llms.txt" => return Some(Box::new(llms_txt::LlmsTxtAdapter)),
+        // Instruction files — editor-specific
+        "GEMINI.md"
+        | ".cursorrules"
+        | ".clinerules"
+        | ".windsurfrules"
+        | "copilot-instructions.md"
+        | "codex-instructions.md" => {
+            return Some(Box::new(instruction_file::InstructionFileAdapter));
+        }
         _ => {}
     }
 
@@ -46,6 +56,11 @@ pub fn adapter_for_path(path: &Path) -> Option<Box<dyn Adapter>> {
     }
     if grandparent == ".gemini" {
         return Some(Box::new(gemini::GeminiAdapter));
+    }
+
+    // Instruction file directories (e.g. .cursor/rules/)
+    if parent == ".cursor" && filename == "rules" {
+        return Some(Box::new(instruction_file::InstructionFileAdapter));
     }
 
     // Default: try Claude format for .md files in agents dirs
