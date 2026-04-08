@@ -106,7 +106,9 @@ pub static PROJECT_FILES: &[ProjectFileSpec] = &[
 ];
 
 /// Find all project file specs that exist in a given project root.
-pub fn find_in_project(project_root: &std::path::Path) -> Vec<(&'static ProjectFileSpec, std::path::PathBuf)> {
+pub fn find_in_project(
+    project_root: &std::path::Path,
+) -> Vec<(&'static ProjectFileSpec, std::path::PathBuf)> {
     let mut found = Vec::new();
     for spec in PROJECT_FILES {
         let path = project_root.join(spec.project_path);
