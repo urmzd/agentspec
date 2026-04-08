@@ -2,6 +2,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use super::app::{App, Tab};
+use super::modal::Modal;
 
 mod agent_list;
 mod config_list;
@@ -43,12 +44,10 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     draw_status_bar(f, chunks[3], app);
 
-    if app.show_link_picker {
-        link_picker::draw(f, app);
-    }
-
-    if app.show_delete_confirm {
-        delete_confirm::draw(f, app);
+    match &app.modal {
+        Modal::None => {}
+        Modal::DeleteConfirm(dc) => delete_confirm::draw(f, dc),
+        Modal::LinkPicker(lp) => link_picker::draw(f, lp),
     }
 }
 
