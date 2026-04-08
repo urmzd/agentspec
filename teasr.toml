@@ -34,14 +34,25 @@ type = "wait"
 duration = 1500
 hidden = true
 
-# Skills tab (default)
+# Info tab (default)
 [[scenes.interactions]]
 type = "snapshot"
-name = "skills"
+name = "info"
 
 [[scenes.interactions]]
 type = "wait"
 duration = 1000
+
+# Switch to Skills tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "skills"
 
 # Navigate down
 [[scenes.interactions]]
@@ -103,7 +114,24 @@ duration = 800
 type = "snapshot"
 name = "memories"
 
-# Demo filter
+# Switch to Configs tab
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 800
+[[scenes.interactions]]
+type = "snapshot"
+name = "configs"
+
+# Demo filter (go back to Memories tab first)
+[[scenes.interactions]]
+type = "key"
+key = "shift+tab"
+[[scenes.interactions]]
+type = "wait"
+duration = 400
 [[scenes.interactions]]
 type = "key"
 key = "/"
