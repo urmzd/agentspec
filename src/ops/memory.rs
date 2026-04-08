@@ -23,9 +23,6 @@ pub struct MemoryEntry {
 pub struct ProjectInfo {
     pub encoded_name: String,
     pub project_path: Option<PathBuf>,
-    pub has_agents_md: bool,
-    pub has_claude_md: bool,
-    pub has_llms_txt: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -99,23 +96,9 @@ pub fn scan_project_infos() -> Vec<ProjectInfo> {
         let encoded_name = dir.file_name().unwrap().to_string_lossy().to_string();
         let project_path = decode_project_path(&encoded_name);
 
-        // Check for project-root config files
-        let (has_agents_md, has_claude_md, has_llms_txt) = if let Some(ref pp) = project_path {
-            (
-                pp.join("AGENTS.md").exists(),
-                pp.join("CLAUDE.md").exists(),
-                pp.join("llms.txt").exists(),
-            )
-        } else {
-            (false, false, false)
-        };
-
         infos.push(ProjectInfo {
             encoded_name,
             project_path,
-            has_agents_md,
-            has_claude_md,
-            has_llms_txt,
         });
     }
 

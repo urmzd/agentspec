@@ -5,6 +5,7 @@ use console::style;
 use crate::config;
 use crate::error::{AppError, Result};
 use crate::frontmatter;
+use crate::project_files;
 use crate::inventory::{
     self, Config, DiscoveredResource, DiscoveryLocation, LinkStrategy, ResourceLink, SourceType,
     TrackedKind, TrackedResource, hash_resource,
@@ -708,7 +709,8 @@ pub fn status(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Scan decoded project roots for AGENTS.md, CLAUDE.md, and llms.txt.
+/// Scan decoded project roots for all project files (AGENTS.md, instruction files, llms.txt).
+/// Uses the unified project file registry — no hardcoded filenames.
 /// Only considers directories that are git repositories (contain .git).
 fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     let project_infos = memory::scan_project_infos();
@@ -728,61 +730,50 @@ fn scan_project_configs(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| p.encoded_name.clone());
 
-        // AGENTS.md
-        if p.has_agents_md {
-            let file_path = pp.join("AGENTS.md");
-            let name = format!("{project_name}/AGENTS.md");
-            if cfg.find(&name, TrackedKind::ProjectConfig).is_none()
+        // Single loop: discover all project files from the registry
+        for (spec, file_path) in project_files::find_in_project(pp) {
+            let name = format!("{project_name}/{}", spec.filename);
+            if cfg.find(&name, spec.kind).is_none()
                 && !found.iter().any(|d| d.name == name)
             {
+                let content_hash = if spec.is_directory {
+                    inventory::hash_dir(&file_path).ok()
+                } else {
+                    inventory::hash_file(&file_path).ok()
+                };
                 found.push(DiscoveredResource {
                     name,
-                    kind: TrackedKind::ProjectConfig,
+                    kind: spec.kind,
                     found_in: vec![DiscoveryLocation {
-                        tool: "project".to_string(),
+                        tool: spec.editor.to_string(),
                         path: file_path.to_string_lossy().to_string(),
                     }],
-                    content_hash: inventory::hash_file(&file_path).ok(),
+                    content_hash,
                 });
             }
         }
+    }
 
-        // CLAUDE.md
-        if p.has_claude_md {
-            let file_path = pp.join("CLAUDE.md");
-            let name = format!("{project_name}/CLAUDE.md");
-            if cfg.find(&name, TrackedKind::ProjectConfig).is_none()
-                && !found.iter().any(|d| d.name == name)
-            {
-                found.push(DiscoveredResource {
-                    name,
-                    kind: TrackedKind::ProjectConfig,
-                    found_in: vec![DiscoveryLocation {
-                        tool: "project".to_string(),
-                        path: file_path.to_string_lossy().to_string(),
-                    }],
-                    content_hash: inventory::hash_file(&file_path).ok(),
-                });
-            }
-        }
-
-        // llms.txt
-        if p.has_llms_txt {
-            let file_path = pp.join("llms.txt");
-            let name = format!("{project_name}/llms.txt");
-            if cfg.find(&name, TrackedKind::LlmsTxt).is_none()
-                && !found.iter().any(|d| d.name == name)
-            {
-                found.push(DiscoveredResource {
-                    name,
-                    kind: TrackedKind::LlmsTxt,
-                    found_in: vec![DiscoveryLocation {
-                        tool: "project".to_string(),
-                        path: file_path.to_string_lossy().to_string(),
-                    }],
-                    content_hash: inventory::hash_file(&file_path).ok(),
-                });
-            }
+    // Global files (instruction files with global_path set)
+    for (spec, file_path) in project_files::find_global() {
+        let name = format!("global/{}", spec.filename);
+        if cfg.find(&name, spec.kind).is_none()
+            && !found.iter().any(|d| d.name == name)
+        {
+            let content_hash = if spec.is_directory {
+                inventory::hash_dir(&file_path).ok()
+            } else {
+                inventory::hash_file(&file_path).ok()
+            };
+            found.push(DiscoveredResource {
+                name,
+                kind: spec.kind,
+                found_in: vec![DiscoveryLocation {
+                    tool: spec.editor.to_string(),
+                    path: file_path.to_string_lossy().to_string(),
+                }],
+                content_hash,
+            });
         }
     }
 }
