@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.5.0 (2026-04-08)
+
+### Breaking Changes
+
+- **cli,main**: add project subcommand and refactor session handling ([dae4c3e](https://github.com/urmzd/agentspec/commit/dae4c3e5244a28d5eba452bc3932fe4c625da170))
+- **session**: add Copilot and Gemini adapters, refactor session module ([da22692](https://github.com/urmzd/agentspec/commit/da22692b24c32ab2d608daab15d8d23a78512841))
+
+### Features
+
+- **tui**: wire up link/unlink and add delete with live refresh ([3d4964a](https://github.com/urmzd/agentspec/commit/3d4964a96bc5f0296215583bff0effa4c9d263da))
+- **prune**: add prune command to remove broken resources and stale entries ([52741f4](https://github.com/urmzd/agentspec/commit/52741f47169dde9175e9e7071d25e21dbf59252b))
+- **tui**: add configuration list screen ([cc2f6a2](https://github.com/urmzd/agentspec/commit/cc2f6a2065f58d6c498e0c0582d1a6fba4dcf05f))
+- **tools**: recognize new session adapters and aliases ([f8a053d](https://github.com/urmzd/agentspec/commit/f8a053d3ef975c2755646374d9724a0d1838e331))
+- **ops**: add project config creation and update for new resource kinds ([bd27fa9](https://github.com/urmzd/agentspec/commit/bd27fa9cc8f39ddbde52ecaf5839a4691b8041e5))
+- **ops**: add project sync operations ([f55e384](https://github.com/urmzd/agentspec/commit/f55e384272b751415f1b92179ae05b7054093b88))
+- **project_files**: static registry of project file specs ([b6cb3f0](https://github.com/urmzd/agentspec/commit/b6cb3f053dcafec297f186fd654afd42e7c139ca))
+- **adapters**: add instruction file adapter for editor-specific rules ([48d476d](https://github.com/urmzd/agentspec/commit/48d476d407ad2d4b036c5606c3b0ac50cfac4d1b))
+- **config**: add shared project and memory directories ([465dd3a](https://github.com/urmzd/agentspec/commit/465dd3acd628f9e3850892d9cd4eb5c8cc363b7f))
+- **ir,inventory**: expand resource model with instruction files and project tracking ([f0bc485](https://github.com/urmzd/agentspec/commit/f0bc4859857e082e8835204ca43951e8cd2628ba))
+- **tui**: add info tab showing configuration and tool detection ([5af18b9](https://github.com/urmzd/agentspec/commit/5af18b93500c686c23da5766d15c197008aa0996))
+- **ops**: wire up --path parameter through sync pipeline ([6b42e58](https://github.com/urmzd/agentspec/commit/6b42e580ef70d00a477224a487c3619906a47f66))
+- **cli**: add --path parameter to status and sync commands ([4f970f2](https://github.com/urmzd/agentspec/commit/4f970f281f3e15fcbc41da4ad25be034c9543e15))
+
+### Bug Fixes
+
+- **tui**: collapse nested if to satisfy clippy ([cca4cc9](https://github.com/urmzd/agentspec/commit/cca4cc996248cbf96a7ca21631f102131a5c4d97))
+- **manage**: support @subpath and #branch suffixes for git sources ([ab8108c](https://github.com/urmzd/agentspec/commit/ab8108c8683383de9de3fe38e70af1649070f161))
+- **manage**: support @branch suffix for all git sources ([0acf11b](https://github.com/urmzd/agentspec/commit/0acf11b1e6be75b358d217ac5fc0382d63fb58da))
+- **discover**: remove unnecessary reference in contains_key calls ([eefa655](https://github.com/urmzd/agentspec/commit/eefa655300c8f85989816bd69fbe21537169907d))
+
+### Documentation
+
+- update showcase assets and demo interactions ([6ba8aed](https://github.com/urmzd/agentspec/commit/6ba8aed9368804ee2423f83628e182f85cd29385))
+- add roadmap and update readme ([47363ba](https://github.com/urmzd/agentspec/commit/47363ba11eca0d6927e03ae1be7797cf782c3f02))
+- add configuration section to readme ([e34fdc4](https://github.com/urmzd/agentspec/commit/e34fdc4cb8ce14f61234d64b2f095bfad39e7453))
+- refactor resource conventions documentation ([c1542c8](https://github.com/urmzd/agentspec/commit/c1542c82028dfdf4abd4cba8ca6fb3fcc4c55ba2))
+- refactor README with improved structure and clarity ([a56b065](https://github.com/urmzd/agentspec/commit/a56b0659cdd2b76aedddb20e8e5b192871ebb281))
+
+### Refactoring
+
+- **tui**: improve code formatting in UI modules ([61536d4](https://github.com/urmzd/agentspec/commit/61536d40541fa98adaa37041cf12746ee32b55bd))
+- improve code formatting in core and adapter modules ([47bb131](https://github.com/urmzd/agentspec/commit/47bb131533fbe978f92b40c8ff79f49374fb58c7))
+- **ops**: improve code formatting and organization ([5e56a00](https://github.com/urmzd/agentspec/commit/5e56a007cd6eabe00bba4edb67a89ca5ed0e6f0b))
+- **ops**: use consolidated frontmatter validation ([a14c27a](https://github.com/urmzd/agentspec/commit/a14c27a8abb10ccdb6427d4e50f89f830353612b))
+- **discover**: extract walk entry logic and validation helpers ([270d761](https://github.com/urmzd/agentspec/commit/270d761cb4825a021a533900682b2983d05bcbf3))
+
+### Miscellaneous
+
+- bump version to 0.4.1 ([0ccc7cd](https://github.com/urmzd/agentspec/commit/0ccc7cdc6923a2ec8ee6158461c9276ae64fb7c4))
+- remove install.sh script ([80421e4](https://github.com/urmzd/agentspec/commit/80421e4a296a959680dc4fc69ba6e8adb451bc02))
+- move install script to scripts directory ([447c456](https://github.com/urmzd/agentspec/commit/447c456ae537786736ad352d3ec1b27c5d4117b5))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.4.1...v0.5.0)
+
+
 ## 0.4.1 (2026-04-05)
 
 ### Bug Fixes
