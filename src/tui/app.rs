@@ -23,6 +23,7 @@ pub enum Tab {
     Tools,
     Sessions,
     Memories,
+    Info,
 }
 
 impl Tab {
@@ -33,6 +34,7 @@ impl Tab {
             Tab::Tools,
             Tab::Sessions,
             Tab::Memories,
+            Tab::Info,
         ]
     }
 
@@ -43,6 +45,7 @@ impl Tab {
             Tab::Tools => "Tools",
             Tab::Sessions => "Sessions",
             Tab::Memories => "Memories",
+            Tab::Info => "Info",
         }
     }
 
@@ -52,17 +55,19 @@ impl Tab {
             Tab::Agents => Tab::Tools,
             Tab::Tools => Tab::Sessions,
             Tab::Sessions => Tab::Memories,
-            Tab::Memories => Tab::Skills,
+            Tab::Memories => Tab::Info,
+            Tab::Info => Tab::Skills,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            Tab::Skills => Tab::Memories,
+            Tab::Skills => Tab::Info,
             Tab::Agents => Tab::Skills,
             Tab::Tools => Tab::Agents,
             Tab::Sessions => Tab::Tools,
             Tab::Memories => Tab::Sessions,
+            Tab::Info => Tab::Memories,
         }
     }
 }
@@ -347,6 +352,7 @@ impl App {
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.filtered_sessions().len(),
             Tab::Memories => self.filtered_memories().len(),
+            Tab::Info => 0,
         }
     }
 

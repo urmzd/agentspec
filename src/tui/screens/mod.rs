@@ -4,6 +4,7 @@ use ratatui::widgets::*;
 use super::app::{App, Tab};
 
 mod agent_list;
+mod info;
 mod link_picker;
 mod memory_list;
 mod session_list;
@@ -30,6 +31,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Tools => tool_list::draw(f, chunks[2], app),
         Tab::Sessions => session_list::draw(f, chunks[2], app),
         Tab::Memories => memory_list::draw(f, chunks[2], app),
+        Tab::Info => info::draw(f, chunks[2], app),
     }
 
     draw_status_bar(f, chunks[3], app);
@@ -49,6 +51,7 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
                 Tab::Tools => app.tool_entries.len(),
                 Tab::Sessions => app.sessions.len(),
                 Tab::Memories => app.memories.len(),
+                Tab::Info => 0,
             };
             let style = if *t == app.tab {
                 Style::default()
@@ -88,7 +91,7 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
                 "[/] Filter  [l] Link  [Tab] Switch  [j/k] Navigate  [q] Quit"
             }
             Tab::Sessions | Tab::Memories => "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit",
-            Tab::Tools => "[Tab] Switch  [j/k] Navigate  [q] Quit",
+            Tab::Tools | Tab::Info => "[Tab] Switch  [q] Quit",
         };
         format!("  {keys}")
     };
@@ -164,6 +167,7 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
                 String::new()
             }
         }
+        Tab::Info => String::new(),
     };
 
     let bar = Paragraph::new(info).style(Style::default().fg(Color::White).bg(Color::DarkGray));
