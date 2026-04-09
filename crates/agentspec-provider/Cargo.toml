@@ -1,0 +1,23 @@
+[package]
+name = "agentspec-provider"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "AI provider abstraction with local CLI backends (claude, gemini, copilot)"
+keywords = ["ai", "llm", "provider", "claude", "gemini"]
+categories = ["development-tools"]
+
+[features]
+default = ["local"]
+local = ["dep:tokio", "dep:tempfile"]
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }

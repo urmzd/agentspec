@@ -1,35 +1,68 @@
-[package]
-name = "agentspec"
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
 version = "0.5.0"
 edition = "2024"
-description = "Universal agent skill and sub-agent manager with TUI"
 license = "Apache-2.0"
 repository = "https://github.com/urmzd/agentspec"
+authors = ["urmzd"]
+homepage = "https://github.com/urmzd/agentspec"
 
-[[bin]]
-name = "agentspec"
-path = "src/main.rs"
+[workspace.dependencies]
+# Internal SDK crates
+agentspec-update = { path = "crates/agentspec-update", version = "0.1.0" }
+agentspec-ui = { path = "crates/agentspec-ui", version = "0.1.0" }
+agentspec-cli = { path = "crates/agentspec-cli", version = "0.1.0" }
+agentspec-config = { path = "crates/agentspec-config", version = "0.1.0" }
+agentspec-provider = { path = "crates/agentspec-provider", version = "0.1.0" }
+agentspec-sdk = { path = "crates/agentspec-sdk", version = "0.1.0" }
 
-[dependencies]
-clap = { version = "4", features = ["derive"] }
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-ratatui = "0.29"
+serde_yaml_ng = "0.10"
+toml = "0.8"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+
+# Terminal UI
 crossterm = "0.28"
-color-eyre = "0.6"
-thiserror = "2"
-dirs = "6"
+indicatif = "0.17"
+ratatui = "0.29"
+console = "0.15"
+
+# HTTP
+ureq = { version = "3", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Hashing
 sha1 = "0.10"
 sha2 = "0.10"
+
+# Directories
+dirs = "6"
+
+# Temporary files
+tempfile = "3"
+
+# Misc (agentspec binary deps)
+color-eyre = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 walkdir = "2"
-console = "0.15"
-indicatif = "0.17"
 atty = "0.2"
-tempfile = "3"
 pathdiff = "0.2"
 skim = "0.10"
 fuzzy-matcher = "0.3.7"
