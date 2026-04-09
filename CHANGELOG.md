@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 (2026-04-09)
+
+### Features
+
+- **cli**: add agentspec-update dep and install.sh ([84a943c](https://github.com/urmzd/agentspec/commit/84a943c2a9e4618ca8ade81da7e1ca40feef7642))
+
+### Bug Fixes
+
+- **ci**: use --format json instead of --json in integration test ([d8bf307](https://github.com/urmzd/agentspec/commit/d8bf3071d676249bb6ac5473e81817e878f9c711))
+
+### Refactoring
+
+- **cli**: rename self-update to update, add version command ([83efa21](https://github.com/urmzd/agentspec/commit/83efa2119ea65359876baf474b20676ded2a48eb))
+
+### Miscellaneous
+
+- **cli**: reformat long function calls in main.rs ([cce15c0](https://github.com/urmzd/agentspec/commit/cce15c0bf943f21eb4c3169d6dd057ea767a2694))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.6.0...v0.7.0)
+
+
 ## 0.6.0 (2026-04-09)
 
 ### Features
