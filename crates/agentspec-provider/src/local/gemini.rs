@@ -11,20 +11,11 @@ use tokio::sync::mpsc;
 use super::json;
 
 /// Configuration for the Gemini CLI provider.
+#[derive(Default)]
 pub(crate) struct GeminiConfig {
     pub model: Option<String>,
     pub sandbox: Option<Sandbox>,
     pub debug: bool,
-}
-
-impl Default for GeminiConfig {
-    fn default() -> Self {
-        Self {
-            model: None,
-            sandbox: None,
-            debug: false,
-        }
-    }
 }
 
 pub struct GeminiProvider {
@@ -225,8 +216,10 @@ impl GeminiProvider {
                     );
                 }
                 Capability::GitReadOnly => {
-                    let cmds: Vec<_> =
-                        GIT_READONLY_COMMANDS.iter().map(|c| c.to_string()).collect();
+                    let cmds: Vec<_> = GIT_READONLY_COMMANDS
+                        .iter()
+                        .map(|c| c.to_string())
+                        .collect();
                     let regex = format!("^git ({})", cmds.join("|"));
                     toml.push_str(&format!(
                         "# Allow read-only git commands\n\

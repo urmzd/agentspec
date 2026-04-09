@@ -9,20 +9,11 @@ use tokio::sync::mpsc;
 use super::json;
 
 /// Configuration for the Copilot CLI provider.
+#[derive(Default)]
 pub(crate) struct CopilotConfig {
     pub model: Option<String>,
     pub sandbox: Option<Sandbox>,
     pub debug: bool,
-}
-
-impl Default for CopilotConfig {
-    fn default() -> Self {
-        Self {
-            model: None,
-            sandbox: None,
-            debug: false,
-        }
-    }
 }
 
 pub struct CopilotProvider {
@@ -126,10 +117,7 @@ impl AiProvider for CopilotProvider {
 
         if self.config.debug {
             eprintln!("[DEBUG] exit: {}", output.status);
-            eprintln!(
-                "[DEBUG] stdout (first 500): {}",
-                &raw[..raw.len().min(500)]
-            );
+            eprintln!("[DEBUG] stdout (first 500): {}", &raw[..raw.len().min(500)]);
             if !stderr.is_empty() {
                 eprintln!("[DEBUG] stderr: {stderr}");
             }
