@@ -50,8 +50,17 @@ pub struct ProviderConfig {
 
 /// Read-only git subcommands shared across all providers.
 pub(crate) const GIT_READONLY_COMMANDS: &[&str] = &[
-    "diff", "log", "show", "status", "ls-files", "rev-parse", "branch", "cat-file", "rev-list",
-    "shortlog", "blame",
+    "diff",
+    "log",
+    "show",
+    "status",
+    "ls-files",
+    "rev-parse",
+    "branch",
+    "cat-file",
+    "rev-list",
+    "shortlog",
+    "blame",
 ];
 
 /// Internal trait for translating IR sandbox → provider-native arguments.

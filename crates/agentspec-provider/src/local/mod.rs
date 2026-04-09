@@ -23,9 +23,7 @@ pub enum LocalBackend {
 ///
 /// If a preferred backend is specified but unavailable, falls back to others.
 /// If no preference, tries claude -> copilot -> gemini.
-pub async fn resolve_local_provider(
-    config: ProviderConfig,
-) -> anyhow::Result<Box<dyn AiProvider>> {
+pub async fn resolve_local_provider(config: ProviderConfig) -> anyhow::Result<Box<dyn AiProvider>> {
     let claude = ClaudeProvider::from_provider_config(&config);
     let copilot = CopilotProvider::from_provider_config(&config);
     let gemini = GeminiProvider::from_provider_config(&config);
