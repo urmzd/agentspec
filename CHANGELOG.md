@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.6.0 (2026-04-09)
+
+### Features
+
+- implement library crates for SDK and tooling ([d393859](https://github.com/urmzd/agentspec/commit/d3938594ab68aad717deafea92517210dd2b1582))
+
+### Documentation
+
+- update README and ROADMAP for v0.5.0 ([8ad9539](https://github.com/urmzd/agentspec/commit/8ad95392ffc3ae90b4fc3c357fd9b6e375bac6c5))
+
+### Refactoring
+
+- **link**: use guard clauses with && for condition chaining ([b5a2c38](https://github.com/urmzd/agentspec/commit/b5a2c38c4ff141889c880a5aaef85d4911fa08a7))
+- **provider**: use #[derive(Default)] for config structs ([1e88d10](https://github.com/urmzd/agentspec/commit/1e88d104d6e6414014836095ad6dd15717121a2b))
+- remove old source files from root after relocation to crates ([677d1d6](https://github.com/urmzd/agentspec/commit/677d1d69cf38a888d5733ba7a978e33e56f2f1e8))
+- relocate source code to agentspec workspace crate ([c118cf1](https://github.com/urmzd/agentspec/commit/c118cf19b361e6c6753af06d35c35ec735e242c8))
+- **tui**: update screens for modal-based rendering ([58ab20b](https://github.com/urmzd/agentspec/commit/58ab20be30d9f8b8e952672aeb8b0ad8d11b2769))
+- **tui**: migrate from inline modals to modal enum dispatch ([e3e11ec](https://github.com/urmzd/agentspec/commit/e3e11ec76781e6a976f98228e00db6cf5915ab08))
+- **tui**: introduce action and modal system ([5dbf117](https://github.com/urmzd/agentspec/commit/5dbf117ccb79572704566f3172bd27d7c259daa6))
+
+### Miscellaneous
+
+- **main,tui**: reformat action handling and ui logic ([dafc830](https://github.com/urmzd/agentspec/commit/dafc83044387188302b1dde8f81aff507e9bef7c))
+- **cli,ui,update**: reformat function signatures and expressions ([6bc8419](https://github.com/urmzd/agentspec/commit/6bc8419a66d365a03ac6c2d58d259f30f8dec232))
+- **provider**: reformat code for consistency ([c096c6e](https://github.com/urmzd/agentspec/commit/c096c6e202843dbcfe16c989e585676a34249b26))
+- **build**: update cargo install path to reflect crate relocation ([bb1350d](https://github.com/urmzd/agentspec/commit/bb1350d3b9379209fb7b59770a163abe16a426e5))
+- move resources documentation to docs directory ([3ef0236](https://github.com/urmzd/agentspec/commit/3ef023698c5b50b4e84d7e0e85ae6a3c6c6bb89b))
+- **release**: implement ordered crate publishing for workspace ([27bd121](https://github.com/urmzd/agentspec/commit/27bd1213fc675132085cc61d8ed61bdd8d16b166))
+- **workspace**: convert single crate to monorepo structure ([2caeb7f](https://github.com/urmzd/agentspec/commit/2caeb7fef2d89cfa05da30070e8395d2d1359535))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.5.0...v0.6.0)
+
+
 ## 0.5.0 (2026-04-08)
 
 ### Breaking Changes
