@@ -102,19 +102,35 @@ async fn main() -> color_eyre::Result<()> {
             match action {
                 ProjectAction::Sync { project } => {
                     if let Some(name) = project {
-                        ops::project_sync::sync_project(&mut cfg, &name, cli.format == OutputFormat::Json)?;
+                        ops::project_sync::sync_project(
+                            &mut cfg,
+                            &name,
+                            cli.format == OutputFormat::Json,
+                        )?;
                     } else {
                         ops::project_sync::sync_all(&mut cfg, cli.format == OutputFormat::Json)?;
                     }
                 }
                 ProjectAction::Desync { project } => {
-                    ops::project_sync::desync_project(&mut cfg, &project, cli.format == OutputFormat::Json)?;
+                    ops::project_sync::desync_project(
+                        &mut cfg,
+                        &project,
+                        cli.format == OutputFormat::Json,
+                    )?;
                 }
                 ProjectAction::Remove { project } => {
-                    ops::project_sync::remove_synced_project(&mut cfg, &project, cli.format == OutputFormat::Json)?;
+                    ops::project_sync::remove_synced_project(
+                        &mut cfg,
+                        &project,
+                        cli.format == OutputFormat::Json,
+                    )?;
                 }
                 ProjectAction::Status { project } => {
-                    ops::project_sync::project_status(&cfg, project.as_deref(), cli.format == OutputFormat::Json)?;
+                    ops::project_sync::project_status(
+                        &cfg,
+                        project.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
                 }
             }
             inventory::save_config(&cfg)?;
@@ -173,9 +189,17 @@ async fn main() -> color_eyre::Result<()> {
         }
         Some(Command::Update) => {
             eprintln!("current version: {}", env!("CARGO_PKG_VERSION"));
-            match agentspec_update::self_update("urmzd/agentspec", env!("CARGO_PKG_VERSION"), "agentspec").map_err(|e| color_eyre::eyre::eyre!("{e:#}"))? {
+            match agentspec_update::self_update(
+                "urmzd/agentspec",
+                env!("CARGO_PKG_VERSION"),
+                "agentspec",
+            )
+            .map_err(|e| color_eyre::eyre::eyre!("{e:#}"))?
+            {
                 agentspec_update::UpdateResult::AlreadyUpToDate => eprintln!("already up to date"),
-                agentspec_update::UpdateResult::Updated { from, to } => eprintln!("updated: {from} → {to}"),
+                agentspec_update::UpdateResult::Updated { from, to } => {
+                    eprintln!("updated: {from} → {to}")
+                }
             }
         }
         Some(Command::Version) => {
@@ -245,7 +269,12 @@ async fn main() -> color_eyre::Result<()> {
                     by_name,
                 } => {
                     if dedup || by_hash || by_name {
-                        ops::dedup::dedup(&cfg, by_hash, by_name, cli.format == OutputFormat::Json)?;
+                        ops::dedup::dedup(
+                            &cfg,
+                            by_hash,
+                            by_name,
+                            cli.format == OutputFormat::Json,
+                        )?;
                     } else {
                         ops::discover::status(&cfg, cli.format == OutputFormat::Json)?;
                     }
@@ -271,10 +300,19 @@ async fn main() -> color_eyre::Result<()> {
                     println!("Update not yet implemented");
                 }
                 ManageAction::Verify { accept, name } => {
-                    ops::verify::verify(&mut cfg, accept, name.as_deref(), cli.format == OutputFormat::Json)?;
+                    ops::verify::verify(
+                        &mut cfg,
+                        accept,
+                        name.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
                 }
                 ManageAction::Memory { project, mem_type } => {
-                    ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.format == OutputFormat::Json)?;
+                    ops::memory::list_memories(
+                        project.as_deref(),
+                        mem_type.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
                 }
             }
             inventory::save_config(&cfg)?;
