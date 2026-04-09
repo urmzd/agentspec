@@ -2,6 +2,12 @@
 
 Planned features and improvements for agentspec.
 
+## Done
+
+### Resource update
+
+`manage update [name]` — re-pull git-sourced resources and refresh hashes without removing and re-adding. Omit `name` to update all managed resources.
+
 ## Planned
 
 ### MCP server management
@@ -82,6 +88,3 @@ The Copilot session adapter currently reads `events.jsonl` but the SQLite databa
 
 Incorporating this data would produce more complete session exports and handoffs.
 
-### Resource update
-
-`manage update` — re-pull git-sourced resources and refresh hashes without removing and re-adding.
