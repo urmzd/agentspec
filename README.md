@@ -22,14 +22,16 @@
 
 ## Features
 
-- **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, and llms-txt across tools.
+- **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
 - **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
 - **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
 - **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex) as markdown.
 - **Memory browser.** Browse Claude Code memories across projects, filter by type.
+- **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
+- **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
-- **TUI.** Interactive terminal UI with tabbed views and link picker.
-- **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini).
+- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs.
+- **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini, Copilot).
 
 ### Supported tools
 
@@ -92,11 +94,18 @@ agentspec manage list --dedup                # Show duplicate resources
 agentspec manage link <name> <tool>          # Link a resource to a tool
 agentspec manage unlink <name> <tool>        # Unlink a resource from a tool
 agentspec manage validate [path]             # Validate a SKILL.md or AGENT.md
-agentspec manage create [name] --kind skill  # Scaffold a new resource
+agentspec manage create --name <n> --kind skill  # Scaffold a new resource
+agentspec manage update [name]               # Re-pull and refresh a resource (or all)
 agentspec manage verify                      # Verify resource integrity (checksums)
 agentspec manage verify --accept             # Accept current state and update hashes
 agentspec manage memory                      # Browse Claude Code memories
 agentspec manage memory --type feedback      # Filter memories by type
+
+# Project config sync
+agentspec project sync                       # Sync project instruction files to shared store
+agentspec project status                     # Show project sync state
+agentspec project desync                     # Remove project from shared store
+agentspec project remove                     # Delete project config entirely
 
 # Sessions
 agentspec session find                       # Fuzzy-find a session across sources
@@ -104,6 +113,10 @@ agentspec session list claude                # List sessions for a source
 agentspec session export claude --last       # Export most recent session
 agentspec session export claude <id>         # Export a specific session
 agentspec session export claude --last -o f.md  # Write export to file
+
+# Cleanup
+agentspec prune                              # Remove broken resources and stale symlinks
+agentspec prune --yes                        # Skip confirmation prompt
 
 # Global flags
 agentspec manage list --json                 # Machine-readable JSON output
