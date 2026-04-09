@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 (2026-04-09)
+
+### Bug Fixes
+
+- **ci**: remove --allow-dirty from cargo publish ([22beaf9](https://github.com/urmzd/agentspec/commit/22beaf9b9737e244fe7181f622bb7dfb5fae7228))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.7.0...v0.7.1)
+
+
 ## 0.7.0 (2026-04-09)
 
 ### Features
