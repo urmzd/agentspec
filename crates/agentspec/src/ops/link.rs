@@ -76,14 +76,14 @@ pub fn link(
 
     // Record the link in config
     let tracked_kind: TrackedKind = kind.into();
-    if let Some(resource) = cfg.find_mut(name, tracked_kind) {
-        if !resource.links.iter().any(|l| l.tool == tool_slug) {
-            resource.links.push(ResourceLink {
-                tool: tool_slug.to_string(),
-                strategy,
-                path: link_path.to_string_lossy().to_string(),
-            });
-        }
+    if let Some(resource) = cfg.find_mut(name, tracked_kind)
+        && !resource.links.iter().any(|l| l.tool == tool_slug)
+    {
+        resource.links.push(ResourceLink {
+            tool: tool_slug.to_string(),
+            strategy,
+            path: link_path.to_string_lossy().to_string(),
+        });
     }
 
     Ok(())
@@ -248,14 +248,14 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<usize> {
         };
 
         // Record link in config
-        if let Some(resource) = cfg.find_mut(&name, tracked_kind) {
-            if !resource.links.iter().any(|l| l.tool == tool_slug) {
-                resource.links.push(ResourceLink {
-                    tool: tool_slug.clone(),
-                    strategy,
-                    path: link_path.to_string_lossy().to_string(),
-                });
-            }
+        if let Some(resource) = cfg.find_mut(&name, tracked_kind)
+            && !resource.links.iter().any(|l| l.tool == tool_slug)
+        {
+            resource.links.push(ResourceLink {
+                tool: tool_slug.clone(),
+                strategy,
+                path: link_path.to_string_lossy().to_string(),
+            });
         }
 
         created += 1;
