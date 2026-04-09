@@ -51,16 +51,8 @@ impl Action {
                 AgentSource::Managed => remove_ops::remove_agent(cfg, name),
                 AgentSource::Unmanaged(paths) => remove_ops::remove_unmanaged_agent(name, paths),
             },
-            Action::Link {
-                kind,
-                name,
-                tool,
-            } => link_ops::link(cfg, *kind, name, tool, false),
-            Action::Unlink {
-                kind,
-                name,
-                tool,
-            } => link_ops::unlink(cfg, *kind, name, tool),
+            Action::Link { kind, name, tool } => link_ops::link(cfg, *kind, name, tool, false),
+            Action::Unlink { kind, name, tool } => link_ops::unlink(cfg, *kind, name, tool),
         }
     }
 

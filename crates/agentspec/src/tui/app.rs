@@ -359,8 +359,7 @@ impl App {
         match target {
             ReloadTarget::SkillsAndAgents => {
                 let installed = tools::installed_tools();
-                self.installed_tools =
-                    installed.iter().map(|t| t.slug().to_string()).collect();
+                self.installed_tools = installed.iter().map(|t| t.slug().to_string()).collect();
                 self.skills = load_skills(&installed);
                 self.agents = load_agents(&installed);
                 self.tool_entries = load_tool_entries(&installed);
