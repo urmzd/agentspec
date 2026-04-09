@@ -45,10 +45,6 @@ pub enum OutputFormat {
 impl OutputFormat {
     /// Auto-detect output format based on TTY status.
     pub fn auto() -> Self {
-        if is_tty() {
-            Self::Human
-        } else {
-            Self::Json
-        }
+        if is_tty() { Self::Human } else { Self::Json }
     }
 }
