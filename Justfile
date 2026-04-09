@@ -7,7 +7,7 @@ build:
     cargo build
 
 install:
-    cargo install --path crates/agentspec-cli --force
+    cargo install --path crates/agentspec --force
 
 run *ARGS:
     cargo run -- {{ARGS}}

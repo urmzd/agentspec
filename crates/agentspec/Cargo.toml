@@ -33,3 +33,4 @@ tempfile = { workspace = true }
 pathdiff = { workspace = true }
 skim = { workspace = true }
 fuzzy-matcher = { workspace = true }
+agentspec-update = { workspace = true }
