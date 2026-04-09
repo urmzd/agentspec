@@ -70,9 +70,7 @@ pub fn format_tokens(n: u64) -> String {
 
 /// Display token usage with optional cost.
 pub fn usage(input_tokens: u64, output_tokens: u64, cost_usd: Option<f64>) {
-    let cost = cost_usd
-        .map(|c| format!(" · ${c:.4}"))
-        .unwrap_or_default();
+    let cost = cost_usd.map(|c| format!(" · ${c:.4}")).unwrap_or_default();
     println!(
         "  {} {} in / {} out{}",
         "⊘".dim(),
