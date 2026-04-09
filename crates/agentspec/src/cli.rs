@@ -1,0 +1,215 @@
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(
+    name = "agentspec",
+    about = "Universal agent skill & sub-agent manager"
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
+    /// Output as JSON
+    #[arg(long, global = true)]
+    pub json: bool,
+}
+
+#[derive(Subcommand)]
+pub enum Command {
+    /// Manage resources (skills, agents, memories)
+    Manage {
+        #[command(subcommand)]
+        action: ManageAction,
+    },
+    /// Show managed and unmanaged resource inventory
+    Status {
+        /// Root directory for broad discovery (default: $HOME)
+        #[arg(long)]
+        root: Option<String>,
+        /// Skip broad discovery, only scan known tool dirs
+        #[arg(long)]
+        fast: bool,
+        /// Extra paths to scan (bypasses SKIP_DIRS)
+        #[arg(long, value_delimiter = ',')]
+        path: Option<Vec<String>>,
+    },
+    /// Discover, adopt, link, and verify all resources
+    Sync {
+        /// Root directory for broad discovery (default: $HOME)
+        #[arg(long)]
+        root: Option<String>,
+        /// Skip broad scan, only check known dirs
+        #[arg(long)]
+        fast: bool,
+        /// Auto-adopt all discovered resources without prompting
+        #[arg(long)]
+        adopt: bool,
+        /// Extra paths to scan (bypasses SKIP_DIRS)
+        #[arg(long, value_delimiter = ',')]
+        path: Option<Vec<String>>,
+    },
+    /// Manage AI coding sessions
+    Session {
+        #[command(subcommand)]
+        action: SessionAction,
+    },
+    /// Manage project sync (sync instruction files into ~/.agents/projects/)
+    Project {
+        #[command(subcommand)]
+        action: ProjectAction,
+    },
+    /// Launch interactive TUI
+    Tui,
+    /// Remove broken resources, stale symlinks, and orphaned entries
+    Prune {
+        /// Actually remove — default is dry-run (show only)
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ManageAction {
+    /// Add a resource (local path, git URL, owner/repo, or discovered name)
+    Add {
+        /// Source: local path, git URL, owner/repo, or name of a discovered resource
+        source: String,
+        /// Override auto-detected kind
+        #[arg(long, value_parser = ["skill", "agent", "project-config", "instruction-file", "llms-txt", "memory", "session", "plan"])]
+        kind: Option<String>,
+        /// Link to specific tools (comma-separated slugs)
+        #[arg(long, value_delimiter = ',')]
+        tools: Option<Vec<String>>,
+        /// Link to all detected tools
+        #[arg(long)]
+        all_tools: bool,
+        /// Copy to tool dirs instead of symlinking
+        #[arg(long)]
+        copy: bool,
+    },
+    /// Remove a managed resource
+    Remove {
+        /// Resource name
+        name: String,
+    },
+    /// Manage all discovered resources at once
+    All {
+        /// Link to all detected tools
+        #[arg(long)]
+        all_tools: bool,
+        /// Copy to tool dirs instead of symlinking
+        #[arg(long)]
+        copy: bool,
+    },
+    /// List managed resources
+    List {
+        /// Show duplicate resources
+        #[arg(long)]
+        dedup: bool,
+        /// Only show content duplicates (same hash)
+        #[arg(long)]
+        by_hash: bool,
+        /// Only show name duplicates (same name in multiple locations)
+        #[arg(long)]
+        by_name: bool,
+    },
+    /// Link a resource to a tool
+    Link {
+        /// Resource name
+        name: String,
+        /// Tool slug
+        tool: String,
+    },
+    /// Unlink a resource from a tool
+    Unlink {
+        /// Resource name
+        name: String,
+        /// Tool slug
+        tool: String,
+    },
+    /// Validate a SKILL.md or AGENT.md file
+    Validate {
+        /// Path to resource directory or markdown file (default: current dir)
+        path: Option<String>,
+    },
+    /// Create a new resource from template
+    Create {
+        /// Resource name
+        name: Option<String>,
+        /// Resource kind
+        #[arg(long, value_parser = ["skill", "agent", "project-config", "instruction-file", "llms-txt", "memory", "session", "plan"])]
+        kind: Option<String>,
+    },
+    /// Update managed resources
+    Update {
+        /// Resource name (all if omitted)
+        name: Option<String>,
+    },
+    /// Verify integrity of managed resources (checksum validation)
+    Verify {
+        /// Accept current state and update hashes
+        #[arg(long)]
+        accept: bool,
+        /// Accept only this specific resource
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// List memories across Claude Code projects
+    Memory {
+        /// Filter by project name or path
+        #[arg(long)]
+        project: Option<String>,
+        /// Filter by memory type (user, feedback, project, reference)
+        #[arg(long = "type")]
+        mem_type: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ProjectAction {
+    /// Sync a project's instruction files into ~/.agents/projects/
+    Sync {
+        /// Project name or path (syncs all if omitted)
+        project: Option<String>,
+    },
+    /// Stop auto-sync for a project (copy stays but goes stale)
+    Desync {
+        /// Project name
+        project: String,
+    },
+    /// Remove a project's synced copy from ~/.agents/ (originals untouched)
+    Remove {
+        /// Project name
+        project: String,
+    },
+    /// Show synced/desynced/discovered project status
+    Status {
+        /// Show detailed status for a specific project
+        #[arg(long)]
+        project: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SessionAction {
+    /// List sessions for a source
+    List {
+        /// Source to list (claude, codex, copilot, gemini)
+        source: String,
+    },
+    /// Fuzzy-find a session across all sources
+    Find,
+    /// Export a session as markdown
+    Export {
+        /// Source (claude, codex, copilot, gemini)
+        source: String,
+        /// Session ID (omit if using --last)
+        id: Option<String>,
+        /// Use the most recent session
+        #[arg(long)]
+        last: bool,
+        /// Write to file instead of stdout
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+}
