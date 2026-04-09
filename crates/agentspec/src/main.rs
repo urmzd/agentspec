@@ -13,7 +13,7 @@ mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{Cli, Command, ManageAction, ProjectAction, SessionAction};
+use cli::{Cli, Command, ManageAction, OutputFormat, ProjectAction, SessionAction};
 use inventory::{Config, TrackedKind};
 use ir::ResourceKind;
 
@@ -71,7 +71,7 @@ async fn main() -> color_eyre::Result<()> {
                 .map(std::path::PathBuf::from)
                 .collect();
             ops::discover::refresh_cache_with_root(&mut cfg, broad_root.as_deref(), &extra_paths)?;
-            ops::discover::status(&cfg, cli.json)?;
+            ops::discover::status(&cfg, cli.format == OutputFormat::Json)?;
             inventory::save_config(&cfg)?;
         }
         Some(Command::Sync {
@@ -92,7 +92,7 @@ async fn main() -> color_eyre::Result<()> {
                 sync_root.as_deref(),
                 fast,
                 adopt,
-                cli.json,
+                cli.format == OutputFormat::Json,
                 &extra_paths,
             )?;
             inventory::save_config(&cfg)?;
@@ -102,19 +102,19 @@ async fn main() -> color_eyre::Result<()> {
             match action {
                 ProjectAction::Sync { project } => {
                     if let Some(name) = project {
-                        ops::project_sync::sync_project(&mut cfg, &name, cli.json)?;
+                        ops::project_sync::sync_project(&mut cfg, &name, cli.format == OutputFormat::Json)?;
                     } else {
-                        ops::project_sync::sync_all(&mut cfg, cli.json)?;
+                        ops::project_sync::sync_all(&mut cfg, cli.format == OutputFormat::Json)?;
                     }
                 }
                 ProjectAction::Desync { project } => {
-                    ops::project_sync::desync_project(&mut cfg, &project, cli.json)?;
+                    ops::project_sync::desync_project(&mut cfg, &project, cli.format == OutputFormat::Json)?;
                 }
                 ProjectAction::Remove { project } => {
-                    ops::project_sync::remove_synced_project(&mut cfg, &project, cli.json)?;
+                    ops::project_sync::remove_synced_project(&mut cfg, &project, cli.format == OutputFormat::Json)?;
                 }
                 ProjectAction::Status { project } => {
-                    ops::project_sync::project_status(&cfg, project.as_deref(), cli.json)?;
+                    ops::project_sync::project_status(&cfg, project.as_deref(), cli.format == OutputFormat::Json)?;
                 }
             }
             inventory::save_config(&cfg)?;
@@ -168,8 +168,18 @@ async fn main() -> color_eyre::Result<()> {
         },
         Some(Command::Prune { yes }) => {
             let mut cfg = inventory::load_config()?;
-            ops::prune::prune(&mut cfg, !yes, cli.json)?;
+            ops::prune::prune(&mut cfg, !yes, cli.format == OutputFormat::Json)?;
             inventory::save_config(&cfg)?;
+        }
+        Some(Command::Update) => {
+            eprintln!("current version: {}", env!("CARGO_PKG_VERSION"));
+            match agentspec_update::self_update("urmzd/agentspec", env!("CARGO_PKG_VERSION"), "agentspec").map_err(|e| color_eyre::eyre::eyre!("{e:#}"))? {
+                agentspec_update::UpdateResult::AlreadyUpToDate => eprintln!("already up to date"),
+                agentspec_update::UpdateResult::Updated { from, to } => eprintln!("updated: {from} → {to}"),
+            }
+        }
+        Some(Command::Version) => {
+            println!("agentspec {}", env!("CARGO_PKG_VERSION"));
         }
         Some(Command::Manage { action }) => {
             let mut cfg = inventory::load_config()?;
@@ -235,9 +245,9 @@ async fn main() -> color_eyre::Result<()> {
                     by_name,
                 } => {
                     if dedup || by_hash || by_name {
-                        ops::dedup::dedup(&cfg, by_hash, by_name, cli.json)?;
+                        ops::dedup::dedup(&cfg, by_hash, by_name, cli.format == OutputFormat::Json)?;
                     } else {
-                        ops::discover::status(&cfg, cli.json)?;
+                        ops::discover::status(&cfg, cli.format == OutputFormat::Json)?;
                     }
                 }
                 ManageAction::Link { name, tool } => {
@@ -261,10 +271,10 @@ async fn main() -> color_eyre::Result<()> {
                     println!("Update not yet implemented");
                 }
                 ManageAction::Verify { accept, name } => {
-                    ops::verify::verify(&mut cfg, accept, name.as_deref(), cli.json)?;
+                    ops::verify::verify(&mut cfg, accept, name.as_deref(), cli.format == OutputFormat::Json)?;
                 }
                 ManageAction::Memory { project, mem_type } => {
-                    ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.json)?;
+                    ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.format == OutputFormat::Json)?;
                 }
             }
             inventory::save_config(&cfg)?;
