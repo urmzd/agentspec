@@ -38,7 +38,6 @@ impl Modal {
             Modal::LinkPicker(lp) => Some(lp.handle_key(key)),
         }
     }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -59,10 +58,7 @@ impl DeleteConfirm {
                     Tab::Skills => Action::DeleteSkill(self.name.clone()),
                     Tab::Agents => Action::DeleteAgent {
                         name: self.name.clone(),
-                        source: self
-                            .agent_source
-                            .clone()
-                            .unwrap_or(AgentSource::Managed),
+                        source: self.agent_source.clone().unwrap_or(AgentSource::Managed),
                     },
                     _ => return ModalResult::Dismiss,
                 };
@@ -116,11 +112,7 @@ impl LinkPicker {
     fn diff_to_actions(&self) -> Vec<Action> {
         let mut actions = Vec::new();
         for (i, (slug, now_checked)) in self.checks.iter().enumerate() {
-            let was_checked = self
-                .original
-                .get(i)
-                .map(|(_, c)| *c)
-                .unwrap_or(false);
+            let was_checked = self.original.get(i).map(|(_, c)| *c).unwrap_or(false);
             if *now_checked && !was_checked {
                 actions.push(Action::Link {
                     kind: self.kind,

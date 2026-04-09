@@ -213,13 +213,7 @@ async fn main() -> color_eyre::Result<()> {
                             copy,
                         )?;
                     } else {
-                        ops::manage::manage(
-                            &mut cfg,
-                            &source,
-                            tools.as_deref(),
-                            all_tools,
-                            copy,
-                        )?;
+                        ops::manage::manage(&mut cfg, &source, tools.as_deref(), all_tools, copy)?;
                     }
                 }
                 ManageAction::Remove { name } => {
@@ -257,14 +251,12 @@ async fn main() -> color_eyre::Result<()> {
                 ManageAction::Validate { path } => {
                     ops::validate::validate(path.as_deref())?;
                 }
-                ManageAction::Create { name, kind } => {
-                    match kind.as_deref().unwrap_or("skill") {
-                        "agent" => ops::create::create_agent(name.as_deref())?,
-                        "project-config" => ops::create::create_project_config(name.as_deref())?,
-                        "llms-txt" => ops::create::create_llms_txt(name.as_deref())?,
-                        _ => ops::create::create_skill(name.as_deref())?,
-                    }
-                }
+                ManageAction::Create { name, kind } => match kind.as_deref().unwrap_or("skill") {
+                    "agent" => ops::create::create_agent(name.as_deref())?,
+                    "project-config" => ops::create::create_project_config(name.as_deref())?,
+                    "llms-txt" => ops::create::create_llms_txt(name.as_deref())?,
+                    _ => ops::create::create_skill(name.as_deref())?,
+                },
                 ManageAction::Update { name: _ } => {
                     println!("Update not yet implemented");
                 }
@@ -272,11 +264,7 @@ async fn main() -> color_eyre::Result<()> {
                     ops::verify::verify(&mut cfg, accept, name.as_deref(), cli.json)?;
                 }
                 ManageAction::Memory { project, mem_type } => {
-                    ops::memory::list_memories(
-                        project.as_deref(),
-                        mem_type.as_deref(),
-                        cli.json,
-                    )?;
+                    ops::memory::list_memories(project.as_deref(), mem_type.as_deref(), cli.json)?;
                 }
             }
             inventory::save_config(&cfg)?;
