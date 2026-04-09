@@ -1,5 +1,11 @@
 use clap::{Parser, Subcommand};
 
+#[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
+pub enum OutputFormat {
+    Human,
+    Json,
+}
+
 #[derive(Parser)]
 #[command(
     name = "agentspec",
@@ -9,9 +15,9 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
 
-    /// Output as JSON
-    #[arg(long, global = true)]
-    pub json: bool,
+    /// Output format
+    #[arg(long, global = true, value_enum, default_value = "human")]
+    pub format: OutputFormat,
 }
 
 #[derive(Subcommand)]
@@ -66,6 +72,10 @@ pub enum Command {
         #[arg(long, short = 'y')]
         yes: bool,
     },
+    /// Update agentspec to the latest release
+    Update,
+    /// Print version
+    Version,
 }
 
 #[derive(Subcommand)]
