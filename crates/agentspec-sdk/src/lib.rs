@@ -9,6 +9,3 @@ pub use agentspec_cli as cli;
 
 #[cfg(feature = "config")]
 pub use agentspec_config as config;
-
-#[cfg(feature = "provider-local")]
-pub use agentspec_provider as provider;
