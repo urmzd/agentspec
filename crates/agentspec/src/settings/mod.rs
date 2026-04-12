@@ -199,6 +199,95 @@ pub fn list_keys(tool: &str) -> Result<()> {
     Ok(())
 }
 
+/// Register an MCP server in a specific tool's settings, or all tools if `tool` is None.
+///
+/// Creates the `mcpServers.<name>` entry with `command` and `args`.
+pub fn add_mcp_server(
+    tool: Option<&str>,
+    name: &str,
+    command: &str,
+    args: &[String],
+) -> Result<()> {
+    let server_value = serde_json::json!({
+        "command": command,
+        "args": args,
+    });
+
+    let targets: Vec<Box<dyn ToolSettings>> = match tool {
+        Some(t) => {
+            let s = settings_for_tool(t)
+                .ok_or_else(|| AppError::Other(format!("No settings handler for: {t}")))?;
+            vec![s]
+        }
+        None => all_settings(),
+    };
+
+    let key = format!("mcpServers.{name}");
+    for s in &targets {
+        if s.settings_path().is_some() {
+            s.set(&key, server_value.clone())?;
+            eprintln!("  registered {name} in {}", s.tool_slug());
+        }
+    }
+
+    Ok(())
+}
+
+/// Remove an MCP server from a specific tool's settings, or all tools if `tool` is None.
+pub fn remove_mcp_server(tool: Option<&str>, name: &str) -> Result<()> {
+    let targets: Vec<Box<dyn ToolSettings>> = match tool {
+        Some(t) => {
+            let s = settings_for_tool(t)
+                .ok_or_else(|| AppError::Other(format!("No settings handler for: {t}")))?;
+            vec![s]
+        }
+        None => all_settings(),
+    };
+
+    for s in &targets {
+        if let Some(path) = s.settings_path() {
+            if path.exists() {
+                let mut root = s.read_raw()?;
+                if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
+                    if servers.remove(name).is_some() {
+                        let content = serde_json::to_string_pretty(&root)?;
+                        if let Some(parent) = path.parent() {
+                            std::fs::create_dir_all(parent)?;
+                        }
+                        std::fs::write(&path, content)?;
+                        eprintln!("  removed {name} from {}", s.tool_slug());
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// List all registered MCP servers across tools.
+pub fn list_mcp_servers() -> Result<()> {
+    for s in all_settings() {
+        if s.settings_path().is_some_and(|p| p.exists()) {
+            if let Ok(root) = s.read_raw() {
+                if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object()) {
+                    if !servers.is_empty() {
+                        println!("{}:", s.tool_slug());
+                        for (name, config) in servers {
+                            let cmd = config.get("command").and_then(|v| v.as_str()).unwrap_or("?");
+                            let args = config.get("args").and_then(|v| v.as_array())
+                                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" "))
+                                .unwrap_or_default();
+                            println!("  {name}: {cmd} {args}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 // --- Helpers ---
 
 fn get_dotted(val: &serde_json::Value, key: &str) -> Option<serde_json::Value> {

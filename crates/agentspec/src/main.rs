@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod error;
 mod frontmatter;
+mod mcp;
 mod inventory;
 mod ir;
 mod lockfile;
@@ -13,7 +14,7 @@ mod tools;
 mod tui;
 
 use clap::Parser;
-use cli::{Cli, Command, ManageAction, OutputFormat, ProjectAction, SessionAction};
+use cli::{Cli, Command, ManageAction, McpAction, OutputFormat, ProjectAction, SessionAction};
 use inventory::{Config, TrackedKind};
 use ir::ResourceKind;
 
@@ -317,6 +318,17 @@ async fn main() -> color_eyre::Result<()> {
             }
             inventory::save_config(&cfg)?;
         }
+        Some(Command::Mcp { action }) => match action {
+            McpAction::Add { name, command, args, tool } => {
+                mcp::add_server(tool.as_deref(), &name, &command, &args)?;
+            }
+            McpAction::Remove { name, tool } => {
+                mcp::remove_server(tool.as_deref(), &name)?;
+            }
+            McpAction::List => {
+                mcp::list_servers()?;
+            }
+        },
     }
 
     Ok(())
