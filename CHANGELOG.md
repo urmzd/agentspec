@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.2 (2026-04-12)
+
+### Refactoring
+
+- remove agentspec-provider crate ([b13ed54](https://github.com/urmzd/agentspec/commit/b13ed545ef82d19a7659ed88b8dfa9fda8824771))
+
+### Miscellaneous
+
+- **release**: clean up workflow and drop agentspec-provider publish ([1d241a5](https://github.com/urmzd/agentspec/commit/1d241a591a6c55f3a1f39616cd14aee6637c5d8e))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.7.1...v0.7.2)
+
+
 ## 0.7.1 (2026-04-09)
 
 ### Bug Fixes
