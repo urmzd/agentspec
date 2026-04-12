@@ -4,7 +4,7 @@ version = "0.7.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Rust SDK for bootstrapping AI-powered CLI tools — providers, self-update, terminal UI, config"
+description = "Rust SDK for bootstrapping AI-powered CLI tools — self-update, terminal UI, config"
 keywords = ["ai", "sdk", "cli", "agentspec"]
 categories = ["development-tools"]
 
@@ -14,13 +14,10 @@ cli = ["dep:agentspec-cli"]
 ui = ["dep:agentspec-ui"]
 config = ["dep:agentspec-config"]
 update = ["dep:agentspec-update"]
-provider-local = ["dep:agentspec-provider", "agentspec-provider/local"]
-local = ["default", "provider-local"]
-full = ["local"]
+full = ["default"]
 
 [dependencies]
 agentspec-cli = { workspace = true, optional = true }
 agentspec-ui = { workspace = true, optional = true }
 agentspec-config = { workspace = true, optional = true }
 agentspec-update = { workspace = true, optional = true }
-agentspec-provider = { workspace = true, optional = true }

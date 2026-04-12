@@ -19,7 +19,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agentspec"
-version = "0.5.0"
+version = "0.7.1"
 dependencies = [
  "agentspec-update",
  "atty",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-cli"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "agentspec-update",
  "anyhow",
@@ -58,7 +58,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-config"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "dirs",
@@ -69,33 +69,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "agentspec-provider"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap 4.6.0",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
 name = "agentspec-sdk"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "agentspec-cli",
  "agentspec-config",
- "agentspec-provider",
  "agentspec-ui",
  "agentspec-update",
 ]
 
 [[package]]
 name = "agentspec-ui"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -104,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-update"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "serde",
@@ -199,17 +184,6 @@ name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
-
-[[package]]
-name = "async-trait"
-version = "0.1.89"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
 
 [[package]]
 name = "atomic-waker"
