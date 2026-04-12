@@ -72,6 +72,11 @@ pub enum Command {
         #[arg(long, short = 'y')]
         yes: bool,
     },
+    /// Manage MCP servers across AI tools
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
     /// Update agentspec to the latest release
     Update,
     /// Print version
@@ -198,6 +203,34 @@ pub enum ProjectAction {
         #[arg(long)]
         project: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+pub enum McpAction {
+    /// Register an MCP server in AI tool configs
+    Add {
+        /// Server name (e.g. "sr")
+        name: String,
+        /// Command to run the server (e.g. "sr")
+        #[arg(long)]
+        command: String,
+        /// Arguments for the command (e.g. "mcp serve")
+        #[arg(long, value_delimiter = ' ')]
+        args: Vec<String>,
+        /// Register only in a specific tool (claude, gemini-cli, github-copilot, cline)
+        #[arg(long)]
+        tool: Option<String>,
+    },
+    /// Remove an MCP server from AI tool configs
+    Remove {
+        /// Server name
+        name: String,
+        /// Remove only from a specific tool
+        #[arg(long)]
+        tool: Option<String>,
+    },
+    /// List registered MCP servers across all tools
+    List,
 }
 
 #[derive(Subcommand)]
