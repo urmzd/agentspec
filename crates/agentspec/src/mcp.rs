@@ -36,12 +36,7 @@ fn mcp_targets() -> Vec<(String, PathBuf)> {
 
 /// Register an MCP server in tool configs.
 /// If `tool` is None, registers in all installed tools with MCP support.
-pub fn add_server(
-    tool: Option<&str>,
-    name: &str,
-    command: &str,
-    args: &[String],
-) -> Result<()> {
+pub fn add_server(tool: Option<&str>, name: &str, command: &str, args: &[String]) -> Result<()> {
     let server = serde_json::json!({
         "command": command,
         "args": args,
@@ -100,11 +95,11 @@ pub fn remove_server(tool: Option<&str>, name: &str) -> Result<()> {
             continue;
         }
         let mut root = read_json(path);
-        if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
-            if servers.remove(name).is_some() {
-                write_json(path, &root)?;
-                eprintln!("  removed {name} from {slug}");
-            }
+        if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut())
+            && servers.remove(name).is_some()
+        {
+            write_json(path, &root)?;
+            eprintln!("  removed {name} from {slug}");
         }
     }
 
@@ -119,11 +114,14 @@ pub fn list_servers() -> Result<()> {
             continue;
         }
         let root = read_json(&path);
-        if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object()) {
-            if !servers.is_empty() {
+        if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object())
+            && !servers.is_empty() {
                 println!("{slug}:");
                 for (name, config) in servers {
-                    let cmd = config.get("command").and_then(|v| v.as_str()).unwrap_or("?");
+                    let cmd = config
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
                     let args = config
                         .get("args")
                         .and_then(|v| v.as_array())
@@ -138,7 +136,6 @@ pub fn list_servers() -> Result<()> {
                     found_any = true;
                 }
             }
-        }
     }
     if !found_any {
         println!("no MCP servers registered");
@@ -179,10 +176,7 @@ pub fn discover_and_register(project_roots: &[PathBuf]) -> Result<()> {
         let parsed: serde_json::Value = match serde_json::from_str(&content) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!(
-                    "  warning: invalid .mcp.json in {}: {e}",
-                    root.display()
-                );
+                eprintln!("  warning: invalid .mcp.json in {}: {e}", root.display());
                 continue;
             }
         };
@@ -242,11 +236,10 @@ pub fn collect_project_roots() -> Vec<PathBuf> {
     }
 
     // Current directory
-    if let Ok(cwd) = std::env::current_dir() {
-        if cwd.join(".mcp.json").exists() && !roots.contains(&cwd) {
+    if let Ok(cwd) = std::env::current_dir()
+        && cwd.join(".mcp.json").exists() && !roots.contains(&cwd) {
             roots.push(cwd);
         }
-    }
 
     roots
 }
