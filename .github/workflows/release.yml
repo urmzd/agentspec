@@ -80,14 +80,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: ${{ runner.temp }}/artifacts
       - name: Prepare release assets
         run: |
-          mkdir -p release-assets
-          for dir in artifacts/agentspec-*/; do
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          for dir in "$RUNNER_TEMP"/artifacts/agentspec-*/; do
             target=$(basename "$dir")
-            cp "$dir/agentspec" "release-assets/$target"
-            chmod +x "release-assets/$target"
+            cp "$dir/agentspec" "$RUNNER_TEMP/release-assets/$target"
+            chmod +x "$RUNNER_TEMP/release-assets/$target"
           done
       - name: Release
         id: sr
@@ -95,7 +95,7 @@ jobs:
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           force: ${{ inputs.force }}
-          artifacts: "release-assets/*"
+          artifacts: "${{ runner.temp }}/release-assets/*"
     outputs:
       released: ${{ steps.sr.outputs.released }}
       tag: ${{ steps.sr.outputs.tag }}
