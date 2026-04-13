@@ -7,6 +7,10 @@ pub trait CodingTool: Send + Sync {
     fn slug(&self) -> &str;
     fn skills_dir(&self) -> Option<PathBuf>;
     fn agents_dir(&self) -> Option<PathBuf>;
+    /// Path to the tool's settings file where mcpServers can be registered.
+    fn mcp_config_path(&self) -> Option<PathBuf> {
+        None
+    }
     fn is_installed(&self) -> bool {
         self.skills_dir()
             .is_some_and(|d| d.parent().is_some_and(|p| p.exists()))
@@ -45,6 +49,9 @@ fn list_symlinks(dir: &std::path::Path) -> Vec<String> {
 
 macro_rules! define_tool {
     ($struct_name:ident, $name:expr, $slug:expr, skills: $skills:expr, agents: $agents:expr) => {
+        define_tool!($struct_name, $name, $slug, skills: $skills, agents: $agents, mcp_config: None);
+    };
+    ($struct_name:ident, $name:expr, $slug:expr, skills: $skills:expr, agents: $agents:expr, mcp_config: $mcp:expr) => {
         pub struct $struct_name;
         impl CodingTool for $struct_name {
             fn name(&self) -> &str {
@@ -61,18 +68,22 @@ macro_rules! define_tool {
                 let p: Option<&str> = $agents;
                 p.map(|s| config::home_dir().join(s))
             }
+            fn mcp_config_path(&self) -> Option<PathBuf> {
+                let p: Option<&str> = $mcp;
+                p.map(|s| config::home_dir().join(s))
+            }
         }
     };
 }
 
-define_tool!(Claude,    "Claude Code",     "claude-code",     skills: Some(".claude/skills"),           agents: Some(".claude/agents"));
+define_tool!(Claude,    "Claude Code",     "claude-code",     skills: Some(".claude/skills"),           agents: Some(".claude/agents"),           mcp_config: Some(".claude/settings.json"));
 define_tool!(Cline,     "Cline",           "cline",           skills: Some(".cline/skills"),            agents: Some(".cline/agents"));
 define_tool!(Windsurf,  "Windsurf",        "windsurf",        skills: Some(".codeium/windsurf/skills"), agents: Some(".codeium/windsurf/agents"));
 define_tool!(OpenHands, "OpenHands",       "openhands",       skills: Some(".openhands/skills"),        agents: Some(".openhands/agents"));
-define_tool!(Gemini,    "Gemini CLI",      "gemini-cli",      skills: Some(".gemini/skills"),           agents: Some(".gemini/agents"));
+define_tool!(Gemini,    "Gemini CLI",      "gemini-cli",      skills: Some(".gemini/skills"),           agents: Some(".gemini/agents"),           mcp_config: Some(".gemini/settings.json"));
 define_tool!(Copilot,   "GitHub Copilot",  "github-copilot",  skills: Some(".copilot/skills"),          agents: Some(".copilot/agents"));
 define_tool!(Amp,       "Amp",             "amp",             skills: Some(".amp/skills"),              agents: Some(".amp/agents"));
-define_tool!(Cursor,    "Cursor",          "cursor",          skills: Some(".cursor/skills"),           agents: Some(".cursor/agents"));
+define_tool!(Cursor,    "Cursor",          "cursor",          skills: Some(".cursor/skills"),           agents: Some(".cursor/agents"),           mcp_config: Some(".cursor/mcp.json"));
 define_tool!(Codex,     "Codex",           "codex",           skills: Some(".codex/skills"),            agents: Some(".codex/agents"));
 define_tool!(OpenCode,  "OpenCode",        "opencode",        skills: Some(".opencode/skills"),         agents: Some(".opencode/agents"));
 define_tool!(Kimi,      "Kimi CLI",        "kimi-cli",        skills: Some(".kimi-cli/skills"),         agents: Some(".kimi-cli/agents"));

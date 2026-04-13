@@ -4,6 +4,7 @@ use console::style;
 
 use crate::error::Result;
 use crate::inventory::Config;
+use crate::mcp;
 use crate::ops::{discover, link, project_sync, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
@@ -60,7 +61,14 @@ pub fn sync(
     }
     let _ = project_sync::resync_all(cfg, false);
 
-    // 5. Verify integrity
+    // 5. Discover and register MCP servers from .mcp.json files
+    if !json {
+        println!("  {} Discovering MCP servers...", style("→").cyan());
+    }
+    let project_roots = mcp::collect_project_roots();
+    let _ = mcp::discover_and_register(&project_roots);
+
+    // 6. Verify integrity
     let issues = verify::verify_integrity(cfg)?;
 
     // 6. Report
