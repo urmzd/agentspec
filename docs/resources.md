@@ -375,21 +375,26 @@ Known tool-specific paths. Sessions identified by ID and timestamp.
 
 - **Website**: https://modelcontextprotocol.io
 - **Spec**: https://modelcontextprotocol.io/docs/learn/architecture
+- **Rust SDK**: https://github.com/modelcontextprotocol/rust-sdk (`rmcp` crate)
 
 Open protocol for connecting AI applications to external data sources, tools, and workflows.
 
 ### Configuration Files
 
-| Tool | File | Location |
-|------|------|----------|
-| Claude Code | `.mcp.json` | Project root |
-| Claude Code | `~/.claude.json` | User-level (`mcpServers` key) |
-| Claude Code | `managed-mcp.json` | System dirs |
-| Cursor | `.cursor/mcp.json` | Project root |
-| Gemini CLI | `settings.json` | `~/.gemini/` |
-| VS Code | `.vscode/mcp.json` | Project root |
+| Tool | File | Location | Docs |
+|------|------|----------|------|
+| Claude Code | `.mcp.json` | Project root (shared, commit to git) | https://code.claude.com/docs/en/mcp |
+| Claude Code | `~/.claude.json` | User/local scope (`mcpServers` key) | https://code.claude.com/docs/en/mcp |
+| Claude Code | `~/.claude/settings.json` | Allow/denylists only (`allowedMcpServers`) | |
+| Gemini CLI | `~/.gemini/settings.json` | Global (`mcpServers` key) | https://geminicli.com/docs/tools/mcp-server/ |
+| Gemini CLI | `.gemini/settings.json` | Project-level | |
+| Cursor | `~/.cursor/mcp.json` | Global | |
+| Cursor | `.cursor/mcp.json` | Project-level | |
+| VS Code | `.vscode/mcp.json` | Workspace | |
 
-### .mcp.json Format
+### .mcp.json Format (Project Declaration)
+
+Projects declare their MCP servers in `.mcp.json` at the project root. agentspec discovers this during `sync` and registers servers in each tool's native config.
 
 ```json
 {
@@ -408,8 +413,32 @@ Open protocol for connecting AI applications to external data sources, tools, an
 | Type | Transport | Use Case |
 |------|-----------|----------|
 | stdio | stdin/stdout | Local process servers |
-| sse | Server-Sent Events | Remote streaming servers |
+| sse | Server-Sent Events | Remote streaming servers (deprecated in Claude Code) |
 | streamable-http | HTTP POST + SSE | Remote servers (recommended) |
+
+### Tool-Specific Differences
+
+| Feature | Claude Code | Gemini CLI | Cursor |
+|---------|-------------|------------|--------|
+| Config key | `mcpServers` | `mcpServers` | `mcpServers` |
+| Transport selector | explicit `type` field | implicit (key-based: `command`/`url`/`httpUrl`) | implicit |
+| Env var syntax | `${VAR}`, `${VAR:-default}` | `$VAR`, `${VAR}` | `${env:VAR}` |
+| Tool filtering | `allowedMcpServers` in settings.json | `includeTools`/`excludeTools` per server | — |
+| HTTP transport | `type: "http"` + `url` | `httpUrl` | — |
+
+### agentspec MCP Management
+
+Three-layer abstraction:
+
+1. **`.mcp.json`** at project root — our declaration spec (what servers a project exposes)
+2. **`CodingTool::mcp_config_path()`** — each provider defines where its MCP config lives
+3. **`agentspec sync`** — discovers `.mcp.json`, writes to each provider's native format
+
+Commands:
+- `agentspec mcp add <name> --command <cmd> --args <args>` — register globally
+- `agentspec mcp remove <name>` — unregister
+- `agentspec mcp list` — show registered servers
+- `agentspec sync` — auto-discovers `.mcp.json` in known project roots
 
 ---
 
@@ -442,8 +471,10 @@ Open protocol for connecting AI applications to external data sources, tools, an
 ### Tool Documentation
 - https://code.claude.com/docs/en/skills
 - https://code.claude.com/docs/en/sub-agents
+- https://code.claude.com/docs/en/mcp
 - https://geminicli.com/docs/core/subagents/
 - https://geminicli.com/docs/cli/skills/
+- https://geminicli.com/docs/tools/mcp-server/
 - https://developers.openai.com/codex/skills/
 - https://developers.openai.com/codex/subagents
 
@@ -451,3 +482,4 @@ Open protocol for connecting AI applications to external data sources, tools, an
 - https://github.com/agentskills/agentskills
 - https://github.com/anthropics/skills
 - https://github.com/modelcontextprotocol
+- https://github.com/modelcontextprotocol/rust-sdk
