@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.0 (2026-04-13)
+
+### Features
+
+- add agentspec mcp subcommand for MCP server registration ([d7068ad](https://github.com/urmzd/agentspec/commit/d7068ada96739d4a305d02a784715e57f8321ced))
+
+### Bug Fixes
+
+- **ci**: download artifacts outside checkout to avoid dirty tree ([2ece5df](https://github.com/urmzd/agentspec/commit/2ece5df4ccf641c6bbb91b8098cb373a512e9427))
+- correct Claude MCP path, update resources docs, remove stale hook ([59059ee](https://github.com/urmzd/agentspec/commit/59059eea74122655e4edea7c7a41d24d025e189e))
+
+### Refactoring
+
+- clean up mcp module formatting and use let-chains ([3aed573](https://github.com/urmzd/agentspec/commit/3aed573e85e9d357348a9e5f371fa917c68cfc09))
+
+### Miscellaneous
+
+- apply rustfmt formatting ([b152172](https://github.com/urmzd/agentspec/commit/b152172b27f2de59c3ba9b8d5b6ba174ed0731c8))
+- migrate sr config and action to v4 ([f678e20](https://github.com/urmzd/agentspec/commit/f678e2015c33f2f1d86d601d802ecd6d76397d8f))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.7.2...v0.8.0)
+
+
 ## 0.7.2 (2026-04-12)
 
 ### Refactoring
