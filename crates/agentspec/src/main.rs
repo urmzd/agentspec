@@ -3,10 +3,10 @@ mod cli;
 mod config;
 mod error;
 mod frontmatter;
-mod mcp;
 mod inventory;
 mod ir;
 mod lockfile;
+mod mcp;
 mod ops;
 mod project_files;
 mod session;
@@ -319,7 +319,12 @@ async fn main() -> color_eyre::Result<()> {
             inventory::save_config(&cfg)?;
         }
         Some(Command::Mcp { action }) => match action {
-            McpAction::Add { name, command, args, tool } => {
+            McpAction::Add {
+                name,
+                command,
+                args,
+                tool,
+            } => {
                 mcp::add_server(tool.as_deref(), &name, &command, &args)?;
             }
             McpAction::Remove { name, tool } => {
