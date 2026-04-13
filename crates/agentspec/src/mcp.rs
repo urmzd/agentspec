@@ -115,27 +115,28 @@ pub fn list_servers() -> Result<()> {
         }
         let root = read_json(&path);
         if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object())
-            && !servers.is_empty() {
-                println!("{slug}:");
-                for (name, config) in servers {
-                    let cmd = config
-                        .get("command")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("?");
-                    let args = config
-                        .get("args")
-                        .and_then(|v| v.as_array())
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(|v| v.as_str())
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        })
-                        .unwrap_or_default();
-                    println!("  {name}: {cmd} {args}");
-                    found_any = true;
-                }
+            && !servers.is_empty()
+        {
+            println!("{slug}:");
+            for (name, config) in servers {
+                let cmd = config
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                let args = config
+                    .get("args")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .unwrap_or_default();
+                println!("  {name}: {cmd} {args}");
+                found_any = true;
             }
+        }
     }
     if !found_any {
         println!("no MCP servers registered");
@@ -237,9 +238,11 @@ pub fn collect_project_roots() -> Vec<PathBuf> {
 
     // Current directory
     if let Ok(cwd) = std::env::current_dir()
-        && cwd.join(".mcp.json").exists() && !roots.contains(&cwd) {
-            roots.push(cwd);
-        }
+        && cwd.join(".mcp.json").exists()
+        && !roots.contains(&cwd)
+    {
+        roots.push(cwd);
+    }
 
     roots
 }
