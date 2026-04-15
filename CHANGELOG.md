@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 (2026-04-15)
+
+### Features
+
+- **tui**: add preview modal for viewing resource content (#9) ([bb37635](https://github.com/urmzd/agentspec/commit/bb3763594e37ae452e356315e74d157b1b439aa7))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.8.1...v0.9.0)
+
+
 ## 0.8.1 (2026-04-15)
 
 ### Bug Fixes
