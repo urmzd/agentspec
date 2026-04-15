@@ -91,7 +91,7 @@ jobs:
           done
       - name: Release
         id: sr
-        uses: urmzd/sr@v4
+        uses: urmzd/sr@v7
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           force: ${{ inputs.force }}
