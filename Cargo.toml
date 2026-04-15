@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/urmzd/agentspec"
@@ -12,11 +12,11 @@ homepage = "https://github.com/urmzd/agentspec"
 
 [workspace.dependencies]
 # Internal SDK crates
-agentspec-update = { path = "crates/agentspec-update", version = "0.8.0" }
-agentspec-ui = { path = "crates/agentspec-ui", version = "0.8.0" }
-agentspec-cli = { path = "crates/agentspec-cli", version = "0.8.0" }
-agentspec-config = { path = "crates/agentspec-config", version = "0.8.0" }
-agentspec-sdk = { path = "crates/agentspec-sdk", version = "0.8.0" }
+agentspec-update = { path = "crates/agentspec-update", version = "0.8.1" }
+agentspec-ui = { path = "crates/agentspec-ui", version = "0.8.1" }
+agentspec-cli = { path = "crates/agentspec-cli", version = "0.8.1" }
+agentspec-config = { path = "crates/agentspec-config", version = "0.8.1" }
+agentspec-sdk = { path = "crates/agentspec-sdk", version = "0.8.1" }
 
 # Error handling
 thiserror = "2"
