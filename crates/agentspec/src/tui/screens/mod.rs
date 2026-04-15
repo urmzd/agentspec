@@ -10,6 +10,7 @@ mod delete_confirm;
 mod info;
 mod link_picker;
 mod memory_list;
+mod preview;
 mod session_list;
 mod skill_list;
 mod tool_list;
@@ -48,6 +49,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Modal::None => {}
         Modal::DeleteConfirm(dc) => delete_confirm::draw(f, dc),
         Modal::LinkPicker(lp) => link_picker::draw(f, lp),
+        Modal::Preview(p) => preview::draw(f, p),
     }
 }
 
@@ -149,14 +151,12 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
         let mut spans = Vec::new();
         for (_, label, active) in row {
             let style = if *active {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(Color::Cyan).bg(Color::DarkGray)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
             spans.push(Span::styled(*label, style));
-            spans.push(Span::styled(" ", Style::default().fg(Color::DarkGray)));
+            spans.push(Span::raw(" "));
         }
         let line = Line::from(spans);
         let row_area = Rect {
@@ -175,10 +175,10 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
     } else {
         let keys = match app.tab {
             Tab::Skills | Tab::Agents => {
-                "[/] Filter  [l] Link/Unlink  [d] Delete  [Tab] Switch  [j/k] Navigate  [q] Quit"
+                "[Enter] Preview  [/] Filter  [l] Link  [d] Delete  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
             Tab::Sessions | Tab::Memories | Tab::Configs => {
-                "[/] Filter  [Tab] Switch  [j/k] Navigate  [q] Quit"
+                "[Enter] Preview  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
             Tab::Tools | Tab::Info => "[Tab] Switch  [q] Quit",
         };

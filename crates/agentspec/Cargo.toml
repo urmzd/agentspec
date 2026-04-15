@@ -11,6 +11,7 @@ name = "agentspec"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -33,4 +34,4 @@ tempfile = { workspace = true }
 pathdiff = { workspace = true }
 skim = { workspace = true }
 fuzzy-matcher = { workspace = true }
-agentspec-update = { workspace = true }
+ureq = { workspace = true }

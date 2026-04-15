@@ -99,11 +99,11 @@ fn atomic_replace(target: &PathBuf, new_bytes: &[u8]) -> Result<()> {
 
 /// Self-update the current binary from GitHub Releases.
 ///
-/// `repo` — "owner/name" format (e.g., "urmzd/sr").
+/// `repo` — "owner/name" format (e.g., "urmzd/agentspec").
 /// `current_version` — current version string (without "v" prefix).
-/// `binary_name` — name prefix in release assets (e.g., "sr").
+/// `binary_name` — name prefix in release assets (e.g., "agentspec").
 ///
-/// Assets are expected to be named `{binary_name}-{target}` (e.g., `sr-x86_64-apple-darwin`).
+/// Assets are expected to be named `{binary_name}-{target}` (e.g., `agentspec-x86_64-apple-darwin`).
 pub fn self_update(repo: &str, current_version: &str, binary_name: &str) -> Result<UpdateResult> {
     let release = fetch_latest_release(repo)?;
     let latest_version = release.tag_name.trim_start_matches('v');

@@ -19,9 +19,9 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agentspec"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
- "agentspec-update",
+ "anyhow",
  "atty",
  "chrono",
  "clap 4.6.0",
@@ -43,60 +43,22 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "ureq",
  "walkdir",
 ]
 
 [[package]]
-name = "agentspec-cli"
-version = "0.8.0"
+name = "agentspec-sdk"
+version = "0.8.1"
 dependencies = [
- "agentspec-update",
  "anyhow",
  "clap 4.6.0",
  "clap_complete",
-]
-
-[[package]]
-name = "agentspec-config"
-version = "0.8.0"
-dependencies = [
- "anyhow",
  "dirs",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "toml",
-]
-
-[[package]]
-name = "agentspec-sdk"
-version = "0.8.0"
-dependencies = [
- "agentspec-cli",
- "agentspec-config",
- "agentspec-ui",
- "agentspec-update",
-]
-
-[[package]]
-name = "agentspec-ui"
-version = "0.8.0"
-dependencies = [
- "anyhow",
- "crossterm",
- "indicatif",
-]
-
-[[package]]
-name = "agentspec-update"
-version = "0.8.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "ureq",
 ]
 
 [[package]]

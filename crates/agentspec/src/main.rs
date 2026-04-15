@@ -12,6 +12,8 @@ mod project_files;
 mod session;
 mod tools;
 mod tui;
+pub mod ui;
+mod update;
 
 use clap::Parser;
 use cli::{Cli, Command, ManageAction, McpAction, OutputFormat, ProjectAction, SessionAction};
@@ -53,9 +55,6 @@ async fn main() -> color_eyre::Result<()> {
                 let cfg = inventory::load_config()?;
                 ops::list::list_skills(&cfg, None, true)?;
             }
-        }
-        Some(Command::Tui) => {
-            tui::run().await?;
         }
         Some(Command::Status { root, fast, path }) => {
             let mut cfg = inventory::load_config()?;
@@ -190,15 +189,11 @@ async fn main() -> color_eyre::Result<()> {
         }
         Some(Command::Update) => {
             eprintln!("current version: {}", env!("CARGO_PKG_VERSION"));
-            match agentspec_update::self_update(
-                "urmzd/agentspec",
-                env!("CARGO_PKG_VERSION"),
-                "agentspec",
-            )
-            .map_err(|e| color_eyre::eyre::eyre!("{e:#}"))?
+            match update::self_update("urmzd/agentspec", env!("CARGO_PKG_VERSION"), "agentspec")
+                .map_err(|e| color_eyre::eyre::eyre!("{e:#}"))?
             {
-                agentspec_update::UpdateResult::AlreadyUpToDate => eprintln!("already up to date"),
-                agentspec_update::UpdateResult::Updated { from, to } => {
+                update::UpdateResult::AlreadyUpToDate => eprintln!("already up to date"),
+                update::UpdateResult::Updated { from, to } => {
                     eprintln!("updated: {from} → {to}")
                 }
             }
