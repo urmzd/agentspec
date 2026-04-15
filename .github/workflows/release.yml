@@ -130,19 +130,7 @@ jobs:
             return 1
           }
 
-          # Leaf crates (no internal deps)
-          publish agentspec-config
-          publish agentspec-ui
-          publish agentspec-update
-          sleep 30
-
-          # Depends on agentspec-update
-          publish agentspec-cli
-          sleep 30
-
-          # Depends on all above
           publish agentspec-sdk
           sleep 30
 
-          # Binary crate (no internal SDK deps, but publish last)
           publish agentspec

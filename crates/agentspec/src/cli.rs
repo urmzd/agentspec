@@ -64,8 +64,6 @@ pub enum Command {
         #[command(subcommand)]
         action: ProjectAction,
     },
-    /// Launch interactive TUI
-    Tui,
     /// Remove broken resources, stale symlinks, and orphaned entries
     Prune {
         /// Actually remove — default is dry-run (show only)

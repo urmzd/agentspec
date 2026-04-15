@@ -4,20 +4,16 @@ version = "0.8.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Rust SDK for bootstrapping AI-powered CLI tools — self-update, terminal UI, config"
+description = "Rust SDK for bootstrapping AI-powered CLI tools — config, CLI scaffolding"
 keywords = ["ai", "sdk", "cli", "agentspec"]
 categories = ["development-tools"]
 
-[features]
-default = ["cli", "ui", "config", "update"]
-cli = ["dep:agentspec-cli"]
-ui = ["dep:agentspec-ui"]
-config = ["dep:agentspec-config"]
-update = ["dep:agentspec-update"]
-full = ["default"]
-
 [dependencies]
-agentspec-cli = { workspace = true, optional = true }
-agentspec-ui = { workspace = true, optional = true }
-agentspec-config = { workspace = true, optional = true }
-agentspec-update = { workspace = true, optional = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+clap_complete = { workspace = true }
+dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+toml = { workspace = true }
