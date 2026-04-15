@@ -92,43 +92,7 @@ duration = 800
 type = "snapshot"
 name = "tools"
 
-# Skip Sessions tab (may contain sensitive data)
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 200
-
-# Switch to Memories tab
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "memories"
-
-# Switch to Configs tab
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "configs"
-
-# Demo filter (go back to Memories tab first)
-[[scenes.interactions]]
-type = "key"
-key = "shift+tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 400
+# Demo filter on Tools tab
 [[scenes.interactions]]
 type = "key"
 key = "/"
@@ -137,7 +101,7 @@ type = "wait"
 duration = 400
 [[scenes.interactions]]
 type = "type"
-text = "user"
+text = "claude"
 speed = 80
 [[scenes.interactions]]
 type = "wait"
