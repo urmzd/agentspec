@@ -16,7 +16,7 @@ use crate::tools::{self, CodingTool};
 
 use super::action::{AgentSource, ReloadTarget};
 use super::event::poll_event;
-use super::modal::{DeleteConfirm, LinkPicker, Modal, ModalResult};
+use super::modal::{DeleteConfirm, LinkPicker, Modal, ModalResult, Preview};
 use super::screens;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,8 +108,8 @@ pub struct ToolEntry {
 }
 
 pub struct SessionEntry {
-    #[allow(dead_code)] // stored for future session detail view
     pub id: String,
+    pub tool_slug: String,
     pub source: String,
     pub date: String,
     pub prompt: String,
@@ -120,6 +120,7 @@ pub struct MemoryEntry {
     pub description: String,
     pub memory_type: String,
     pub project: String,
+    pub file_path: std::path::PathBuf,
 }
 
 pub struct ConfigEntry {
@@ -327,6 +328,11 @@ impl App {
                     self.open_delete_confirm();
                 }
             }
+            KeyCode::Enter => {
+                if self.current_list_len() > 0 {
+                    self.open_preview();
+                }
+            }
             _ => {}
         }
     }
@@ -444,6 +450,79 @@ impl App {
             checks,
             selected: 0,
         });
+    }
+
+    fn open_preview(&mut self) {
+        let (title, content) = match self.tab {
+            Tab::Skills => {
+                let filtered = self.filtered_skills();
+                let Some(s) = filtered.get(self.selected) else {
+                    return;
+                };
+                let skill_md = config::shared_skills_dir().join(&s.name).join("SKILL.md");
+                let content = std::fs::read_to_string(&skill_md)
+                    .unwrap_or_else(|_| "(could not read skill file)".to_string());
+                (format!("Skill: {}", s.name), content)
+            }
+            Tab::Agents => {
+                let filtered = self.filtered_agents();
+                let Some(a) = filtered.get(self.selected) else {
+                    return;
+                };
+                let content = match &a.source {
+                    AgentSource::Managed => {
+                        let path = config::shared_agents_dir().join(format!("{}.md", a.name));
+                        std::fs::read_to_string(&path)
+                            .unwrap_or_else(|_| "(could not read agent file)".to_string())
+                    }
+                    AgentSource::Unmanaged(paths) => {
+                        if let Some(path) = paths.first() {
+                            std::fs::read_to_string(path)
+                                .unwrap_or_else(|_| "(could not read agent file)".to_string())
+                        } else {
+                            "(no file path available)".to_string()
+                        }
+                    }
+                };
+                (format!("Agent: {}", a.name), content)
+            }
+            Tab::Sessions => {
+                let filtered = self.filtered_sessions();
+                let Some(s) = filtered.get(self.selected) else {
+                    return;
+                };
+                let adapter = session::adapters::adapter_for_tool(&s.tool_slug);
+                let content = match adapter {
+                    Some(a) => match a.load_session(&s.id) {
+                        Ok(sess) => session::render::render_markdown(&sess),
+                        Err(e) => format!("Error loading session: {e}"),
+                    },
+                    None => format!("No adapter found for tool: {}", s.tool_slug),
+                };
+                (format!("Session: {} ({})", s.source, s.date), content)
+            }
+            Tab::Memories => {
+                let filtered = self.filtered_memories();
+                let Some(m) = filtered.get(self.selected) else {
+                    return;
+                };
+                let content = std::fs::read_to_string(&m.file_path)
+                    .unwrap_or_else(|_| "(could not read memory file)".to_string());
+                (format!("Memory: {}", m.name), content)
+            }
+            Tab::Configs => {
+                let filtered = self.filtered_configs();
+                let Some(c) = filtered.get(self.selected) else {
+                    return;
+                };
+                let content = std::fs::read_to_string(&c.path)
+                    .unwrap_or_else(|_| "(could not read config file)".to_string());
+                (format!("Config: {}", c.name), content)
+            }
+            Tab::Tools | Tab::Info => return,
+        };
+
+        self.modal = Modal::Preview(Preview::new(title, content));
     }
 
     // -----------------------------------------------------------------------
@@ -700,6 +779,7 @@ fn load_sessions() -> Vec<SessionEntry> {
             let source_name = session::adapters::tool_name_for_slug(&s.tool_slug);
             SessionEntry {
                 id: s.id,
+                tool_slug: s.tool_slug,
                 source: source_name,
                 date: s
                     .started_at
@@ -722,6 +802,7 @@ fn load_memories() -> Vec<MemoryEntry> {
             description: m.description,
             memory_type: m.memory_type,
             project: m.project_path.unwrap_or(m.project_name),
+            file_path: m.file_path,
         })
         .collect()
 }

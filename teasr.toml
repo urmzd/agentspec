@@ -92,16 +92,13 @@ duration = 800
 type = "snapshot"
 name = "tools"
 
-# Switch to Sessions tab
+# Skip Sessions tab (may contain sensitive data)
 [[scenes.interactions]]
 type = "key"
 key = "tab"
 [[scenes.interactions]]
 type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "sessions"
+duration = 200
 
 # Switch to Memories tab
 [[scenes.interactions]]
