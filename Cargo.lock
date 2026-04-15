@@ -19,7 +19,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agentspec"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "agentspec-update",
  "atty",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-cli"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "agentspec-update",
  "anyhow",
@@ -58,7 +58,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-config"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -70,7 +70,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-sdk"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "agentspec-cli",
  "agentspec-config",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-ui"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "agentspec-update"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "serde",
