@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1 (2026-04-15)
+
+### Bug Fixes
+
+- **ci**: download artifacts outside checkout to avoid dirty tree (#8) ([ac61f1f](https://github.com/urmzd/agentspec/commit/ac61f1f70b288ea2a61f46c047febd24a05623f5))
+- **ci**: simplify artifact download path (dirty tree check removed in sr) ([6dc2881](https://github.com/urmzd/agentspec/commit/6dc288128bf9ff4ad7592d3117cc890d68470601))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.8.0...v0.8.1)
+
+
 ## 0.8.0 (2026-04-13)
 
 ### Features
