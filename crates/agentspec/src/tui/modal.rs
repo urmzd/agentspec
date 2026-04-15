@@ -233,7 +233,13 @@ impl Preview {
         let sanitized: String = self
             .title
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         let filename = format!("{sanitized}.md");
         match std::fs::write(&filename, &self.content) {

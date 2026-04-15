@@ -189,12 +189,8 @@ async fn main() -> color_eyre::Result<()> {
         }
         Some(Command::Update) => {
             eprintln!("current version: {}", env!("CARGO_PKG_VERSION"));
-            match update::self_update(
-                "urmzd/agentspec",
-                env!("CARGO_PKG_VERSION"),
-                "agentspec",
-            )
-            .map_err(|e| color_eyre::eyre::eyre!("{e:#}"))?
+            match update::self_update("urmzd/agentspec", env!("CARGO_PKG_VERSION"), "agentspec")
+                .map_err(|e| color_eyre::eyre::eyre!("{e:#}"))?
             {
                 update::UpdateResult::AlreadyUpToDate => eprintln!("already up to date"),
                 update::UpdateResult::Updated { from, to } => {
