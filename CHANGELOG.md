@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 (2026-04-15)
+
+### Bug Fixes
+
+- **ci**: upgrade sr v4 to v7 so release artifacts are attached (#10) ([8352b83](https://github.com/urmzd/agentspec/commit/8352b8360d2c02cff939d7c18f6a9b9052294d0c))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.9.0...v0.9.1)
+
+
 ## 0.9.0 (2026-04-15)
 
 ### Features
