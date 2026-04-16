@@ -7,7 +7,6 @@ use super::modal::Modal;
 mod agent_list;
 mod config_list;
 mod delete_confirm;
-mod info;
 mod link_picker;
 mod memory_list;
 mod preview;
@@ -40,7 +39,6 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Sessions => session_list::draw(f, chunks[2], app),
         Tab::Memories => memory_list::draw(f, chunks[2], app),
         Tab::Configs => config_list::draw(f, chunks[2], app),
-        Tab::Info => info::draw(f, chunks[2], app),
     }
 
     draw_status_bar(f, chunks[3], app);
@@ -61,11 +59,7 @@ fn compute_tab_rows(terminal_width: u16, app: &App) -> usize {
 
     for tab in Tab::all() {
         let count = app.tab_count(*tab);
-        let label_width = if count > 0 || !matches!(tab, Tab::Info) {
-            format!(" {} ({}) ", tab.label(), count).len() + 2
-        } else {
-            format!(" {} ", tab.label()).len() + 2
-        };
+        let label_width = format!(" {} ({}) ", tab.label(), count).len() + 2;
 
         if row_width > 0 && row_width + label_width > available {
             row_count += 1;
@@ -85,11 +79,7 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
         .iter()
         .map(|t| {
             let count = app.tab_count(*t);
-            let label = if count > 0 || !matches!(t, Tab::Info) {
-                format!(" {} ({}) ", t.label(), count)
-            } else {
-                format!(" {} ", t.label())
-            };
+            let label = format!(" {} ({}) ", t.label(), count);
             (*t == app.tab, label)
         })
         .map(|(active, label)| (label, active))
@@ -180,7 +170,7 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
             Tab::Sessions | Tab::Memories | Tab::Configs => {
                 "[Enter] Preview  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
-            Tab::Tools | Tab::Info => "[Tab] Switch  [q] Quit",
+            Tab::Tools => "[Tab] Switch  [j/k] Nav  [q] Quit",
         };
         format!("  {keys}")
     };
@@ -271,7 +261,6 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
                 String::new()
             }
         }
-        Tab::Info => String::new(),
     };
 
     let bar = Paragraph::new(info).style(Style::default().fg(Color::White).bg(Color::DarkGray));
