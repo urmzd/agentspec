@@ -46,7 +46,14 @@ pub fn sync(
     if !json {
         println!("  {} Ensuring links...", style("→").cyan());
     }
-    let linked = link::ensure_all_links(cfg, false)?;
+    let (reconciled, linked) = link::ensure_all_links(cfg, false)?;
+    if !json && reconciled > 0 {
+        println!(
+            "  {} Reconciled {} existing link(s) into tracking",
+            style("~").yellow(),
+            reconciled
+        );
+    }
     if !json && linked > 0 {
         println!(
             "  {} Created {} new link(s)",
@@ -76,6 +83,7 @@ pub fn sync(
         let report = serde_json::json!({
             "managed": cfg.resources.len(),
             "discovered": cfg.discovered.len(),
+            "links_reconciled": reconciled,
             "links_created": linked,
             "integrity_issues": issues.len(),
         });

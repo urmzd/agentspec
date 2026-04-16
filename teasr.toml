@@ -7,14 +7,14 @@ family = "MonaspiceNe Nerd Font"
 [[output.formats]]
 output_type = "png"
 
-# ── TUI showcase: launch agentspec, browse tabs ──
+# ── TUI showcase: just the Tools tab ──
 [[scenes]]
 type = "terminal"
 name = "tui"
 theme = "dracula"
 cols = 120
 rows = 30
-formats = [{ output_type = "gif" }, { output_type = "png" }]
+formats = [{ output_type = "png" }]
 frame_duration = 120
 
 # Launch the TUI
@@ -31,87 +31,21 @@ hidden = true
 
 [[scenes.interactions]]
 type = "wait"
-duration = 1500
+duration = 2000
 hidden = true
 
-# Tools tab (default)
+# Tools tab (default) — capture it
 [[scenes.interactions]]
 type = "snapshot"
 name = "tools"
 
-[[scenes.interactions]]
-type = "wait"
-duration = 1000
-
-# Switch to Skills tab
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "skills"
-
-# Navigate down
-[[scenes.interactions]]
-type = "key"
-key = "down"
-[[scenes.interactions]]
-type = "wait"
-duration = 400
-[[scenes.interactions]]
-type = "key"
-key = "down"
-[[scenes.interactions]]
-type = "wait"
-duration = 400
-[[scenes.interactions]]
-type = "snapshot"
-
-# Switch to Agents tab
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "agents"
-
-# Demo filter on Skills tab — go back to Skills (prev from Agents)
-[[scenes.interactions]]
-type = "key"
-key = "shift+tab"
-[[scenes.interactions]]
-type = "wait"
-duration = 400
-[[scenes.interactions]]
-type = "key"
-key = "/"
-[[scenes.interactions]]
-type = "wait"
-duration = 400
-[[scenes.interactions]]
-type = "type"
-text = "claude"
-speed = 80
-[[scenes.interactions]]
-type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "filter"
-
-# Quit
-[[scenes.interactions]]
-type = "key"
-key = "escape"
-[[scenes.interactions]]
-type = "wait"
-duration = 300
+# Quit the TUI, then EOF to exit the shell so teardown doesn't hang
 [[scenes.interactions]]
 type = "key"
 key = "q"
+hidden = true
+
+[[scenes.interactions]]
+type = "key"
+key = "ctrl-d"
+hidden = true

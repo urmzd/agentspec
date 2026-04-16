@@ -6,7 +6,7 @@ use crate::tui::app::App;
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     if !app.configs.is_loaded() {
         let msg = Paragraph::new(format!(
-            "  {} config file(s) found. Loading...",
+            "  {} project(s) found. Loading...",
             app.configs.count()
         ))
         .style(Style::default().fg(Color::DarkGray))
@@ -19,20 +19,51 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let configs = app.filtered_configs();
+    let projects = app.filtered_configs();
 
-    let header = Row::new(vec![
-        Cell::from("File").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Kind").style(Style::default().add_modifier(Modifier::BOLD)),
+    if projects.is_empty() {
+        let msg = Paragraph::new("  No projects found.")
+            .style(Style::default().fg(Color::DarkGray))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            );
+        f.render_widget(msg, area);
+        return;
+    }
+
+    // Gather indicator column names from the first project's indicators
+    let indicator_names: Vec<&str> = projects
+        .first()
+        .map(|p| p.indicators.iter().map(|(name, _)| *name).collect())
+        .unwrap_or_default();
+
+    // Build header
+    let mut header_cells = vec![
         Cell::from("Project").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Path").style(Style::default().add_modifier(Modifier::BOLD)),
-    ]);
+        Cell::from("Score").style(Style::default().add_modifier(Modifier::BOLD)),
+    ];
+    for name in &indicator_names {
+        header_cells.push(
+            Cell::from(abbreviate(name)).style(
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::DarkGray),
+            ),
+        );
+    }
+    let header = Row::new(header_cells);
 
-    let rows: Vec<Row> = configs
+    // Build rows
+    let rows: Vec<Row> = projects
         .iter()
         .enumerate()
-        .map(|(i, c)| {
-            let style = if i == app.selected {
+        .map(|(i, p)| {
+            let present = p.indicators.iter().filter(|(_, e)| *e).count();
+            let total = p.indicators.len();
+
+            let row_style = if i == app.selected {
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
@@ -40,37 +71,71 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
                 Style::default()
             };
 
-            Row::new(vec![
-                Cell::from(c.name.clone()).style(Style::default().fg(Color::Cyan)),
-                Cell::from(c.kind.clone()).style(Style::default().fg(Color::Yellow)),
-                Cell::from(truncate(&c.project, 25)).style(Style::default().fg(Color::Green)),
-                Cell::from(truncate(&c.path, 50)).style(Style::default().fg(Color::DarkGray)),
-            ])
-            .style(style)
+            let score_color = if present == total {
+                Color::Green
+            } else if present >= total / 2 {
+                Color::Yellow
+            } else {
+                Color::Red
+            };
+
+            let mut cells = vec![
+                Cell::from(truncate(&p.project, 25)).style(Style::default().fg(Color::Cyan)),
+                Cell::from(format!("{present}/{total}")).style(Style::default().fg(score_color)),
+            ];
+
+            for (_, exists) in &p.indicators {
+                let (symbol, color) = if *exists {
+                    ("●", Color::Green)
+                } else {
+                    ("○", Color::DarkGray)
+                };
+                cells.push(Cell::from(symbol).style(Style::default().fg(color)));
+            }
+
+            Row::new(cells).style(row_style)
         })
         .collect();
 
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(14),
-            Constraint::Length(14),
-            Constraint::Length(27),
-            Constraint::Min(30),
-        ],
-    )
-    .header(header)
-    .row_highlight_style(Style::default().bg(Color::DarkGray))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
+    // Column constraints: Project (flexible), Score (short), then one per indicator
+    let mut widths = vec![Constraint::Length(27), Constraint::Length(7)];
+    for name in &indicator_names {
+        widths.push(Constraint::Length(abbreviate(name).len() as u16 + 1));
+    }
+
+    let table = Table::new(rows, widths)
+        .header(header)
+        .row_highlight_style(Style::default().bg(Color::DarkGray))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        );
 
     let mut state = TableState::default();
     state.select(Some(app.selected));
 
     f.render_stateful_widget(table, area, &mut state);
+}
+
+/// Shorten filenames for column headers.
+fn abbreviate(name: &str) -> String {
+    match name {
+        "AGENTS.md" => "AGNTS".to_string(),
+        "llms.txt" => "LLMS".to_string(),
+        "CLAUDE.md" => "CLAUD".to_string(),
+        "GEMINI.md" => "GEMIN".to_string(),
+        "copilot-instructions.md" => "COPLT".to_string(),
+        "codex-instructions.md" => "CODEX".to_string(),
+        "cursorrules" => "CURSR".to_string(),
+        "cursor-rules" => "CUR-R".to_string(),
+        "clinerules" => "CLINE".to_string(),
+        "windsurfrules" => "WNDSR".to_string(),
+        other => {
+            let s: String = other.chars().take(5).collect();
+            s.to_uppercase()
+        }
+    }
 }
 
 fn truncate(s: &str, max: usize) -> String {
