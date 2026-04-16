@@ -83,7 +83,7 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 4: Memories
+# Tab 4: Configs
 [[scenes.interactions]]
 type = "key"
 key = "tab"
