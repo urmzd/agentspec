@@ -34,10 +34,10 @@ type = "wait"
 duration = 1500
 hidden = true
 
-# Info tab (default)
+# Tools tab (default)
 [[scenes.interactions]]
 type = "snapshot"
-name = "info"
+name = "tools"
 
 [[scenes.interactions]]
 type = "wait"
@@ -81,18 +81,13 @@ duration = 800
 type = "snapshot"
 name = "agents"
 
-# Switch to Tools tab
+# Demo filter on Skills tab — go back to Skills (prev from Agents)
 [[scenes.interactions]]
 type = "key"
-key = "tab"
+key = "shift+tab"
 [[scenes.interactions]]
 type = "wait"
-duration = 800
-[[scenes.interactions]]
-type = "snapshot"
-name = "tools"
-
-# Demo filter on Tools tab
+duration = 400
 [[scenes.interactions]]
 type = "key"
 key = "/"

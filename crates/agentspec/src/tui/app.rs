@@ -35,9 +35,9 @@ impl Tab {
             Tab::Tools,
             Tab::Skills,
             Tab::Agents,
+            Tab::Configs,
             Tab::Sessions,
             Tab::Memories,
-            Tab::Configs,
         ]
     }
 
@@ -56,21 +56,21 @@ impl Tab {
         match self {
             Tab::Tools => Tab::Skills,
             Tab::Skills => Tab::Agents,
-            Tab::Agents => Tab::Sessions,
+            Tab::Agents => Tab::Configs,
+            Tab::Configs => Tab::Sessions,
             Tab::Sessions => Tab::Memories,
-            Tab::Memories => Tab::Configs,
-            Tab::Configs => Tab::Tools,
+            Tab::Memories => Tab::Tools,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            Tab::Tools => Tab::Configs,
+            Tab::Tools => Tab::Memories,
             Tab::Skills => Tab::Tools,
             Tab::Agents => Tab::Skills,
-            Tab::Sessions => Tab::Agents,
+            Tab::Configs => Tab::Agents,
+            Tab::Sessions => Tab::Configs,
             Tab::Memories => Tab::Sessions,
-            Tab::Configs => Tab::Memories,
         }
     }
 }
