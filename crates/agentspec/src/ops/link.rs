@@ -173,12 +173,78 @@ pub fn make_relative_public(from: &Path, to: &Path) -> std::path::PathBuf {
 }
 
 /// Ensure all managed resources are symlinked to all installed tools.
-/// Creates missing symlinks, skips existing ones. Returns count of newly created links.
-pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<usize> {
+/// Reconciles existing symlinks into config tracking, then creates missing ones.
+/// Returns (reconciled, created) counts.
+pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> {
     let installed = tools::installed_tools();
+    let mut reconciled = 0;
     let mut created = 0;
 
-    // Collect link info first to avoid borrow conflict with cfg
+    // Phase 1: Reconcile existing symlinks/copies that aren't tracked in config.
+    // This adopts links created by older versions or external tools.
+    let reconcile_ops: Vec<_> = cfg
+        .resources
+        .iter()
+        .flat_map(|resource| {
+            let kind: ResourceKind = resource.kind.into();
+            if !matches!(kind, ResourceKind::Skill | ResourceKind::Agent) {
+                return Vec::new();
+            }
+            installed
+                .iter()
+                .filter_map(|tool| {
+                    // Skip if already tracked
+                    if resource.links.iter().any(|l| l.tool == tool.slug()) {
+                        return None;
+                    }
+
+                    let tool_dir = match kind {
+                        ResourceKind::Skill => tool.skills_dir(),
+                        ResourceKind::Agent => tool.agents_dir(),
+                        _ => None,
+                    }?;
+
+                    let link_path = match kind {
+                        ResourceKind::Skill => tool_dir.join(&resource.name),
+                        ResourceKind::Agent => tool_dir.join(format!("{}.md", resource.name)),
+                        _ => return None,
+                    };
+
+                    // Only reconcile if link exists on disk but isn't in config
+                    if !link_path.exists() && !link_path.is_symlink() {
+                        return None;
+                    }
+
+                    let strategy = if link_path.is_symlink() {
+                        LinkStrategy::Symlink
+                    } else {
+                        LinkStrategy::Copy
+                    };
+
+                    Some((
+                        resource.name.clone(),
+                        resource.kind,
+                        tool.slug().to_string(),
+                        link_path,
+                        strategy,
+                    ))
+                })
+                .collect()
+        })
+        .collect();
+
+    for (name, tracked_kind, tool_slug, link_path, strategy) in reconcile_ops {
+        if let Some(resource) = cfg.find_mut(&name, tracked_kind) {
+            resource.links.push(ResourceLink {
+                tool: tool_slug,
+                strategy,
+                path: link_path.to_string_lossy().to_string(),
+            });
+            reconciled += 1;
+        }
+    }
+
+    // Phase 2: Create missing symlinks for resources not yet linked on disk.
     let link_ops: Vec<_> = cfg
         .resources
         .iter()
@@ -261,7 +327,7 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<usize> {
         created += 1;
     }
 
-    Ok(created)
+    Ok((reconciled, created))
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
