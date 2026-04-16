@@ -118,11 +118,11 @@ pub struct MemoryEntry {
     pub file_path: std::path::PathBuf,
 }
 
-pub struct ConfigEntry {
-    pub name: String,
-    pub kind: String,
+pub struct ProjectReadiness {
     pub project: String,
-    pub path: String,
+    pub project_path: String,
+    /// (filename, exists) for each known project file spec
+    pub indicators: Vec<(&'static str, bool)>,
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +168,7 @@ pub struct App {
     pub tool_entries: Vec<ToolEntry>,
     pub sessions: LazyTab<SessionEntry>,
     pub memories: LazyTab<MemoryEntry>,
-    pub configs: LazyTab<ConfigEntry>,
+    pub configs: LazyTab<ProjectReadiness>,
     pub installed_tools: Vec<String>,
     pub selected: usize,
     pub filter: String,
@@ -507,12 +507,37 @@ impl App {
             }
             Tab::Configs => {
                 let filtered = self.filtered_configs();
-                let Some(c) = filtered.get(self.selected) else {
+                let Some(p) = filtered.get(self.selected) else {
                     return;
                 };
-                let content = std::fs::read_to_string(&c.path)
-                    .unwrap_or_else(|_| "(could not read config file)".to_string());
-                (format!("Config: {}", c.name), content)
+                let present: Vec<&str> = p
+                    .indicators
+                    .iter()
+                    .filter(|(_, exists)| *exists)
+                    .map(|(name, _)| *name)
+                    .collect();
+                let missing: Vec<&str> = p
+                    .indicators
+                    .iter()
+                    .filter(|(_, exists)| !*exists)
+                    .map(|(name, _)| *name)
+                    .collect();
+                let score = present.len();
+                let total = p.indicators.len();
+                let content = format!(
+                    "AI Readiness: {score}/{total}\n\nPresent:\n  {}\n\nMissing:\n  {}",
+                    if present.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        present.join("\n  ")
+                    },
+                    if missing.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        missing.join("\n  ")
+                    },
+                );
+                (format!("Project: {}", p.project), content)
             }
             Tab::Tools => return,
         };
@@ -571,9 +596,9 @@ impl App {
         })
     }
 
-    pub fn filtered_configs(&self) -> Vec<&ConfigEntry> {
+    pub fn filtered_configs(&self) -> Vec<&ProjectReadiness> {
         fuzzy_filter(&self.filter, self.configs.items().iter(), |c| {
-            format!("{} {} {}", c.name, c.kind, c.project)
+            c.project.clone()
         })
     }
 }
@@ -749,15 +774,13 @@ fn count_sessions() -> usize {
         .sum()
 }
 
-/// Lightweight config count — just count files, don't parse.
+/// Lightweight project count for configs tab.
 fn count_configs() -> usize {
-    use crate::project_files;
     memory::scan_project_infos()
         .iter()
         .filter_map(|p| p.project_path.as_ref())
         .filter(|pp| pp.join(".git").exists())
-        .map(|pp| project_files::find_in_project(pp).len())
-        .sum()
+        .count()
 }
 
 fn load_sessions() -> Vec<SessionEntry> {
@@ -800,8 +823,8 @@ fn load_memories() -> Vec<MemoryEntry> {
         .collect()
 }
 
-fn load_configs() -> Vec<ConfigEntry> {
-    use crate::project_files;
+fn load_configs() -> Vec<ProjectReadiness> {
+    use crate::project_files::{self, PROJECT_FILES};
 
     let infos = memory::scan_project_infos();
     let mut entries = Vec::new();
@@ -818,16 +841,29 @@ fn load_configs() -> Vec<ConfigEntry> {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| p.encoded_name.clone());
 
-        for (spec, file_path) in project_files::find_in_project(pp) {
-            entries.push(ConfigEntry {
-                name: spec.filename.to_string(),
-                kind: format!("{}", spec.kind),
-                project: project.clone(),
-                path: file_path.to_string_lossy().to_string(),
-            });
-        }
+        let found = project_files::find_in_project(pp);
+        let found_filenames: std::collections::HashSet<&str> =
+            found.iter().map(|(spec, _)| spec.filename).collect();
+
+        let indicators: Vec<(&'static str, bool)> = PROJECT_FILES
+            .iter()
+            .map(|spec| (spec.filename, found_filenames.contains(spec.filename)))
+            .collect();
+
+        // Deduplicate by filename (e.g. cursor has two entries)
+        let mut seen = std::collections::HashSet::new();
+        let indicators: Vec<(&'static str, bool)> = indicators
+            .into_iter()
+            .filter(|(name, _)| seen.insert(*name))
+            .collect();
+
+        entries.push(ProjectReadiness {
+            project: project.clone(),
+            project_path: pp.to_string_lossy().to_string(),
+            indicators,
+        });
     }
 
-    entries.sort_by(|a, b| a.project.cmp(&b.project).then(a.name.cmp(&b.name)));
+    entries.sort_by(|a, b| a.project.cmp(&b.project));
     entries
 }

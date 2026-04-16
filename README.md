@@ -42,7 +42,7 @@ Claude Code, Cline, Windsurf, OpenHands, Gemini CLI, GitHub Copilot, Amp, Cursor
 ### Script
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/urmzd/agentspec/main/install.sh | sh
 ```
 
 ### Cargo

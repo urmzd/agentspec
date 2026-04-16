@@ -255,8 +255,13 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
         }
         Tab::Configs => {
             let configs = app.filtered_configs();
-            if let Some(c) = configs.get(app.selected) {
-                format!("  {} | {} | {}", c.name, c.project, c.path)
+            if let Some(p) = configs.get(app.selected) {
+                let present = p.indicators.iter().filter(|(_, e)| *e).count();
+                let total = p.indicators.len();
+                format!(
+                    "  {} | {present}/{total} files | {}",
+                    p.project, p.project_path
+                )
             } else {
                 String::new()
             }
