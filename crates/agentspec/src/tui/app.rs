@@ -27,16 +27,14 @@ pub enum Tab {
     Sessions,
     Memories,
     Configs,
-    Info,
 }
 
 impl Tab {
     pub fn all() -> &'static [Tab] {
         &[
-            Tab::Info,
+            Tab::Tools,
             Tab::Skills,
             Tab::Agents,
-            Tab::Tools,
             Tab::Sessions,
             Tab::Memories,
             Tab::Configs,
@@ -45,7 +43,6 @@ impl Tab {
 
     pub fn label(&self) -> &str {
         match self {
-            Tab::Info => "Info",
             Tab::Skills => "Skills",
             Tab::Agents => "Agents",
             Tab::Tools => "Tools",
@@ -57,23 +54,21 @@ impl Tab {
 
     pub fn next(&self) -> Self {
         match self {
-            Tab::Info => Tab::Skills,
+            Tab::Tools => Tab::Skills,
             Tab::Skills => Tab::Agents,
-            Tab::Agents => Tab::Tools,
-            Tab::Tools => Tab::Sessions,
+            Tab::Agents => Tab::Sessions,
             Tab::Sessions => Tab::Memories,
             Tab::Memories => Tab::Configs,
-            Tab::Configs => Tab::Info,
+            Tab::Configs => Tab::Tools,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            Tab::Info => Tab::Configs,
-            Tab::Skills => Tab::Info,
+            Tab::Tools => Tab::Configs,
+            Tab::Skills => Tab::Tools,
             Tab::Agents => Tab::Skills,
-            Tab::Tools => Tab::Agents,
-            Tab::Sessions => Tab::Tools,
+            Tab::Sessions => Tab::Agents,
             Tab::Memories => Tab::Sessions,
             Tab::Configs => Tab::Memories,
         }
@@ -199,7 +194,7 @@ impl App {
         let config_count = count_configs();
 
         Ok(Self {
-            tab: Tab::Info,
+            tab: Tab::Tools,
             cfg,
             skills,
             agents,
@@ -519,7 +514,7 @@ impl App {
                     .unwrap_or_else(|_| "(could not read config file)".to_string());
                 (format!("Config: {}", c.name), content)
             }
-            Tab::Tools | Tab::Info => return,
+            Tab::Tools => return,
         };
 
         self.modal = Modal::Preview(Preview::new(title, content));
@@ -537,7 +532,6 @@ impl App {
             Tab::Sessions => self.filtered_sessions().len(),
             Tab::Memories => self.filtered_memories().len(),
             Tab::Configs => self.filtered_configs().len(),
-            Tab::Info => 0,
         }
     }
 
@@ -550,7 +544,6 @@ impl App {
             Tab::Sessions => self.sessions.count(),
             Tab::Memories => self.memories.count(),
             Tab::Configs => self.configs.count(),
-            Tab::Info => 0,
         }
     }
 

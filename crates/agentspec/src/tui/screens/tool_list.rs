@@ -1,9 +1,37 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
+use crate::config;
 use crate::tui::app::App;
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
+    let dim_style = Style::default().fg(Color::DarkGray);
+    let label_style = Style::default()
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD);
+
+    // Storage info line
+    let storage_line = Line::from(vec![
+        Span::styled("  Skills ", label_style),
+        Span::styled(config::shared_skills_dir().display().to_string(), dim_style),
+        Span::raw("  "),
+        Span::styled("Agents ", label_style),
+        Span::styled(config::shared_agents_dir().display().to_string(), dim_style),
+        Span::raw("  "),
+        Span::styled("Config ", label_style),
+        Span::styled(config::config_path().display().to_string(), dim_style),
+    ]);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // storage info
+            Constraint::Min(0),   // tool table
+        ])
+        .split(area);
+
+    f.render_widget(Paragraph::new(storage_line), chunks[0]);
+
     let header = Row::new(vec![
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Slug").style(Style::default().add_modifier(Modifier::BOLD)),
@@ -68,5 +96,5 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let mut state = TableState::default();
     state.select(Some(app.selected));
 
-    f.render_stateful_widget(table, area, &mut state);
+    f.render_stateful_widget(table, chunks[1], &mut state);
 }
