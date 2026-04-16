@@ -11,24 +11,14 @@ output_type = "png"
 [[scenes]]
 type = "terminal"
 name = "tui"
+command = "agentspec"
 theme = "dracula"
 cols = 120
 rows = 30
 formats = [{ output_type = "png" }]
 frame_duration = 120
 
-# Launch the TUI
-[[scenes.interactions]]
-type = "type"
-text = "agentspec"
-speed = 50
-hidden = true
-
-[[scenes.interactions]]
-type = "key"
-key = "enter"
-hidden = true
-
+# Wait for TUI to render
 [[scenes.interactions]]
 type = "wait"
 duration = 2000
@@ -38,14 +28,3 @@ hidden = true
 [[scenes.interactions]]
 type = "snapshot"
 name = "tools"
-
-# Quit the TUI, then EOF to exit the shell so teardown doesn't hang
-[[scenes.interactions]]
-type = "key"
-key = "q"
-hidden = true
-
-[[scenes.interactions]]
-type = "key"
-key = "ctrl-d"
-hidden = true
