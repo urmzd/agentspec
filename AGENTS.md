@@ -13,7 +13,7 @@ Single binary, async runtime (tokio). Key layers:
 | IR | `src/ir.rs` | Canonical `Resource` type -- all vendor formats convert to/from this |
 | Adapters | `src/adapters/` | Vendor-specific parsers/emitters (agentskills, claude, gemini) |
 | Tools | `src/tools/mod.rs` | `CodingTool` trait + macro-defined impls for 11 AI tools |
-| Ops | `src/ops/` | CLI operations (install, link, list, validate, search, create, remove) |
+| Ops | `src/ops/` | CLI operations (manage, link, sync, discover, verify, prune, project_sync) |
 | TUI | `src/tui/` | ratatui screens (skill list, agent list, tool list, link picker) |
 | CLI | `src/cli.rs` | clap derive command definitions |
 | Lock | `src/lockfile.rs` | `.skill-lock.json` v3 serde (backwards compatible) |
@@ -23,8 +23,26 @@ Single binary, async runtime (tokio). Key layers:
 - `src/ir.rs` -- the canonical IR that all adapters target
 - `src/adapters/mod.rs` -- `Adapter` trait definition
 - `src/tools/mod.rs` -- `CodingTool` trait + `define_tool!` macro
-- `src/ops/link.rs` -- symlink creation with relative path computation
+- `src/ops/link.rs` -- symlink creation, relative path computation, link reconciliation
+- `src/ops/sync.rs` -- full pipeline (discover, adopt, reconcile, link, verify)
+- `src/ops/manage.rs` -- `manage add` source resolution (local path, git URL, owner/repo)
+- `src/inventory.rs` -- `Config` struct, `TrackedResource`, SHA-256 hashing
 - `src/tui/app.rs` -- TUI state machine
+
+## Linking Mechanism
+
+Resources live in the shared store (`~/.agents/skills/`, `~/.agents/agents/`). Tools get relative symlinks pointing into the shared store.
+
+**`manage add <source> --all-tools`** resolves the source (local path, `owner/repo`, or git URL with optional `#branch@subpath`), copies to shared store, then creates symlinks in every installed tool's directory. Existing names are skipped (first-installed wins).
+
+**`sync`** runs a 3-phase pipeline:
+1. **Reconcile** -- adopts existing symlinks on disk that aren't tracked in config (handles links created by older versions or external tools)
+2. **Link** -- creates missing symlinks for managed resources not yet present in tool directories
+3. **Verify** -- checks SHA-256 hashes against stored values to detect external modifications
+
+**Relative symlinks** are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.
+
+**Copy fallback** via `--copy` flag for filesystems that don't support symlinks.
 
 ## Commands
 
