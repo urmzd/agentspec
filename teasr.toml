@@ -4,10 +4,7 @@ dir = "./showcase"
 [font]
 family = "MonaspiceNe Nerd Font"
 
-[[output.formats]]
-output_type = "png"
-
-# ── TUI showcase: just the Tools tab ──
+# ── TUI showcase: static PNG of the Tools tab ──
 [[scenes]]
 type = "terminal"
 name = "tui"
@@ -28,3 +25,76 @@ hidden = true
 [[scenes.interactions]]
 type = "snapshot"
 name = "tools"
+
+# ── TUI showcase: animated GIF cycling through tabs ──
+[[scenes]]
+type = "terminal"
+name = "tui-demo"
+command = "agentspec"
+theme = "dracula"
+cols = 120
+rows = 30
+formats = [{ output_type = "gif" }]
+frame_duration = 120
+
+# Wait for TUI to render
+[[scenes.interactions]]
+type = "wait"
+duration = 2000
+hidden = true
+
+# Tab 1: Tools (default)
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 2: Configs
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 3: Sessions
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 4: Configs
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
