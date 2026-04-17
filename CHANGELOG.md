@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.2 (2026-04-17)
+
+### Bug Fixes
+
+- **ci**: resolve clippy errors on rust 1.95 ([b17074d](https://github.com/urmzd/agentspec/commit/b17074d29364ea470cacf6dd83801ccca680615c))
+- correct install.sh path in README and merge info tab into tools ([a5a1c99](https://github.com/urmzd/agentspec/commit/a5a1c991c7043cb158a95a6a46de099d9edcbc22))
+
+### Refactoring
+
+- **tui**: merge Info tab into Tools tab (#11) ([c4e95ea](https://github.com/urmzd/agentspec/commit/c4e95eac3bce4c29fef311d42fbf152fed2e11d3))
+- **tui**: merge Info tab into Tools tab ([d9bc310](https://github.com/urmzd/agentspec/commit/d9bc31099965f037ba58cdee647a1ef831c33dae))
+
+### Misc
+
+- **readme**: restructure showcase section with gif and screenshot ([a37f2c6](https://github.com/urmzd/agentspec/commit/a37f2c6964bfa5d7f255fa4c09570e2715709763))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.9.1...v0.9.2)
+
+
 ## 0.9.1 (2026-04-15)
 
 ### Bug Fixes
