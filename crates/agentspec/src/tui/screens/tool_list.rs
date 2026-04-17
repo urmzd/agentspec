@@ -26,7 +26,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(2), // storage info
-            Constraint::Min(0),   // tool table
+            Constraint::Min(0),    // tool table
         ])
         .split(area);
 
