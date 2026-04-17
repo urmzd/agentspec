@@ -16,9 +16,22 @@
   <a href="https://crates.io/crates/agentspec"><img src="https://img.shields.io/crates/v/agentspec.svg" alt="crates.io"></a>
 </p>
 
-<p align="center">
-  <img src="showcase/tui.gif" alt="agentspec TUI" width="80%">
-</p>
+## Showcase
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="showcase/tui-demo.gif" alt="agentspec TUI demo" width="400" />
+      <br />
+      <sub><b>Interactive TUI</b></sub>
+    </td>
+    <td align="center">
+      <img src="showcase/tui.png" alt="agentspec TUI screenshot" width="400" />
+      <br />
+      <sub><b>Tabbed Views</b></sub>
+    </td>
+  </tr>
+</table>
 
 ## Features
 
