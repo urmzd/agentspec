@@ -527,19 +527,26 @@ pub fn adopt(
 
     let hash = hash_resource(kind, &abs_dest)?;
 
-    // Replace original with symlink (for each found_in location)
+    // Replace original with symlink (for each found_in location).
+    // For in-place-adopted kinds, abs_dest is the source file itself — skip
+    // those locations so we don't delete-and-self-symlink the canonical copy.
+    let abs_dest_canonical = std::fs::canonicalize(&abs_dest).ok();
     for loc in &discovered.found_in {
         let loc_path = Path::new(&loc.path);
-        if loc_path.exists() && !loc_path.is_symlink() && loc.tool != "shared-store" {
-            // Remove original, replace with symlink
-            if kind == TrackedKind::Skill {
-                std::fs::remove_dir_all(loc_path)?;
-            } else {
-                std::fs::remove_file(loc_path)?;
-            }
-            let target = link::make_relative_public(loc_path, &abs_dest);
-            std::os::unix::fs::symlink(&target, loc_path)?;
+        if !loc_path.exists() || loc_path.is_symlink() || loc.tool == "shared-store" {
+            continue;
         }
+        let loc_canonical = std::fs::canonicalize(loc_path).ok();
+        if loc_canonical.is_some() && loc_canonical == abs_dest_canonical {
+            continue;
+        }
+        if kind == TrackedKind::Skill {
+            std::fs::remove_dir_all(loc_path)?;
+        } else {
+            std::fs::remove_file(loc_path)?;
+        }
+        let target = link::make_relative_public(loc_path, &abs_dest);
+        std::os::unix::fs::symlink(&target, loc_path)?;
     }
 
     // Build tracked resource
