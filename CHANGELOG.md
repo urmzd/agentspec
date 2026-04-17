@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3 (2026-04-17)
+
+### Bug Fixes
+
+- **discover**: skip self-symlink replacement for in-place adopted kinds ([2b77842](https://github.com/urmzd/agentspec/commit/2b77842b0ce555351fdc0c658a76e6496804fe2e))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.9.2...v0.9.3)
+
+
 ## 0.9.2 (2026-04-17)
 
 ### Bug Fixes
