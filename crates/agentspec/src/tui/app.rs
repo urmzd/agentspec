@@ -318,15 +318,13 @@ impl App {
                     self.open_link_picker();
                 }
             }
-            KeyCode::Char('d') => {
-                if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 {
-                    self.open_delete_confirm();
-                }
+            KeyCode::Char('d')
+                if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 =>
+            {
+                self.open_delete_confirm();
             }
-            KeyCode::Enter => {
-                if self.current_list_len() > 0 {
-                    self.open_preview();
-                }
+            KeyCode::Enter if self.current_list_len() > 0 => {
+                self.open_preview();
             }
             _ => {}
         }
@@ -621,7 +619,7 @@ where
             matcher.fuzzy_match(&text, query).map(|score| (item, score))
         })
         .collect();
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_by_key(|b| std::cmp::Reverse(b.1));
     scored.into_iter().map(|(item, _)| item).collect()
 }
 

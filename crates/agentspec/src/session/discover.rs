@@ -10,6 +10,6 @@ pub fn discover_all_sessions() -> Result<Vec<SessionMetaIR>> {
             all.extend(sessions);
         }
     }
-    all.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    all.sort_by_key(|b| std::cmp::Reverse(b.started_at));
     Ok(all)
 }
