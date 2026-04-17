@@ -257,7 +257,7 @@ impl SessionAdapter for GeminiSessionAdapter {
                 sessions.push(meta);
             }
         }
-        sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        sessions.sort_by_key(|b| std::cmp::Reverse(b.started_at));
         Ok(sessions)
     }
 
