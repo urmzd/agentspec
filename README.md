@@ -14,6 +14,8 @@
 <p align="center">
   <a href="https://github.com/urmzd/agentspec/actions/workflows/ci.yml"><img src="https://github.com/urmzd/agentspec/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://crates.io/crates/agentspec"><img src="https://img.shields.io/crates/v/agentspec.svg" alt="crates.io"></a>
+  &nbsp;
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/agentspec" alt="License"></a>
 </p>
 
 ## Showcase
@@ -161,6 +163,10 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for planned features, including cross-tool session sync, memory sync, MCP server management, and more.
+
+## Agent Skill
+
+This repo's conventions are available as portable agent skills in [`skills/`](skills/).
 
 ## License
 
