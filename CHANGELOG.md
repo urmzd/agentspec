@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4 (2026-04-19)
+
+### Refactoring
+
+- move cargo publish into sr hooks.post_release ([2caeca1](https://github.com/urmzd/agentspec/commit/2caeca1b2d01ffa4371d951fcf7ffc671a5c61f7))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.9.3...v0.9.4)
+
+
 ## 0.9.3 (2026-04-17)
 
 ### Bug Fixes
