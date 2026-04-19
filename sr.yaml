@@ -60,6 +60,8 @@ packages:
   - path: .
     version_files:
       - Cargo.toml
+    artifacts:
+      - release-assets/*
     hooks:
       post_release:
         - cargo publish -p agentspec-sdk
