@@ -1,4 +1,4 @@
-# sr v7 configuration
+# sr configuration
 # Reference: https://github.com/urmzd/sr#configuration
 
 git:
@@ -61,9 +61,10 @@ packages:
     version_files:
       - Cargo.toml
     artifacts:
-      - release-assets/*
-    hooks:
-      post_release:
-        - cargo publish -p agentspec-sdk
-        - sleep 30
-        - cargo publish -p agentspec
+      - release-assets/agentspec-x86_64-unknown-linux-musl
+      - release-assets/agentspec-aarch64-unknown-linux-musl
+      - release-assets/agentspec-x86_64-apple-darwin
+      - release-assets/agentspec-aarch64-apple-darwin
+    publish:
+      type: cargo
+      workspace: true
