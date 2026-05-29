@@ -4,6 +4,7 @@ use console::style;
 
 use crate::config;
 use crate::error::Result;
+use crate::inventory;
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -288,5 +289,198 @@ fn truncate(s: &str, max: usize) -> String {
         first_line.to_string()
     } else {
         format!("{}...", &first_line[..max - 3])
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cross-tool memory sync
+//
+// Claude Code is currently the only tool with a memory store
+// (`~/.claude/projects/<proj>/memory/`). agentspec keeps a portable canonical
+// copy under `~/.agents/memories/<project>/` so memories can be backed up and,
+// when other tools gain memory support, mirrored across them.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy)]
+pub enum MemorySync {
+    /// Copy tool memories into the canonical store.
+    Pull,
+    /// Copy canonical memories back into a tool's store.
+    Push,
+}
+
+/// The canonical-store subdirectory for a memory's project. Uses Claude Code's
+/// encoded project name, which is globally unique and round-trips on push —
+/// unlike the bare folder basename, which collides when two projects share a
+/// directory name (e.g. `~/work/app` and `~/personal/app`).
+fn project_key(m: &MemoryEntry) -> String {
+    m.project_name.clone()
+}
+
+/// True if the file is identical to one already at `dest` (content hash).
+fn same_content(src: &Path, dest: &Path) -> bool {
+    if !dest.exists() {
+        return false;
+    }
+    match (inventory::hash_file(src), inventory::hash_file(dest)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+pub fn sync_memories(direction: MemorySync, project: Option<&str>, json: bool) -> Result<()> {
+    match direction {
+        MemorySync::Pull => pull_memories(project, json),
+        MemorySync::Push => push_memories(project, json),
+    }
+}
+
+/// Pull Claude Code memories into `~/.agents/memories/<project>/`.
+fn pull_memories(project: Option<&str>, json: bool) -> Result<()> {
+    let mut memories = scan_memories();
+    if let Some(filter) = project {
+        memories.retain(|m| {
+            m.project_name.contains(filter)
+                || m.project_path.as_ref().is_some_and(|p| p.contains(filter))
+        });
+    }
+
+    let base = config::shared_memories_dir();
+    let mut copied: Vec<String> = Vec::new();
+
+    for m in &memories {
+        let proj = project_key(m);
+        let dest_dir = base.join(&proj);
+        std::fs::create_dir_all(&dest_dir)?;
+        let fname = m.file_path.file_name().unwrap();
+        let dest = dest_dir.join(fname);
+        if same_content(&m.file_path, &dest) {
+            continue;
+        }
+        std::fs::copy(&m.file_path, &dest)?;
+        copied.push(format!("{proj}/{}", fname.to_string_lossy()));
+    }
+
+    report_sync("pulled", &copied, base.display().to_string(), json);
+    Ok(())
+}
+
+/// Push canonical memories back into matching Claude Code project memory dirs.
+fn push_memories(project: Option<&str>, json: bool) -> Result<()> {
+    let base = config::shared_memories_dir();
+    let infos = scan_project_infos();
+    let mut pushed: Vec<String> = Vec::new();
+
+    let Ok(proj_dirs) = std::fs::read_dir(&base) else {
+        report_sync("pushed", &pushed, "Claude Code".into(), json);
+        return Ok(());
+    };
+
+    for proj_entry in proj_dirs.filter_map(|e| e.ok()) {
+        let proj_dir = proj_entry.path();
+        if !proj_dir.is_dir() {
+            continue;
+        }
+        let proj_name = proj_dir.file_name().unwrap().to_string_lossy().to_string();
+        if let Some(filter) = project
+            && !proj_name.contains(filter)
+        {
+            continue;
+        }
+
+        // Match by the unique encoded project name (the store subdir key).
+        let target = infos.iter().find(|i| i.encoded_name == proj_name);
+
+        let Some(info) = target else {
+            eprintln!(
+                "  {} no Claude project matches '{proj_name}'; skipping",
+                style("~").yellow()
+            );
+            continue;
+        };
+
+        let mem_dir = config::claude_projects_dir()
+            .join(&info.encoded_name)
+            .join("memory");
+        std::fs::create_dir_all(&mem_dir)?;
+
+        for file in std::fs::read_dir(&proj_dir)?.filter_map(|e| e.ok()) {
+            let src = file.path();
+            if src.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let fname = src.file_name().unwrap();
+            let dest = mem_dir.join(fname);
+            if same_content(&src, &dest) {
+                continue;
+            }
+            std::fs::copy(&src, &dest)?;
+            pushed.push(format!("{proj_name}/{}", fname.to_string_lossy()));
+        }
+    }
+
+    report_sync("pushed", &pushed, "Claude Code".into(), json);
+    Ok(())
+}
+
+fn report_sync(verb: &str, items: &[String], target: String, json: bool) {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({ "synced": items }))
+                .unwrap_or_default()
+        );
+        return;
+    }
+    if items.is_empty() {
+        println!(
+            "  {} nothing to {} (already in sync)",
+            style("·").dim(),
+            verb
+        );
+        return;
+    }
+    for it in items {
+        println!("  {} {verb} {it}", style("✓").green().bold());
+    }
+    println!("\n  {} memory file(s) {verb} → {target}", items.len());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_key_uses_unique_encoded_name() {
+        // Two projects that share a folder basename ("app") must NOT collide:
+        // the key is the unique encoded name, not the basename.
+        let a = MemoryEntry {
+            name: "ctx".into(),
+            description: String::new(),
+            memory_type: "project".into(),
+            project_name: "-Users-urmzd-work-app".into(),
+            project_path: Some("/Users/urmzd/work/app".into()),
+            file_path: PathBuf::from("/x/ctx.md"),
+        };
+        let b = MemoryEntry {
+            project_name: "-Users-urmzd-personal-app".into(),
+            project_path: Some("/Users/urmzd/personal/app".into()),
+            ..a.clone()
+        };
+        assert_eq!(project_key(&a), "-Users-urmzd-work-app");
+        assert_ne!(project_key(&a), project_key(&b));
+    }
+
+    #[test]
+    fn same_content_detects_identical_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a.md");
+        let b = tmp.path().join("b.md");
+        std::fs::write(&a, "hello").unwrap();
+        assert!(!same_content(&a, &b)); // b missing
+        std::fs::write(&b, "hello").unwrap();
+        assert!(same_content(&a, &b));
+        std::fs::write(&b, "different").unwrap();
+        assert!(!same_content(&a, &b));
     }
 }

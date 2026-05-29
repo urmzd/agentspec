@@ -2,7 +2,7 @@
 
 ## Identity
 
-`agentspec` is a Rust CLI + TUI for managing agentskills.io skills and sub-agent definitions across AI coding tools.
+`agentspec` is a Rust CLI + TUI for managing portable agent resources across AI coding tools: skills, agents, MCP servers, sessions, project configs/instruction files, memories, `llms.txt`, plans, permission profiles, hooks, and plugin manifests.
 
 ## Architecture
 
@@ -10,13 +10,18 @@ Single binary, async runtime (tokio). Key layers:
 
 | Layer | Path | Role |
 |-------|------|------|
-| IR | `src/ir.rs` | Canonical `Resource` type -- all vendor formats convert to/from this |
+| IR | `src/ir.rs` | Canonical `Resource` type + 8 `ResourceKind`s (Skill, Agent, ProjectConfig, InstructionFile, LlmsTxt, Memory, Session, Plan) -- all vendor formats convert to/from this |
 | Adapters | `src/adapters/` | Vendor-specific parsers/emitters (agentskills, claude, gemini) |
 | Tools | `src/tools/mod.rs` | `CodingTool` trait + macro-defined impls for 11 AI tools |
-| Ops | `src/ops/` | CLI operations (manage, link, sync, discover, verify, prune, project_sync) |
-| TUI | `src/tui/` | ratatui screens (skill list, agent list, tool list, link picker) |
+| MCP | `src/mcp.rs` | Canonical MCP server store (`~/.agents/mcp/`) + injection into tool configs |
+| Session | `src/session/` | Read adapters + session IR + markdown render + cross-tool sync |
+| Settings/JSON | `src/jsonfile.rs` | Sentinel-keyed JSON edits backing MCP + permissions config writes |
+| Inventory | `src/inventory.rs` | LIVE store: `Config` + `TrackedResource`, SHA-256 hashing |
+| Project files | `src/project_files.rs` | Project config / instruction-file discovery and readiness |
+| Ops | `src/ops/` | One module per command (create, dedup, discover, hooks, link, list, manage, memory, permissions, plans, plugins, project_sync, prune, refresh, remove, sync, validate, verify) |
+| TUI | `src/tui/screens/` | ratatui screens (skill/agent/tool/session/memory/config lists + preview + delete-confirm modals) |
 | CLI | `src/cli.rs` | clap derive command definitions |
-| Lock | `src/lockfile.rs` | `.skill-lock.json` v3 serde (backwards compatible) |
+| Lock | `src/lockfile.rs` | LEGACY `.skill-lock.json` v3 serde (migration-only; superseded by the live inventory) |
 
 ## Key Files
 
@@ -52,6 +57,8 @@ just ci        # fmt + clippy + build + test
 just run       # cargo run
 cargo build    # debug build
 ```
+
+Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
 
 ## Code Style
 

@@ -21,12 +21,29 @@ pub fn render_markdown(session: &SessionIR) -> String {
         ));
     }
 
+    if let Some(ref branch) = session.branch {
+        out.push_str(&format!("- **Branch**: {branch}\n"));
+    }
+    if let Some(ref summary) = session.summary {
+        out.push_str(&format!("- **Summary**: {summary}\n"));
+    }
+
     if !session.tools_used.is_empty() {
         out.push_str(&format!(
             "- **Tools Used**: {}\n",
             session.tools_used.join(", ")
         ));
     }
+
+    if !session.files_touched.is_empty() {
+        out.push_str("\n## Files Touched\n");
+        for f in &session.files_touched {
+            out.push_str(&format!("- `{f}`\n"));
+        }
+    }
+
+    render_checkpoints(&mut out, session);
+    render_refs(&mut out, session);
 
     out.push_str("\n## Conversation\n");
 
@@ -94,4 +111,118 @@ pub fn render_markdown(session: &SessionIR) -> String {
     }
 
     out
+}
+
+/// Render checkpoint summaries from `extensions["checkpoints"]` if present.
+fn render_checkpoints(out: &mut String, session: &SessionIR) {
+    let Some(checkpoints) = session
+        .extensions
+        .get("checkpoints")
+        .and_then(|v| v.as_array())
+    else {
+        return;
+    };
+    if checkpoints.is_empty() {
+        return;
+    }
+    out.push_str("\n## Checkpoints\n");
+    for cp in checkpoints {
+        let num = cp.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
+        let title = cp
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(untitled)");
+        out.push_str(&format!("\n### Checkpoint {num}: {title}\n"));
+        for (key, label) in [
+            ("overview", "Overview"),
+            ("work_done", "Work done"),
+            ("technical_details", "Technical details"),
+            ("next_steps", "Next steps"),
+        ] {
+            if let Some(text) = cp.get(key).and_then(|v| v.as_str())
+                && !text.is_empty()
+            {
+                out.push_str(&format!("- **{label}**: {text}\n"));
+            }
+        }
+    }
+}
+
+/// Render cross-references from `extensions["refs"]` if present.
+fn render_refs(out: &mut String, session: &SessionIR) {
+    let Some(refs) = session.extensions.get("refs").and_then(|v| v.as_array()) else {
+        return;
+    };
+    if refs.is_empty() {
+        return;
+    }
+    out.push_str("\n## References\n");
+    for r in refs {
+        let ty = r.get("type").and_then(|v| v.as_str()).unwrap_or("ref");
+        let val = r.get("value").and_then(|v| v.as_str()).unwrap_or("");
+        out.push_str(&format!("- **{ty}**: {val}\n"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn base_session() -> SessionIR {
+        SessionIR {
+            id: "s1".into(),
+            tool_slug: "github-copilot".into(),
+            cwd: Some("/repo".into()),
+            started_at: None,
+            ended_at: None,
+            first_prompt: None,
+            summary: Some("Did work".into()),
+            project: None,
+            branch: Some("main".into()),
+            messages: vec![],
+            files_touched: vec!["src/a.rs".into(), "src/b.rs".into()],
+            tools_used: vec![],
+            model: None,
+            extensions: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn renders_enriched_sections() {
+        let mut s = base_session();
+        s.extensions.insert(
+            "checkpoints".into(),
+            serde_json::json!([{
+                "number": 1, "title": "Start", "overview": "ov",
+                "work_done": "wd", "technical_details": "td", "next_steps": "ns"
+            }]),
+        );
+        s.extensions.insert(
+            "refs".into(),
+            serde_json::json!([{ "type": "pr", "value": "#42" }]),
+        );
+        let md = render_markdown(&s);
+        assert!(md.contains("- **Branch**: main"));
+        assert!(md.contains("- **Summary**: Did work"));
+        assert!(md.contains("## Files Touched"));
+        assert!(md.contains("- `src/a.rs`"));
+        assert!(md.contains("## Checkpoints"));
+        assert!(md.contains("### Checkpoint 1: Start"));
+        assert!(md.contains("- **Next steps**: ns"));
+        assert!(md.contains("## References"));
+        assert!(md.contains("- **pr**: #42"));
+    }
+
+    #[test]
+    fn omits_enriched_sections_when_absent() {
+        let mut s = base_session();
+        s.files_touched.clear();
+        s.summary = None;
+        s.branch = None;
+        let md = render_markdown(&s);
+        assert!(!md.contains("## Files Touched"));
+        assert!(!md.contains("## Checkpoints"));
+        assert!(!md.contains("## References"));
+    }
 }

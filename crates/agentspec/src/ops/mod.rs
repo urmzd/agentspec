@@ -1,12 +1,17 @@
 pub mod create;
 pub mod dedup;
 pub mod discover;
+pub mod hooks;
 pub mod link;
 pub mod list;
 pub mod manage;
 pub mod memory;
+pub mod permissions;
+pub mod plans;
+pub mod plugins;
 pub mod project_sync;
 pub mod prune;
+pub mod refresh;
 pub mod remove;
 pub mod sync;
 pub mod validate;
