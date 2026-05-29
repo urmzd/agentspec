@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.0 (2026-05-29)
+
+### Features
+
+- complete the roadmap (MCP store, permissions, session/memory sync, hooks, plugins, plans) (#12) ([c432830](https://github.com/urmzd/agentspec/commit/c4328304043d0d36b133cd9de0faa7a00f71c207))
+
+### Misc
+
+- **ci**: bump sr to v8, typed cargo workspace publisher, literal artifact paths ([2f5ac0e](https://github.com/urmzd/agentspec/commit/2f5ac0e3fedc7c78042afd2dfe8f60462046b594))
+- **ci**: drop force input, move artifacts into sr.yaml ([64f2fb1](https://github.com/urmzd/agentspec/commit/64f2fb11c2df2e043198d77064c7f180409a809e))
+- **community**: add GitHub community-health files ([33c4ca4](https://github.com/urmzd/agentspec/commit/33c4ca4d35e2c106fdc81889d29dff3fe8b6e48f))
+- **fix**: standardize README format ([c7b30a5](https://github.com/urmzd/agentspec/commit/c7b30a5be07826263eca60ad930c25e0ae223357))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.9.4...v0.10.0)
+
+
 ## 0.9.4 (2026-04-19)
 
 ### Refactoring
