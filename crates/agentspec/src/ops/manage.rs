@@ -11,14 +11,14 @@ use crate::ops::link;
 use crate::tools;
 
 #[derive(Debug)]
-struct GitSource {
+pub(crate) struct GitSource {
     url: String,
     branch: Option<String>,
     subpath: Option<String>,
 }
 
 #[derive(Debug)]
-enum SourceKind {
+pub(crate) enum SourceKind {
     Local(String),
     Git(GitSource),
 }
@@ -31,7 +31,7 @@ enum SourceKind {
 ///   owner/repo#branch                   → specific branch, repo root
 ///   owner/repo#branch@subfolder         → specific branch, subfolder
 ///   https://host/repo.git#branch@sub    → same for explicit URLs
-fn resolve_source(input: &str) -> SourceKind {
+pub(crate) fn resolve_source(input: &str) -> SourceKind {
     // Local path
     if Path::new(input).exists() {
         return SourceKind::Local(input.to_string());
@@ -172,9 +172,31 @@ fn manage_git(
     all_tools: bool,
     copy: bool,
 ) -> Result<()> {
-    let tmp = tempfile::tempdir().map_err(AppError::Io)?;
-
     println!("  {} Cloning {source}...", style("↓").cyan().bold());
+
+    let (_tmp, install_dir) = clone_source_to_tempdir(gs)?;
+
+    let installed = install_from_dir(
+        &install_dir,
+        source,
+        cfg,
+        tool_slugs,
+        all_tools,
+        copy,
+        SourceType::Git,
+    )?;
+
+    println!("\n  {} resource(s) managed from {source}", installed);
+
+    Ok(())
+}
+
+/// Shallow-clone a git source into a temp dir and return the temp dir handle
+/// (keep it alive while reading) plus the install directory (subpath-adjusted).
+pub(crate) fn clone_source_to_tempdir(
+    gs: &GitSource,
+) -> Result<(tempfile::TempDir, std::path::PathBuf)> {
+    let tmp = tempfile::tempdir().map_err(AppError::Io)?;
 
     let mut cmd = std::process::Command::new("git");
     cmd.args(["clone", "--depth", "1"]);
@@ -205,19 +227,7 @@ fn manage_git(
         tmp.path().to_path_buf()
     };
 
-    let installed = install_from_dir(
-        &install_dir,
-        source,
-        cfg,
-        tool_slugs,
-        all_tools,
-        copy,
-        SourceType::Git,
-    )?;
-
-    println!("\n  {} resource(s) managed from {source}", installed);
-
-    Ok(())
+    Ok((tmp, install_dir))
 }
 
 /// Install skills and agents from a directory, updating the config.
@@ -345,7 +355,7 @@ fn resolve_tool_slugs(explicit: Option<&[String]>, all: bool) -> Vec<String> {
     }
 }
 
-fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
+pub(crate) fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in walkdir::WalkDir::new(src)
         .into_iter()

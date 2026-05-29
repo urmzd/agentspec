@@ -63,6 +63,9 @@ fn discover_unmanaged(
     // Scan memory files
     scan_memory_files(lockfile, &mut found);
 
+    // Scan canonical plan store
+    scan_plans_dir(lockfile, &mut found);
+
     // Pass 2: broad scan from root (if requested)
     if let Some(root) = broad_root {
         broad_scan(root, lockfile, &mut found)?;
@@ -797,6 +800,37 @@ fn scan_memory_files(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
                 content_hash: inventory::hash_file(&m.file_path).ok(),
             });
         }
+    }
+}
+
+/// Scan the canonical plan store (`~/.agents/plans/*.md`) for untracked plans.
+fn scan_plans_dir(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
+    let dir = config::shared_plans_dir();
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_symlink() || path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let name = path.file_stem().unwrap().to_string_lossy().to_string();
+        if cfg.find(&name, TrackedKind::Plan).is_some()
+            || found
+                .iter()
+                .any(|d| d.name == name && d.kind == TrackedKind::Plan)
+        {
+            continue;
+        }
+        found.push(DiscoveredResource {
+            name,
+            kind: TrackedKind::Plan,
+            found_in: vec![DiscoveryLocation {
+                tool: "shared-store".to_string(),
+                path: path.to_string_lossy().to_string(),
+            }],
+            content_hash: inventory::hash_file(&path).ok(),
+        });
     }
 }
 

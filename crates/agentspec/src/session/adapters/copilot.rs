@@ -2,11 +2,113 @@ use crate::error::{AppError, Result};
 use crate::session::adapter::SessionAdapter;
 use crate::session::ir::*;
 use chrono::{DateTime, Utc};
+use rusqlite::{Connection, OpenFlags};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 pub struct CopilotSessionAdapter;
+
+/// Path to the Copilot SQLite session store, if present.
+fn session_store_db() -> Option<PathBuf> {
+    let p = dirs::home_dir()?.join(".copilot").join("session-store.db");
+    p.exists().then_some(p)
+}
+
+/// Enrich a session loaded from events.jsonl with the richer data in
+/// `session-store.db`: summary, repository/branch, files touched, checkpoints,
+/// and refs. A missing or locked database is a no-op (events.jsonl stands alone).
+fn enrich_from_db(session: &mut SessionIR) {
+    let Some(path) = session_store_db() else {
+        return;
+    };
+    let Ok(conn) = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY) else {
+        return;
+    };
+    let sid = session.id.clone();
+
+    // Session-level metadata.
+    let row = conn.query_row(
+        "SELECT summary, repository, branch FROM sessions WHERE id = ?1",
+        [&sid],
+        |r| {
+            Ok((
+                r.get::<_, Option<String>>(0)?,
+                r.get::<_, Option<String>>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
+        },
+    );
+    if let Ok((summary, repo, branch)) = row {
+        if session.summary.is_none() {
+            session.summary = summary.filter(|s| !s.is_empty());
+        }
+        if session.project.is_none() {
+            session.project = repo.filter(|s| !s.is_empty());
+        }
+        if session.branch.is_none() {
+            session.branch = branch.filter(|s| !s.is_empty());
+        }
+    }
+
+    // Files touched.
+    if let Ok(mut stmt) = conn
+        .prepare("SELECT file_path FROM session_files WHERE session_id = ?1 ORDER BY first_seen_at")
+    {
+        let files: Vec<String> = stmt
+            .query_map([&sid], |r| r.get::<_, String>(0))
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default();
+        if !files.is_empty() {
+            session.files_touched = files;
+        }
+    }
+
+    // Checkpoints → extensions["checkpoints"].
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT checkpoint_number, title, overview, work_done, technical_details, next_steps \
+         FROM checkpoints WHERE session_id = ?1 ORDER BY checkpoint_number",
+    ) {
+        let checkpoints: Vec<serde_json::Value> = stmt
+            .query_map([&sid], |r| {
+                Ok(serde_json::json!({
+                    "number": r.get::<_, Option<i64>>(0)?,
+                    "title": r.get::<_, Option<String>>(1)?,
+                    "overview": r.get::<_, Option<String>>(2)?,
+                    "work_done": r.get::<_, Option<String>>(3)?,
+                    "technical_details": r.get::<_, Option<String>>(4)?,
+                    "next_steps": r.get::<_, Option<String>>(5)?,
+                }))
+            })
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default();
+        if !checkpoints.is_empty() {
+            session
+                .extensions
+                .insert("checkpoints".into(), serde_json::Value::Array(checkpoints));
+        }
+    }
+
+    // Refs (issues/PRs/commits) → extensions["refs"].
+    if let Ok(mut stmt) =
+        conn.prepare("SELECT ref_type, ref_value FROM session_refs WHERE session_id = ?1")
+    {
+        let refs: Vec<serde_json::Value> = stmt
+            .query_map([&sid], |r| {
+                Ok(serde_json::json!({
+                    "type": r.get::<_, String>(0)?,
+                    "value": r.get::<_, String>(1)?,
+                }))
+            })
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default();
+        if !refs.is_empty() {
+            session
+                .extensions
+                .insert("refs".into(), serde_json::Value::Array(refs));
+        }
+    }
+}
 
 fn session_state_dir() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| AppError::Other("No home directory".into()))?;
@@ -231,6 +333,7 @@ fn parse_session(session_dir: &Path) -> Result<SessionIR> {
         extensions: Default::default(),
     };
     session.tools_used = session.compute_tools_used();
+    enrich_from_db(&mut session);
     Ok(session)
 }
 

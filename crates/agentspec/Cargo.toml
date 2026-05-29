@@ -35,3 +35,4 @@ pathdiff = { workspace = true }
 skim = { workspace = true }
 fuzzy-matcher = { workspace = true }
 ureq = { workspace = true }
+rusqlite = { workspace = true }

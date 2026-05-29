@@ -5,6 +5,7 @@ mod error;
 mod frontmatter;
 mod inventory;
 mod ir;
+mod jsonfile;
 mod lockfile;
 mod mcp;
 mod ops;
@@ -16,7 +17,10 @@ pub mod ui;
 mod update;
 
 use clap::Parser;
-use cli::{Cli, Command, ManageAction, McpAction, OutputFormat, ProjectAction, SessionAction};
+use cli::{
+    Cli, Command, HooksAction, ManageAction, McpAction, OutputFormat, PermissionsAction,
+    PlansAction, PluginsAction, ProjectAction, SessionAction,
+};
 use inventory::{Config, TrackedKind};
 use ir::ResourceKind;
 
@@ -181,6 +185,17 @@ async fn main() -> color_eyre::Result<()> {
                     print!("{markdown}");
                 }
             }
+            SessionAction::Sync {
+                source,
+                target,
+                id,
+                last,
+            } => {
+                session::sync::sync_session(&source, &target, id.as_deref(), last)?;
+            }
+            SessionAction::Import { target, file } => {
+                session::sync::import_session(&target, &file)?;
+            }
         },
         Some(Command::Prune { yes }) => {
             let mut cfg = inventory::load_config()?;
@@ -292,8 +307,16 @@ async fn main() -> color_eyre::Result<()> {
                     "llms-txt" => ops::create::create_llms_txt(name.as_deref())?,
                     _ => ops::create::create_skill(name.as_deref())?,
                 },
-                ManageAction::Update { name: _ } => {
-                    println!("Update not yet implemented");
+                ManageAction::Update { name } => {
+                    if let Some(n) = name {
+                        ops::refresh::update_resource(
+                            &mut cfg,
+                            &n,
+                            cli.format == OutputFormat::Json,
+                        )?;
+                    } else {
+                        ops::refresh::update_all(&mut cfg, cli.format == OutputFormat::Json)?;
+                    }
                 }
                 ManageAction::Verify { accept, name } => {
                     ops::verify::verify(
@@ -303,12 +326,31 @@ async fn main() -> color_eyre::Result<()> {
                         cli.format == OutputFormat::Json,
                     )?;
                 }
-                ManageAction::Memory { project, mem_type } => {
-                    ops::memory::list_memories(
-                        project.as_deref(),
-                        mem_type.as_deref(),
-                        cli.format == OutputFormat::Json,
-                    )?;
+                ManageAction::Memory {
+                    project,
+                    mem_type,
+                    pull,
+                    push,
+                } => {
+                    if pull {
+                        ops::memory::sync_memories(
+                            ops::memory::MemorySync::Pull,
+                            project.as_deref(),
+                            cli.format == OutputFormat::Json,
+                        )?;
+                    } else if push {
+                        ops::memory::sync_memories(
+                            ops::memory::MemorySync::Push,
+                            project.as_deref(),
+                            cli.format == OutputFormat::Json,
+                        )?;
+                    } else {
+                        ops::memory::list_memories(
+                            project.as_deref(),
+                            mem_type.as_deref(),
+                            cli.format == OutputFormat::Json,
+                        )?;
+                    }
                 }
             }
             inventory::save_config(&cfg)?;
@@ -318,16 +360,95 @@ async fn main() -> color_eyre::Result<()> {
                 name,
                 command,
                 args,
+                env,
+                url,
+                server_type,
                 tool,
             } => {
-                mcp::add_server(tool.as_deref(), &name, &command, &args)?;
+                let mut env_map = std::collections::HashMap::new();
+                for pair in &env {
+                    match pair.split_once('=') {
+                        Some((k, v)) if !k.is_empty() => {
+                            env_map.insert(k.to_string(), v.to_string());
+                        }
+                        _ => {
+                            return Err(error::AppError::Other(format!(
+                                "--env must be KEY=VALUE, got: {pair}"
+                            ))
+                            .into());
+                        }
+                    }
+                }
+                let server = mcp::McpServer {
+                    command,
+                    args,
+                    env: env_map,
+                    url,
+                    server_type,
+                };
+                mcp::add_server(tool.as_deref(), &name, &server)?;
             }
-            McpAction::Remove { name, tool } => {
-                mcp::remove_server(tool.as_deref(), &name)?;
+            McpAction::Remove { name, tool, purge } => {
+                mcp::remove_server(tool.as_deref(), &name, purge)?;
             }
             McpAction::List => {
                 mcp::list_servers()?;
             }
+            McpAction::Link {
+                name,
+                tool,
+                all_tools,
+            } => {
+                let target = if all_tools { None } else { tool.as_deref() };
+                mcp::link_server(target, &name)?;
+            }
+            McpAction::Sync => {
+                mcp::sync_all_servers()?;
+            }
+        },
+        Some(Command::Plans { action }) => {
+            let mut cfg = inventory::load_config()?;
+            match action {
+                PlansAction::Import { source } => match source.as_str() {
+                    "gemini" | "gemini-cli" | "gemini-antigravity" => {
+                        ops::plans::import_gemini(&mut cfg, cli.format == OutputFormat::Json)?;
+                    }
+                    other => {
+                        return Err(error::AppError::Other(format!(
+                            "unknown plan source '{other}' (supported: gemini)"
+                        ))
+                        .into());
+                    }
+                },
+                PlansAction::List => {
+                    ops::plans::list_plans(cli.format == OutputFormat::Json)?;
+                }
+            }
+            inventory::save_config(&cfg)?;
+        }
+        Some(Command::Permissions { action }) => match action {
+            PermissionsAction::Init { force } => ops::permissions::init(force)?,
+            PermissionsAction::Sync { tool, dry_run } => {
+                ops::permissions::sync(tool.as_deref(), dry_run, cli.format == OutputFormat::Json)?
+            }
+            PermissionsAction::Show { tool } => {
+                ops::permissions::show(tool.as_deref(), cli.format == OutputFormat::Json)?
+            }
+        },
+        Some(Command::Plugins { action }) => match action {
+            PluginsAction::List => ops::plugins::list_plugins(cli.format == OutputFormat::Json)?,
+            PluginsAction::Export { output } => {
+                ops::plugins::export_plugins(output.as_deref(), cli.format == OutputFormat::Json)?
+            }
+        },
+        Some(Command::Hooks { action }) => match action {
+            HooksAction::Add { path } => ops::hooks::add_hook(&path)?,
+            HooksAction::List => ops::hooks::list_hooks(cli.format == OutputFormat::Json)?,
+            HooksAction::Link {
+                name,
+                tool,
+                all_tools,
+            } => ops::hooks::link_hook(&name, tool.as_deref(), all_tools)?,
         },
     }
 

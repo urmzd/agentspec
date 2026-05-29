@@ -6,85 +6,43 @@ Planned features and improvements for agentspec.
 
 ### Resource update
 
-`manage update [name]` — re-pull git-sourced resources and refresh hashes without removing and re-adding. Omit `name` to update all managed resources.
-
-## Planned
+`manage update [name]` re-pulls git-sourced resources (re-clone) and re-copies local-sourced ones, refreshing the SHA-256 hash and `updated_at` and re-propagating copy-strategy links. Discovered resources are skipped (no upstream). Omit `name` to update everything.
 
 ### MCP server management
 
-Discover, adopt, and sync MCP server definitions across tools. Today MCP configs are siloed:
-
-- Claude Code: `mcpServers` key in `~/.claude/settings.json`
-- Gemini CLI: `~/.gemini/antigravity/mcp_config.json`
-- Per-project: `.mcp.json` files in repo roots
-- Plugin marketplace: `.mcp.json` bundled with plugins (context7, terraform, discord, gitlab)
-
-agentspec would:
-
-- **`manage mcp list`** — discover MCP servers across all tool configs and `.mcp.json` files.
-- **`manage mcp add <name>`** — add an MCP server to the shared store (`~/.agents/mcp/`).
-- **`manage mcp link <name> <tool>`** — inject the server definition into a tool's settings.
-- **Canonical format** — store MCP servers as individual JSON files with `command`, `args`, `env`, `url` fields. Adapters translate to each tool's settings format on link.
+A canonical MCP store lives at `~/.agents/mcp/<name>.json`. `mcp add <name>` registers a server (`--command`/`--args`/`--env` for stdio, `--url`/`--type` for http/sse) into the store and injects it into every MCP-capable installed tool (claude-code, gemini-cli, cursor) or just `--tool`. `mcp remove` strips it from tool configs and deletes the store file (with `--purge` or no `--tool`); `mcp list` shows the store plus each tool's registrations; `mcp link` injects a stored server into tool config(s); `mcp sync` links every canonical server into all MCP-capable tools. `agentspec sync` additionally auto-discovers project `.mcp.json` files.
 
 ### Permission profile sync
 
-Claude Code and Gemini CLI both maintain tool allowlists with nearly identical patterns expressed in different syntax:
+`permissions init` scaffolds a portable `~/.agents/permissions.yml` (rule kinds: shell, file_read, file_write, network, mcp_tool, wildcard). `permissions sync [--tool] [--dry-run]` translates the profile into Claude's `permissions.allow` and Gemini's `tools.allowed` — Claude renders all rule kinds, Gemini renders shell/file_read/file_write and skips the rest. Pre-existing user entries are preserved via a sentinel so sync only adds/removes agentspec-managed entries. `permissions show` prints the profile and the per-tool rendered allowlists.
 
-- Claude: `permissions.allow` in settings.json — `Bash(cat *)`, `Bash(ls *)`, etc.
-- Gemini: `tools.allowed` in settings.json — `run_shell_command(cat)`, `run_shell_command(ls)`, etc.
+### Cross-tool session sync and import
 
-agentspec would:
+`session sync <source> <target> [<id>] [--last]` loads a session from a source tool, reuses the read adapter + IR, renders a portable markdown handoff, and stages it at `~/.agents/sessions/<target>/<id>.md`. `session import <target> <file>` stages an external markdown handoff for a target tool. Because native session stores are append-only and tool-internal, agentspec stages a portable handoff keyed by the target rather than fabricating a native session file.
 
-- **`manage permissions`** — define a portable permission profile in `~/.agents/permissions.yml`.
-- **`sync`** — translate the canonical profile into each tool's native format and inject into settings.
-- Ensure consistent security posture across all tools without manual duplication.
+### Memory sync
 
-### Cross-tool session sync
-
-Export and import full session context between AI coding tools. Today `session export` dumps a session to markdown, but there is no way to **import** that context into another tool's session format. This feature would enable:
-
-- **`session sync <source> <target>`** — translate a session from one tool's format to another (e.g., Claude → Codex, Codex → Gemini).
-- **`session import <source> <file>`** — import a markdown handoff into a tool's native session store.
-- **Adapter-based translation** — reuse the existing IR and adapter layer to convert between vendor session formats, just as we do for skills and agents today.
-- **Bidirectional sync** — keep sessions mirrored across tools so switching mid-task is seamless.
-
-This would close the loop on the session workflow: discover → export → **import → resume** in any supported tool.
-
-### Memory sync across tools
-
-Extend the memory browser (`manage memory`) to sync memories between tools that support them, not just browse Claude Code's store.
+`manage memory [--project] [--type]` lists Claude Code memories by default; `--pull` copies tool memories into `~/.agents/memories/<project>/` and `--push` copies canonical memories back into matching Claude project memory dirs.
 
 ### Hook management
 
-Claude Code supports custom hooks (`~/.claude/hooks/`). As other tools add hook support, agentspec would:
-
-- Store hooks in `~/.agents/hooks/` as the canonical location.
-- Link/adapt hooks to each tool's native format.
-- Enable portable automation (e.g., post-session scripts, lint hooks) across tools.
-
-### Planning artifact sync
-
-Gemini CLI stores rich planning artifacts in `~/.gemini/antigravity/brain/` — task definitions, implementation plans, and walkthroughs with version history. agentspec would:
-
-- Discover and export these as portable markdown documents.
-- Enable import into other tools' context systems (e.g., Claude Code plans, Codex sessions).
-- Preserve metadata (timestamps, revision history) across syncs.
+`hooks add <path>` copies a hook script into `~/.agents/hooks/`, `hooks list` shows the canonical store plus per-tool hooks, and `hooks link <name> [--tool] [--all-tools]` symlinks a stored hook into a tool's hooks dir (today Claude Code's `~/.claude/hooks/` is the only tool hook dir).
 
 ### Plugin tracking
 
-Claude Code has a plugin ecosystem (`~/.claude/plugins/installed_plugins.json`) with versioned installs and git SHAs. agentspec would:
+`plugins list` inventories Claude Code plugins from `~/.claude/plugins/installed_plugins.json` (plugin@marketplace, version, git SHA, scope). `plugins export [-o <file>]` writes a portable manifest (default `~/.agents/plugins.yml`) for reproducible machine setup.
 
-- **`manage plugins list`** — inventory installed plugins across tools.
-- **`manage plugins export`** — export a reproducible plugin manifest for machine setup.
-- Track plugin versions for reproducibility across machines.
+### Planning artifact sync
+
+`plans import [gemini]` imports Gemini CLI antigravity planning artifacts (task, implementation plan, walkthrough, via the `.resolved` view + `.metadata.json`) into `~/.agents/plans/<artifact>-<short-uuid>.md` with YAML frontmatter. Plans are also discovered: `status` and `manage list` scan `~/.agents/plans/*.md` and surface untracked plans as unmanaged. `plans list` lists the canonical plan store.
 
 ### Richer Copilot session data
 
-The Copilot session adapter currently reads `events.jsonl` but the SQLite database (`session-store.db`) contains richer data:
+Copilot session exports are enriched from `~/.copilot/session-store.db` (SQLite). Exports now include the session summary, repository (as project), branch, files touched, checkpoints (overview/work-done/technical-details/next-steps), and references — pulled from the sessions/session_files/checkpoints/session_refs tables. `events.jsonl` remains the message source, and a missing DB is a graceful no-op.
 
-- **Checkpoints** — title, overview, work done, technical details, next steps.
-- **Session files** — which files each session touched, by which tool.
-- **Session refs** — cross-references (issues, PRs, commits) from sessions.
+## Planned
 
-Incorporating this data would produce more complete session exports and handoffs.
-
+- **Native session-format writers** — go beyond portable markdown handoffs and write directly into target tools' native session stores once their formats permit safe injection.
+- **Permission deny rules** — extend the portable profile with deny semantics once Claude and Gemini expose a deny-list surface (today only allow rules are translated).
+- **Memory adapters for non-Claude tools** — sync memories for other tools as they gain memory stores, beyond today's Claude Code support.
+- **TUI surfaces for plans, MCP, and permissions** — add interactive views for the plan store, MCP registrations, and permission profiles (these are CLI-only today; the Configs TUI tab covers per-project file-readiness only).
