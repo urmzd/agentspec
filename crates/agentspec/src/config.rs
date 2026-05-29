@@ -42,6 +42,30 @@ pub fn shared_memories_dir() -> PathBuf {
     agents_base_dir().join("memories")
 }
 
+pub fn shared_plans_dir() -> PathBuf {
+    agents_base_dir().join("plans")
+}
+
+pub fn shared_sessions_dir() -> PathBuf {
+    agents_base_dir().join("sessions")
+}
+
+pub fn shared_mcp_dir() -> PathBuf {
+    agents_base_dir().join("mcp")
+}
+
+pub fn shared_hooks_dir() -> PathBuf {
+    agents_base_dir().join("hooks")
+}
+
+pub fn permissions_file() -> PathBuf {
+    agents_base_dir().join("permissions.yml")
+}
+
+pub fn plugins_manifest() -> PathBuf {
+    agents_base_dir().join("plugins.yml")
+}
+
 pub fn shared_project_dir(name: &str) -> PathBuf {
     shared_projects_dir().join(name)
 }
@@ -55,6 +79,10 @@ pub fn ensure_dirs() -> std::io::Result<()> {
     std::fs::create_dir_all(shared_agents_dir())?;
     std::fs::create_dir_all(shared_projects_dir())?;
     std::fs::create_dir_all(shared_memories_dir())?;
+    std::fs::create_dir_all(shared_plans_dir())?;
+    std::fs::create_dir_all(shared_sessions_dir())?;
+    std::fs::create_dir_all(shared_mcp_dir())?;
+    std::fs::create_dir_all(shared_hooks_dir())?;
     std::fs::create_dir_all(config_dir())?;
     Ok(())
 }

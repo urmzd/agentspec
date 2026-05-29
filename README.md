@@ -40,8 +40,13 @@
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
 - **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
 - **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
-- **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex) as markdown.
-- **Memory browser.** Browse Claude Code memories across projects, filter by type.
+- **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
+- **MCP server management.** Register, link, remove, and sync MCP servers across MCP-capable tools (Claude Code, Gemini CLI, Cursor) with a canonical store.
+- **Permission profile sync.** Maintain one portable allowlist and translate it into Claude and Gemini native permission settings.
+- **Hook management.** Store lifecycle hook scripts once and link them into tool hook directories.
+- **Plugin tracking.** Inventory installed Claude Code plugins and export a portable manifest.
+- **Planning artifacts.** Import Gemini CLI antigravity plans into the canonical store and list them.
+- **Memory browser.** Browse Claude Code memories across projects, filter by type, and pull/push between tools and the shared store.
 - **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
 - **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
@@ -115,6 +120,8 @@ agentspec manage verify                      # Verify resource integrity (checks
 agentspec manage verify --accept             # Accept current state and update hashes
 agentspec manage memory                      # Browse Claude Code memories
 agentspec manage memory --type feedback      # Filter memories by type
+agentspec manage memory --pull               # Pull tool memories into the shared store
+agentspec manage memory --push               # Push shared memories back into tools
 
 # Project config sync
 agentspec project sync                       # Sync project instruction files to shared store
@@ -124,17 +131,53 @@ agentspec project remove                     # Delete project config entirely
 
 # Sessions
 agentspec session find                       # Fuzzy-find a session across sources
-agentspec session list claude                # List sessions for a source
-agentspec session export claude --last       # Export most recent session
+agentspec session list claude                # List sessions for a source (claude, codex, copilot, gemini)
+agentspec session export copilot --last      # Export most recent session (Copilot is enriched)
 agentspec session export claude <id>         # Export a specific session
 agentspec session export claude --last -o f.md  # Write export to file
+agentspec session sync claude codex --last   # Stage a portable handoff from source for a target tool
+agentspec session import codex handoff.md     # Import an external markdown handoff for a target tool
+
+# MCP servers
+agentspec mcp add sr --command sr --args "mcp serve"  # Register a stdio server in store + tool configs
+agentspec mcp add docs --url https://example.com/mcp --type http  # Register a remote server
+agentspec mcp add sr --command sr --tool claude-code  # Register only in one tool
+agentspec mcp list                           # Show canonical store + per-tool registrations
+agentspec mcp link sr --all-tools            # Inject a stored server into all MCP-capable tools
+agentspec mcp remove sr --purge              # Remove from tool configs and delete from store
+agentspec mcp sync                           # Link every stored server into all MCP-capable tools
+
+# Plans
+agentspec plans import gemini                 # Import Gemini CLI antigravity planning artifacts
+agentspec plans list                          # List plans in the canonical store
+
+# Permissions
+agentspec permissions init                    # Scaffold ~/.agents/permissions.yml
+agentspec permissions sync                    # Translate the profile into each tool's allowlist
+agentspec permissions sync --dry-run          # Show what would change without writing
+agentspec permissions show --tool claude-code # Show the profile and a tool's rendered allowlist
+
+# Plugins
+agentspec plugins list                        # Inventory installed Claude Code plugins
+agentspec plugins export -o plugins.yml       # Export a portable plugin manifest
+
+# Hooks
+agentspec hooks add ./pre-commit.sh           # Copy a hook script into the canonical store
+agentspec hooks list                          # Show canonical store + per-tool hooks
+agentspec hooks link pre-commit.sh --all-tools  # Link a stored hook into tool hook dirs
 
 # Cleanup
 agentspec prune                              # Remove broken resources and stale symlinks
 agentspec prune --yes                        # Skip confirmation prompt
 
+# Maintenance
+agentspec update                             # Update agentspec to the latest release
+agentspec version                            # Print version
+
 # Global flags
-agentspec manage list --json                 # Machine-readable JSON output
+agentspec manage list --format json          # Machine-readable JSON (--format human|json is global)
+agentspec manage list --by-hash              # Show only content duplicates (same hash)
+agentspec manage list --by-name              # Show only name duplicates (same name, many locations)
 ```
 
 ## Configuration
@@ -144,6 +187,14 @@ agentspec manage list --json                 # Machine-readable JSON output
 ```
 ~/.agents/skills/<name>/SKILL.md    Shared skill store
 ~/.agents/agents/<name>.md          Shared agent store
+~/.agents/projects/                 Synced project instruction files
+~/.agents/memories/<project>/       Shared memory store
+~/.agents/plans/<artifact>.md       Imported planning artifacts
+~/.agents/sessions/<target>/        Portable session handoffs
+~/.agents/mcp/<name>.json           Canonical MCP server store
+~/.agents/hooks/                    Lifecycle hook scripts
+~/.agents/permissions.yml           Portable permission profile (on demand)
+~/.agents/plugins.yml               Exported plugin manifest (on demand)
 ~/.config/agentspec/config.yml      Inventory and discovery cache
 ```
 
@@ -162,7 +213,7 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for planned features, including cross-tool session sync, memory sync, MCP server management, and more.
+Cross-tool session sync, memory sync, MCP server management, permission profile sync, hook management, plugin tracking, and planning-artifact import have all shipped. See [ROADMAP.md](ROADMAP.md) for remaining future ideas.
 
 ## Agent Skill
 
