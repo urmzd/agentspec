@@ -27,7 +27,7 @@ pub fn draw(f: &mut Frame, lp: &LinkPicker) {
 
     let table = Table::new(items, [Constraint::Min(0)]).block(
         Block::default()
-            .title(" Link to tools ")
+            .title(format!(" Link '{}' to tools ", lp.name))
             .title_style(
                 Style::default()
                     .fg(Color::Cyan)
@@ -49,7 +49,7 @@ pub fn draw(f: &mut Frame, lp: &LinkPicker) {
         width: area.width.saturating_sub(2),
         height: 1,
     };
-    let help = Paragraph::new("  [Space] Toggle  [Enter] Apply  [Esc] Cancel")
+    let help = Paragraph::new("  [j/k] Move  [Space] Toggle  [Enter] Apply  [Esc] Cancel")
         .style(Style::default().fg(Color::DarkGray));
     f.render_widget(help, help_area);
 }

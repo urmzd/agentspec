@@ -140,8 +140,11 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App) {
         }
         let mut spans = Vec::new();
         for (_, label, active) in row {
+            // No painted backgrounds — the terminal's own theme shows through.
             let style = if *active {
-                Style::default().fg(Color::Cyan).bg(Color::DarkGray)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -165,7 +168,7 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
     } else {
         let keys = match app.tab {
             Tab::Skills | Tab::Agents => {
-                "[Enter] Preview  [/] Filter  [l] Link  [d] Delete  [Tab] Switch  [j/k] Nav  [q] Quit"
+                "[l] Link tools  [Enter] Preview  [d] Delete  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
             Tab::Sessions | Tab::Memories | Tab::Configs => {
                 "[Enter] Preview  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
@@ -188,8 +191,11 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
 
 fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
     if let Some(msg) = &app.status_message {
-        let bar = Paragraph::new(format!("  {msg}"))
-            .style(Style::default().fg(Color::Yellow).bg(Color::DarkGray));
+        let bar = Paragraph::new(format!("  {msg}")).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
         f.render_widget(bar, area);
         return;
     }
@@ -268,7 +274,8 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
         }
     };
 
-    let bar = Paragraph::new(info).style(Style::default().fg(Color::White).bg(Color::DarkGray));
+    // Terminal-default foreground/background so the bar reads on any theme.
+    let bar = Paragraph::new(info).style(Style::default());
 
     f.render_widget(bar, area);
 }

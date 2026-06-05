@@ -25,12 +25,12 @@
     <td align="center">
       <img src="showcase/tui-demo.gif" alt="agentspec TUI demo" width="400" />
       <br />
-      <sub><b>Interactive TUI</b></sub>
+      <sub><b>Interactive TUI — all six tabs</b></sub>
     </td>
     <td align="center">
-      <img src="showcase/tui.png" alt="agentspec TUI screenshot" width="400" />
+      <img src="showcase/tui.png" alt="agentspec TUI link picker" width="400" />
       <br />
-      <sub><b>Tabbed Views</b></sub>
+      <sub><b>Link a skill to tools</b></sub>
     </td>
   </tr>
 </table>
@@ -50,8 +50,8 @@
 - **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
 - **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
-- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs.
-- **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini, Copilot).
+- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs. Preview, link, and delete resources without leaving the terminal — it inherits your terminal theme.
+- **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini) plus instruction-file adapters (AGENTS.md, CLAUDE.md, llms.txt). Copilot is supported as a session source.
 
 ### Supported tools
 
@@ -210,6 +210,13 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 ### Linking
 
 `manage link` creates symlinks from tool directories (e.g. `~/.claude/skills/foo`) pointing into the shared store (`~/.agents/skills/foo`). Use `--copy` to copy instead of symlinking, and `--all-tools` to link to every detected tool at once.
+
+## Workspace crates
+
+| Crate | Description |
+|-------|-------------|
+| [`agentspec`](crates/agentspec) | The CLI + TUI described in this README |
+| [`agentspec-sdk`](crates/agentspec-sdk) | Rust SDK for bootstrapping AI-powered CLI tools — config and CLI scaffolding helpers |
 
 ## Roadmap
 

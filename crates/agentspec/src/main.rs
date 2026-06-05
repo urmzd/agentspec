@@ -13,7 +13,6 @@ mod project_files;
 mod session;
 mod tools;
 mod tui;
-pub mod ui;
 mod update;
 
 use clap::Parser;

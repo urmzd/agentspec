@@ -6,12 +6,14 @@
 
 ## Architecture
 
-Single binary, async runtime (tokio). Key layers:
+Cargo workspace with two published crates: `crates/agentspec` (the CLI + TUI binary, async runtime via tokio) and `crates/agentspec-sdk` (a standalone SDK for bootstrapping AI-powered CLI tools — config and CLI scaffolding helpers; not consumed by the binary).
+
+Key layers (all paths relative to `crates/agentspec/`):
 
 | Layer | Path | Role |
 |-------|------|------|
 | IR | `src/ir.rs` | Canonical `Resource` type + 8 `ResourceKind`s (Skill, Agent, ProjectConfig, InstructionFile, LlmsTxt, Memory, Session, Plan) -- all vendor formats convert to/from this |
-| Adapters | `src/adapters/` | Vendor-specific parsers/emitters (agentskills, claude, gemini) |
+| Adapters | `src/adapters/` | Vendor-specific parsers/emitters (agentskills, claude, gemini, agents_md, claude_md, instruction_file, llms_txt) |
 | Tools | `src/tools/mod.rs` | `CodingTool` trait + macro-defined impls for 11 AI tools |
 | MCP | `src/mcp.rs` | Canonical MCP server store (`~/.agents/mcp/`) + injection into tool configs |
 | Session | `src/session/` | Read adapters + session IR + markdown render + cross-tool sync |
@@ -19,11 +21,13 @@ Single binary, async runtime (tokio). Key layers:
 | Inventory | `src/inventory.rs` | LIVE store: `Config` + `TrackedResource`, SHA-256 hashing |
 | Project files | `src/project_files.rs` | Project config / instruction-file discovery and readiness |
 | Ops | `src/ops/` | One module per command (create, dedup, discover, hooks, link, list, manage, memory, permissions, plans, plugins, project_sync, prune, refresh, remove, sync, validate, verify) |
-| TUI | `src/tui/screens/` | ratatui screens (skill/agent/tool/session/memory/config lists + preview + delete-confirm modals) |
+| TUI | `src/tui/screens/` | ratatui screens (skill/agent/tool/session/memory/config lists + preview, link-picker, and delete-confirm modals) |
 | CLI | `src/cli.rs` | clap derive command definitions |
 | Lock | `src/lockfile.rs` | LEGACY `.skill-lock.json` v3 serde (migration-only; superseded by the live inventory) |
 
 ## Key Files
+
+All under `crates/agentspec/`:
 
 - `src/ir.rs` -- the canonical IR that all adapters target
 - `src/adapters/mod.rs` -- `Adapter` trait definition
@@ -69,12 +73,12 @@ Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune
 
 ## Adding a New Vendor Adapter
 
-1. Create `src/adapters/<vendor>.rs`
+1. Create `crates/agentspec/src/adapters/<vendor>.rs`
 2. Implement the `Adapter` trait (`parse`, `emit`, `validate`)
-3. Register in `src/adapters/mod.rs` (`all_adapters()` and `adapter_for_path()`)
-4. Add corresponding `CodingTool` impl in `src/tools/mod.rs` via `define_tool!` macro
+3. Register in `crates/agentspec/src/adapters/mod.rs` (add a `match` arm in `adapter_for_path()`)
+4. Add corresponding `CodingTool` impl in `crates/agentspec/src/tools/mod.rs` via `define_tool!` macro
 
 ## Adding a New AI Tool
 
-1. Add one line in `src/tools/mod.rs` using the `define_tool!` macro
+1. Add one line in `crates/agentspec/src/tools/mod.rs` using the `define_tool!` macro
 2. Add it to `all_tools()` vec

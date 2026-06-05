@@ -58,18 +58,9 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     // Build rows
     let rows: Vec<Row> = projects
         .iter()
-        .enumerate()
-        .map(|(i, p)| {
+        .map(|p| {
             let present = p.indicators.iter().filter(|(_, e)| *e).count();
             let total = p.indicators.len();
-
-            let row_style = if i == app.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
 
             let score_color = if present == total {
                 Color::Green
@@ -93,7 +84,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
                 cells.push(Cell::from(symbol).style(Style::default().fg(color)));
             }
 
-            Row::new(cells).style(row_style)
+            Row::new(cells)
         })
         .collect();
 
@@ -105,7 +96,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 
     let table = Table::new(rows, widths)
         .header(header)
-        .row_highlight_style(Style::default().bg(Color::DarkGray))
+        // Patch the whole selected row instead of painting a background, so the
+        // terminal's own theme shows through.
+        .row_highlight_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(
             Block::default()
                 .borders(Borders::ALL)
