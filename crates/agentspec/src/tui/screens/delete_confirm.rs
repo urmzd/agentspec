@@ -22,12 +22,7 @@ pub fn draw(f: &mut Frame, dc: &DeleteConfirm) {
         Line::from(""),
         Line::from(vec![
             Span::raw("  Remove "),
-            Span::styled(
-                &dc.name,
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(&dc.name, Style::default().add_modifier(Modifier::BOLD)),
             Span::raw("?"),
         ]),
     ];
@@ -51,7 +46,7 @@ pub fn draw(f: &mut Frame, dc: &DeleteConfirm) {
 
     text.push(Line::from(""));
     text.push(Line::from(Span::styled(
-        "  [y/Enter] Yes   [Esc/n] No",
+        "  [y] Yes   [any other key] No",
         Style::default().fg(Color::DarkGray),
     )));
 

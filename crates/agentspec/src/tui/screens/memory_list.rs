@@ -30,23 +30,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 
     let rows: Vec<Row> = memories
         .iter()
-        .enumerate()
-        .map(|(i, m)| {
-            let style = if i == app.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
+        .map(|m| {
             Row::new(vec![
                 Cell::from(m.name.clone()).style(Style::default().fg(Color::Cyan)),
                 Cell::from(m.memory_type.clone()).style(Style::default().fg(Color::Yellow)),
                 Cell::from(truncate(&m.project, 25)).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(truncate(&m.description, 40)),
             ])
-            .style(style)
         })
         .collect();
 
@@ -60,7 +50,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         ],
     )
     .header(header)
-    .row_highlight_style(Style::default().bg(Color::DarkGray))
+    // Patch the whole selected row instead of painting a background, so the
+    // terminal's own theme shows through.
+    .row_highlight_style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )
     .block(
         Block::default()
             .borders(Borders::ALL)

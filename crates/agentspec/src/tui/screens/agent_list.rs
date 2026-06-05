@@ -15,17 +15,9 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 
     let rows: Vec<Row> = agents
         .iter()
-        .enumerate()
-        .map(|(i, a)| {
+        .map(|a| {
             let dots = tool_dots(&app.installed_tools, &a.linked_tools);
             let model = a.model.as_deref().unwrap_or("inherit");
-            let style = if i == app.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
 
             Row::new(vec![
                 Cell::from(a.name.clone()).style(Style::default().fg(Color::Magenta)),
@@ -33,7 +25,6 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
                 Cell::from(model.to_string()).style(Style::default().fg(Color::Yellow)),
                 Cell::from(dots),
             ])
-            .style(style)
         })
         .collect();
 
@@ -47,7 +38,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         ],
     )
     .header(header)
-    .row_highlight_style(Style::default().bg(Color::DarkGray))
+    // Patch the whole selected row instead of painting a background, so the
+    // terminal's own theme shows through.
+    .row_highlight_style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )
     .block(
         Block::default()
             .borders(Borders::ALL)

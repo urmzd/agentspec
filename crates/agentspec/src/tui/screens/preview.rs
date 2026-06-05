@@ -50,7 +50,12 @@ pub fn draw(f: &mut Frame, preview: &Preview) {
 
     f.render_widget(Paragraph::new(text), content_area);
 
-    // Help/status line
+    // Help/status line — advertise `l` only when the resource can be linked.
+    let link_hint = if preview.linkable {
+        "[l] Link tools  "
+    } else {
+        ""
+    };
     let help_text = if let Some(status) = &preview.status {
         Line::from(vec![
             Span::styled(
@@ -60,7 +65,7 @@ pub fn draw(f: &mut Frame, preview: &Preview) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                " [j/k] Scroll  [c] Copy  [e] Export  [q] Close",
+                format!(" {link_hint}[j/k] Scroll  [c] Copy  [e] Export  [q] Close"),
                 Style::default().fg(Color::DarkGray),
             ),
         ])
@@ -74,7 +79,9 @@ pub fn draw(f: &mut Frame, preview: &Preview) {
         Line::from(vec![
             Span::styled(position, Style::default().fg(Color::DarkGray)),
             Span::styled(
-                "[j/k] Scroll  [g/G] Top/Bottom  [c] Copy  [e] Export  [q] Close",
+                format!(
+                    "{link_hint}[j/k] Scroll  [g/G] Top/Bottom  [c] Copy  [e] Export  [q] Close"
+                ),
                 Style::default().fg(Color::DarkGray),
             ),
         ])

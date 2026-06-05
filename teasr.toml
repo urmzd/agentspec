@@ -4,7 +4,14 @@ dir = "./showcase"
 [font]
 family = "MonaspiceNe Nerd Font"
 
-# ── TUI showcase: static PNG of the Tools tab ──
+# NOTE: teasr currently ships only `dracula` (default) and `monokai` themes —
+# unknown names silently fall back to dracula, so we set it explicitly.
+
+# ── Static PNG: Skills tab with the link picker open ──
+# Deliberately different from the GIF (which tours the tabs) so the two
+# showcase assets are not redundant.
+# NOTE: teasr's "enter" sends \n, which crossterm in raw mode reads as Ctrl+J,
+# so Enter-driven flows (preview) can't be captured — `l` is a plain char.
 [[scenes]]
 type = "terminal"
 name = "tui"
@@ -21,12 +28,33 @@ type = "wait"
 duration = 2000
 hidden = true
 
-# Tools tab (default) — capture it
+# Tools (default) -> Skills
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+hidden = true
+
+# Open the link picker on the selected skill (`l` = link/expose to tools)
+[[scenes.interactions]]
+type = "key"
+key = "l"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+hidden = true
+
 [[scenes.interactions]]
 type = "snapshot"
-name = "tools"
+name = "link"
 
-# ── TUI showcase: animated GIF cycling through tabs ──
+# ── Animated GIF: tour of all six tabs ──
+# Tab cycle order (see Tab::next in crates/agentspec/src/tui/app.rs):
+# Tools -> Skills -> Agents -> Configs -> Sessions -> Memories
 [[scenes]]
 type = "terminal"
 name = "tui-demo"
@@ -51,7 +79,7 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 2: Configs
+# Tab 2: Skills
 [[scenes.interactions]]
 type = "key"
 key = "tab"
@@ -67,7 +95,7 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 3: Sessions
+# Tab 3: Agents
 [[scenes.interactions]]
 type = "key"
 key = "tab"
@@ -84,6 +112,38 @@ type = "wait"
 duration = 1500
 
 # Tab 4: Configs
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 5: Sessions
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 6: Memories
 [[scenes.interactions]]
 type = "key"
 key = "tab"
