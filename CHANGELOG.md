@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1 (2026-06-05)
+
+### Refactoring
+
+- **tui**: inherit terminal theme, link from preview, de-dupe demo, refresh docs (#13) ([0a92853](https://github.com/urmzd/agentspec/commit/0a92853732b4b5fb0ca24d0e7ef0a0bef68e010c))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.10.0...v0.10.1)
+
+
 ## 0.10.0 (2026-05-29)
 
 ### Features
