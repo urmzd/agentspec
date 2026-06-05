@@ -29,22 +29,12 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 
     let rows: Vec<Row> = sessions
         .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            let style = if i == app.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
+        .map(|s| {
             Row::new(vec![
                 Cell::from(s.source.clone()).style(Style::default().fg(Color::Green)),
                 Cell::from(s.date.clone()).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(truncate(&s.prompt, 60)),
             ])
-            .style(style)
         })
         .collect();
 
@@ -57,7 +47,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         ],
     )
     .header(header)
-    .row_highlight_style(Style::default().bg(Color::DarkGray))
+    // Patch the whole selected row instead of painting a background, so the
+    // terminal's own theme shows through.
+    .row_highlight_style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )
     .block(
         Block::default()
             .borders(Borders::ALL)

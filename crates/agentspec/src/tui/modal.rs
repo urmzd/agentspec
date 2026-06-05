@@ -16,6 +16,8 @@ pub enum ModalResult {
     Dismiss,
     /// Modal completed, dispatch these actions.
     Execute(Vec<Action>),
+    /// Close this modal and open the link picker for the current selection.
+    OpenLinkPicker,
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +57,9 @@ pub struct DeleteConfirm {
 impl DeleteConfirm {
     pub fn handle_key(&self, key: KeyEvent) -> ModalResult {
         match key.code {
-            KeyCode::Char('y') | KeyCode::Enter => {
+            // Only an explicit `y` confirms — Enter is reserved for non-destructive
+            // actions elsewhere, so muscle memory can't trigger a delete.
+            KeyCode::Char('y') => {
                 let action = match self.tab {
                     Tab::Skills => Action::DeleteSkill(self.name.clone()),
                     Tab::Agents => Action::DeleteAgent {
@@ -143,10 +147,12 @@ pub struct Preview {
     pub lines: Vec<String>,
     pub scroll: usize,
     pub status: Option<String>,
+    /// Whether the previewed resource can be linked to tools (`l` opens the picker).
+    pub linkable: bool,
 }
 
 impl Preview {
-    pub fn new(title: String, content: String) -> Self {
+    pub fn new(title: String, content: String, linkable: bool) -> Self {
         let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
         Self {
             title,
@@ -154,6 +160,7 @@ impl Preview {
             lines,
             scroll: 0,
             status: None,
+            linkable,
         }
     }
 
@@ -198,6 +205,8 @@ impl Preview {
                 self.export_to_file();
                 ModalResult::Continue
             }
+            // Link the previewed resource to tools without leaving the flow.
+            KeyCode::Char('l') if self.linkable => ModalResult::OpenLinkPicker,
             _ => ModalResult::Continue,
         }
     }

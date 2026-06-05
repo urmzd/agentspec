@@ -6,9 +6,8 @@ use crate::tui::app::App;
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let dim_style = Style::default().fg(Color::DarkGray);
-    let label_style = Style::default()
-        .fg(Color::White)
-        .add_modifier(Modifier::BOLD);
+    // Terminal-default foreground so labels stay readable on light themes too.
+    let label_style = Style::default().add_modifier(Modifier::BOLD);
 
     // Storage info line
     let storage_line = Line::from(vec![
@@ -43,8 +42,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let rows: Vec<Row> = app
         .tool_entries
         .iter()
-        .enumerate()
-        .map(|(i, t)| {
+        .map(|t| {
             let status = if t.installed {
                 "installed"
             } else {
@@ -56,14 +54,6 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
                 Style::default().fg(Color::DarkGray)
             };
 
-            let style = if i == app.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
             Row::new(vec![
                 Cell::from(t.name.clone()),
                 Cell::from(t.slug.clone()).style(Style::default().fg(Color::DarkGray)),
@@ -71,7 +61,6 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
                 Cell::from(t.skill_count.to_string()),
                 Cell::from(t.agent_count.to_string()),
             ])
-            .style(style)
         })
         .collect();
 
@@ -86,7 +75,13 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         ],
     )
     .header(header)
-    .row_highlight_style(Style::default().bg(Color::DarkGray))
+    // Patch the whole selected row instead of painting a background, so the
+    // terminal's own theme shows through.
+    .row_highlight_style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )
     .block(
         Block::default()
             .borders(Borders::ALL)

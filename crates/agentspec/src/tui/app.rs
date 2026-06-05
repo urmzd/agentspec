@@ -19,14 +19,15 @@ use super::event::poll_event;
 use super::modal::{DeleteConfirm, LinkPicker, Modal, ModalResult, Preview};
 use super::screens;
 
+/// Declared in display order — `all()`, `next()`, and `prev()` follow it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
+    Tools,
     Skills,
     Agents,
-    Tools,
+    Configs,
     Sessions,
     Memories,
-    Configs,
 }
 
 impl Tab {
@@ -43,12 +44,12 @@ impl Tab {
 
     pub fn label(&self) -> &str {
         match self {
+            Tab::Tools => "Tools",
             Tab::Skills => "Skills",
             Tab::Agents => "Agents",
-            Tab::Tools => "Tools",
+            Tab::Configs => "Configs",
             Tab::Sessions => "Sessions",
             Tab::Memories => "Memories",
-            Tab::Configs => "Configs",
         }
     }
 
@@ -258,6 +259,10 @@ impl App {
                 ModalResult::Execute(actions) => {
                     self.modal = Modal::None;
                     self.dispatch_all(actions);
+                }
+                ModalResult::OpenLinkPicker => {
+                    self.modal = Modal::None;
+                    self.open_link_picker();
                 }
             }
             return;
@@ -540,7 +545,9 @@ impl App {
             Tab::Tools => return,
         };
 
-        self.modal = Modal::Preview(Preview::new(title, content));
+        // Skills and agents can be linked straight from the preview via `l`.
+        let linkable = matches!(self.tab, Tab::Skills | Tab::Agents);
+        self.modal = Modal::Preview(Preview::new(title, content, linkable));
     }
 
     // -----------------------------------------------------------------------
