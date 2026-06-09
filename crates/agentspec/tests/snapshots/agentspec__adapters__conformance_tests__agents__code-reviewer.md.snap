@@ -1,0 +1,14 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: agent
+name: code-reviewer
+description: Reviews diffs for correctness and style.
+body: "You are a code reviewer.\n\nReview the staged diff and report issues by severity.\n"
+tools:
+  - Read
+  - Grep
+  - Bash
+model: sonnet
+color: cyan

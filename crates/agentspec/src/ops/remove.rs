@@ -21,7 +21,7 @@ pub fn remove_skill(cfg: &mut Config, name: &str) -> Result<()> {
     // Remove directory
     std::fs::remove_dir_all(&skill_dir)?;
 
-    println!("  {} Removed skill '{name}'", style("✓").green().bold());
+    eprintln!("  {} Removed skill '{name}'", style("✓").green().bold());
     Ok(())
 }
 
@@ -38,7 +38,7 @@ pub fn remove_agent(cfg: &mut Config, name: &str) -> Result<()> {
 
     std::fs::remove_file(&agent_file)?;
 
-    println!("  {} Removed agent '{name}'", style("✓").green().bold());
+    eprintln!("  {} Removed agent '{name}'", style("✓").green().bold());
     Ok(())
 }
 
@@ -49,7 +49,7 @@ pub fn remove_unmanaged_agent(name: &str, paths: &[std::path::PathBuf]) -> Resul
         }
     }
 
-    println!(
+    eprintln!(
         "  {} Removed unmanaged agent '{name}'",
         style("✓").green().bold()
     );
@@ -66,7 +66,7 @@ pub fn remove_tracked(cfg: &mut Config, name: &str, kind: TrackedKind) -> Result
 
     cfg.remove(name, kind);
 
-    println!(
+    eprintln!(
         "  {} Removed {kind} '{name}' from tracking",
         style("✓").green().bold()
     );

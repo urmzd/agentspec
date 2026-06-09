@@ -1,0 +1,32 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: 5e5e5e5e-1111-2222-3333-444444444444
+tool_slug: gemini-cli
+cwd: ~
+started_at: "2026-01-05T08:00:00Z"
+ended_at: "2026-01-05T08:30:00Z"
+first_prompt: Summarize the architecture
+summary: ~
+project: agentspec-fixture-project
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Summarize the architecture
+    timestamp: "2026-01-05T08:00:01Z"
+  - role: assistant
+    content:
+      - type: text
+        text: "The project has three layers: cli, ops, inventory."
+    timestamp: "2026-01-05T08:00:10Z"
+  - role: user
+    content:
+      - type: text
+        text: Thanks
+    timestamp: "2026-01-05T08:01:00Z"
+files_touched: []
+tools_used: []
+model: gemini-2.5-pro

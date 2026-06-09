@@ -3,6 +3,9 @@ pub mod codex;
 pub mod copilot;
 pub mod gemini;
 
+#[cfg(test)]
+mod conformance_tests;
+
 use super::adapter::SessionAdapter;
 
 /// All known session adapters.

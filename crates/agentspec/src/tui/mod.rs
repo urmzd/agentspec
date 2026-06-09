@@ -18,7 +18,7 @@ fn restore_terminal() {
     let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
 }
 
-pub async fn run() -> Result<()> {
+pub fn run() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -33,7 +33,7 @@ pub async fn run() -> Result<()> {
     }));
 
     let mut app = app::App::new()?;
-    let result = app.run(&mut terminal).await;
+    let result = app.run(&mut terminal);
 
     restore_terminal();
     terminal.show_cursor()?;

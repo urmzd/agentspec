@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 /// The canonical intermediate representation for any agent resource.
 /// Vendor-specific formats adapt to/from this IR.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resource {
     pub kind: ResourceKind,
     pub name: String,
@@ -48,12 +48,12 @@ pub struct Resource {
     /// Vendor-specific metadata that doesn't map to canonical fields.
     /// Preserved for round-tripping — adapters stash unknown fields here.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub metadata: HashMap<String, serde_yaml::Value>,
+    pub metadata: HashMap<String, serde_yaml_ng::Value>,
 
     /// Opaque vendor extensions keyed by vendor slug.
     /// e.g. { "claude-code": { "hooks": {...} }, "gemini-cli": { "kind": "local" } }
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub extensions: HashMap<String, serde_yaml::Value>,
+    pub extensions: HashMap<String, serde_yaml_ng::Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

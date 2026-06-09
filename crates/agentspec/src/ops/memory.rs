@@ -178,20 +178,20 @@ fn parse_memory_file(
     }
 
     let parsed = crate::frontmatter::parse(content).ok()?;
-    let yaml: serde_yaml::Value = serde_yaml::from_str(&parsed.frontmatter).ok()?;
+    let yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(&parsed.frontmatter).ok()?;
     let map = yaml.as_mapping()?;
 
     let name = map
-        .get(serde_yaml::Value::String("name".into()))?
+        .get(serde_yaml_ng::Value::String("name".into()))?
         .as_str()?
         .to_string();
     let description = map
-        .get(serde_yaml::Value::String("description".into()))
+        .get(serde_yaml_ng::Value::String("description".into()))
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
     let memory_type = map
-        .get(serde_yaml::Value::String("type".into()))
+        .get(serde_yaml_ng::Value::String("type".into()))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
@@ -285,10 +285,11 @@ pub fn list_memories(project: Option<&str>, mem_type: Option<&str>, json: bool) 
 
 fn truncate(s: &str, max: usize) -> String {
     let first_line = s.lines().next().unwrap_or(s);
-    if first_line.len() <= max {
+    if first_line.chars().count() <= max {
         first_line.to_string()
     } else {
-        format!("{}...", &first_line[..max - 3])
+        let cut: String = first_line.chars().take(max - 3).collect();
+        format!("{cut}...")
     }
 }
 
@@ -469,6 +470,19 @@ mod tests {
         };
         assert_eq!(project_key(&a), "-Users-urmzd-work-app");
         assert_ne!(project_key(&a), project_key(&b));
+    }
+
+    #[test]
+    fn truncate_handles_multibyte_chars_at_boundary() {
+        // 41 chars, with byte offset 37 (the old cut point) inside the first
+        // em-dash: byte-slicing here used to panic.
+        let line = "a".repeat(36) + &"\u{2014}".repeat(5);
+        let expected = format!("{}\u{2014}...", "a".repeat(36));
+        assert_eq!(truncate(&line, 40), expected);
+        // Short multi-byte strings pass through untouched.
+        assert_eq!(truncate("héllo \u{2014} wörld", 40), "héllo \u{2014} wörld");
+        // First line only, even when later lines are long.
+        assert_eq!(truncate("short\nthis second line is ignored", 40), "short");
     }
 
     #[test]

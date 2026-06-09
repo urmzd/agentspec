@@ -1,0 +1,4 @@
+{"timestamp":"2026-01-03T10:00:00Z","type":"session_meta","payload":{"id":"1f2e3d4c-5b6a-7980-aabb-ccddeeff0011","timestamp":"2026-01-03T10:00:00Z","cwd":"/home/user/projects/demo","originator":"codex_cli_rs","cli_version":"0.40.0"}}
+{"timestamp":"2026-01-03T10:00:01Z","type":"event_msg","payload":{"type":"user_message","message":"Refactor the config loader"}}
+{"timestamp":"2026-01-03T10:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Refactor the config loader"}]}}
+{"timestamp":"2026-01-03T10:00:05Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Starting with config.rs."}]}}

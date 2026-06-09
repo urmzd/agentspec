@@ -1,0 +1,17 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: empty
+tool_slug: claude-code
+cwd: ~
+started_at: ~
+ended_at: ~
+first_prompt: ~
+summary: ~
+project: ~
+branch: ~
+messages: []
+files_touched: []
+tools_used: []
+model: ~

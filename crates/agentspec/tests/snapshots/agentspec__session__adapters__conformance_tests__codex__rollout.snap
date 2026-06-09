@@ -1,0 +1,40 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: 9a8b7c6d-5e4f-3a2b-1c0d-e9f8a7b6c5d4
+tool_slug: codex
+cwd: /home/user/projects/demo
+started_at: "2026-01-03T11:00:00Z"
+ended_at: ~
+first_prompt: Run the test suite and fix failures
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Run the test suite and fix failures
+    timestamp: "2026-01-03T11:00:03Z"
+  - role: assistant
+    content:
+      - type: tool_use
+        name: shell
+        input: "{\"command\":[\"cargo\",\"test\"]}"
+    timestamp: "2026-01-03T11:00:04Z"
+  - role: assistant
+    content:
+      - type: tool_result
+        content: "test result: FAILED. 1 failed"
+        is_error: false
+    timestamp: "2026-01-03T11:00:09Z"
+  - role: assistant
+    content:
+      - type: text
+        text: One test failed; patching the assertion.
+    timestamp: "2026-01-03T11:00:15Z"
+files_touched: []
+tools_used:
+  - shell
+model: ~

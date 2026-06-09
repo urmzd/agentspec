@@ -40,8 +40,7 @@ fn resolve_kind(cfg: &Config, name: &str) -> ResourceKind {
     ResourceKind::Skill
 }
 
-#[tokio::main]
-async fn main() -> color_eyre::Result<()> {
+fn main() -> color_eyre::Result<()> {
     color_eyre::config::HookBuilder::default()
         .capture_span_trace_by_default(false)
         .display_env_section(false)
@@ -52,8 +51,8 @@ async fn main() -> color_eyre::Result<()> {
 
     match cli.command {
         None => {
-            if atty::is(atty::Stream::Stdout) {
-                tui::run().await?;
+            if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+                tui::run()?;
             } else {
                 let cfg = inventory::load_config()?;
                 ops::list::list_skills(&cfg, None, true)?;
@@ -146,7 +145,9 @@ async fn main() -> color_eyre::Result<()> {
             SessionAction::List { source } => {
                 let adapter = session::get_adapter(&source)?;
                 let sessions = adapter.list_sessions()?;
-                if sessions.is_empty() {
+                if cli.format == OutputFormat::Json {
+                    println!("{}", serde_json::to_string_pretty(&sessions)?);
+                } else if sessions.is_empty() {
                     eprintln!("No sessions found for {source}");
                 } else {
                     for s in &sessions {
@@ -177,9 +178,30 @@ async fn main() -> color_eyre::Result<()> {
                     .into());
                 };
                 let markdown = session::render::render_markdown(&sess);
+                let json = cli.format == OutputFormat::Json;
                 if let Some(path) = output {
                     std::fs::write(&path, &markdown)?;
-                    eprintln!("Written to {path}");
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::json!({
+                                "id": sess.id,
+                                "source": source,
+                                "path": path,
+                            }))?
+                        );
+                    } else {
+                        eprintln!("Written to {path}");
+                    }
+                } else if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "id": sess.id,
+                            "source": source,
+                            "markdown": markdown,
+                        }))?
+                    );
                 } else {
                     print!("{markdown}");
                 }
@@ -217,6 +239,7 @@ async fn main() -> color_eyre::Result<()> {
         }
         Some(Command::Manage { action }) => {
             let mut cfg = inventory::load_config()?;
+            let mut integrity_issues = 0;
             match action {
                 ManageAction::Add {
                     source,
@@ -298,7 +321,7 @@ async fn main() -> color_eyre::Result<()> {
                     ops::link::unlink(&mut cfg, kind, &name, &tool)?;
                 }
                 ManageAction::Validate { path } => {
-                    ops::validate::validate(path.as_deref())?;
+                    ops::validate::validate(path.as_deref(), cli.format == OutputFormat::Json)?;
                 }
                 ManageAction::Create { name, kind } => match kind.as_deref().unwrap_or("skill") {
                     "agent" => ops::create::create_agent(name.as_deref())?,
@@ -318,7 +341,7 @@ async fn main() -> color_eyre::Result<()> {
                     }
                 }
                 ManageAction::Verify { accept, name } => {
-                    ops::verify::verify(
+                    integrity_issues = ops::verify::verify(
                         &mut cfg,
                         accept,
                         name.as_deref(),
@@ -353,6 +376,10 @@ async fn main() -> color_eyre::Result<()> {
                 }
             }
             inventory::save_config(&cfg)?;
+            // Exit only after the config is saved so verify never loses state.
+            if integrity_issues > 0 {
+                std::process::exit(1);
+            }
         }
         Some(Command::Mcp { action }) => match action {
             McpAction::Add {
@@ -391,7 +418,7 @@ async fn main() -> color_eyre::Result<()> {
                 mcp::remove_server(tool.as_deref(), &name, purge)?;
             }
             McpAction::List => {
-                mcp::list_servers()?;
+                mcp::list_servers(cli.format == OutputFormat::Json)?;
             }
             McpAction::Link {
                 name,
@@ -402,7 +429,7 @@ async fn main() -> color_eyre::Result<()> {
                 mcp::link_server(target, &name)?;
             }
             McpAction::Sync => {
-                mcp::sync_all_servers()?;
+                mcp::sync_all_servers(cli.format == OutputFormat::Json)?;
             }
         },
         Some(Command::Plans { action }) => {

@@ -22,6 +22,20 @@ impl Adapter for LlmsTxtAdapter {
         Ok(r)
     }
 
+    fn emit(&self, resource: &Resource) -> Result<String> {
+        if resource.name.is_empty() {
+            return Ok(resource.body.clone());
+        }
+        let mut out = format!("# {}\n", resource.name);
+        if !resource.description.is_empty() {
+            out.push_str(&format!("\n> {}\n", resource.description));
+        }
+        if !resource.body.is_empty() {
+            out.push_str(&format!("\n{}\n", resource.body));
+        }
+        Ok(out)
+    }
+
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.name.is_empty() {

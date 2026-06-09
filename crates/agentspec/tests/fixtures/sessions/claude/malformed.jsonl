@@ -1,0 +1,5 @@
+this line is not json at all
+{"type":"user","cwd":"/home/user/projects/demo","timestamp":"2026-01-02T12:00:00Z","message":{"content":"Survives the garbage above"}}
+{broken json
+{"no_type_key":true}
+{"type":"assistant","timestamp":"2026-01-02T12:00:01Z","message":{"content":[{"type":"text","text":"Still parsing."}]}}

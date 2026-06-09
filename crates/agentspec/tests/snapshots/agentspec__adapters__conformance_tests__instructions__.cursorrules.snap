@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: instruction-file
+name: ".cursorrules"
+description: ""
+body: "Always run the linter before committing.\nUse conventional commit messages.\nNever commit directly to main."

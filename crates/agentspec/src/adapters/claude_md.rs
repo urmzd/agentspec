@@ -22,6 +22,14 @@ impl Adapter for ClaudeMdAdapter {
         Ok(r)
     }
 
+    fn emit(&self, resource: &Resource) -> Result<String> {
+        Ok(super::agents_md::emit_heading_doc(
+            &resource.name,
+            &resource.description,
+            &resource.body,
+        ))
+    }
+
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.body.is_empty() {

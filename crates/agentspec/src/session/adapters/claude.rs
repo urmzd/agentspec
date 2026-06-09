@@ -3,6 +3,7 @@ use crate::session::adapter::SessionAdapter;
 use crate::session::ir::*;
 use chrono::{DateTime, Utc};
 use std::fs;
+use std::io::BufRead;
 use std::path::PathBuf;
 
 pub struct ClaudeSessionAdapter;
@@ -19,7 +20,7 @@ fn projects_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-fn parse_session_file(path: &std::path::Path) -> Result<SessionIR> {
+pub(crate) fn parse_session_file(path: &std::path::Path) -> Result<SessionIR> {
     let content = fs::read_to_string(path)?;
     let mut messages = Vec::new();
     let mut cwd = None;
@@ -232,13 +233,14 @@ fn quick_parse_meta(path: &std::path::Path) -> Result<SessionMetaIR> {
         .to_string_lossy()
         .to_string();
 
-    let content = fs::read_to_string(path)?;
+    // Session files can be tens of MB; only the first lines are needed.
+    let reader = std::io::BufReader::new(fs::File::open(path)?);
     let mut cwd = None;
     let mut started_at = None;
     let mut first_prompt = None;
 
-    for line in content.lines().take(20) {
-        let v: serde_json::Value = match serde_json::from_str(line) {
+    for line in reader.lines().take(20).map_while(|l| l.ok()) {
+        let v: serde_json::Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => continue,
         };
@@ -281,6 +283,32 @@ fn quick_parse_meta(path: &std::path::Path) -> Result<SessionMetaIR> {
     })
 }
 
+/// List sessions under one projects root (a directory of per-project
+/// directories holding `.jsonl` files), newest first.
+pub(crate) fn list_sessions_in_root(projects_dir: &std::path::Path) -> Result<Vec<SessionMetaIR>> {
+    let mut sessions = Vec::new();
+
+    for project_entry in fs::read_dir(projects_dir)? {
+        let project_entry = project_entry?;
+        if !project_entry.file_type()?.is_dir() {
+            continue;
+        }
+        let project_path = project_entry.path();
+        for entry in fs::read_dir(&project_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "jsonl")
+                && let Ok(meta) = quick_parse_meta(&path)
+            {
+                sessions.push(meta);
+            }
+        }
+    }
+
+    sessions.sort_by_key(|b| std::cmp::Reverse(b.started_at));
+    Ok(sessions)
+}
+
 impl SessionAdapter for ClaudeSessionAdapter {
     fn tool_slug(&self) -> &str {
         "claude-code"
@@ -297,28 +325,7 @@ impl SessionAdapter for ClaudeSessionAdapter {
     }
 
     fn list_sessions(&self) -> Result<Vec<SessionMetaIR>> {
-        let projects_dir = projects_dir()?;
-        let mut sessions = Vec::new();
-
-        for project_entry in fs::read_dir(&projects_dir)? {
-            let project_entry = project_entry?;
-            if !project_entry.file_type()?.is_dir() {
-                continue;
-            }
-            let project_path = project_entry.path();
-            for entry in fs::read_dir(&project_path)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.extension().is_some_and(|e| e == "jsonl")
-                    && let Ok(meta) = quick_parse_meta(&path)
-                {
-                    sessions.push(meta);
-                }
-            }
-        }
-
-        sessions.sort_by_key(|b| std::cmp::Reverse(b.started_at));
-        Ok(sessions)
+        list_sessions_in_root(&projects_dir()?)
     }
 
     fn load_session(&self, id: &str) -> Result<SessionIR> {

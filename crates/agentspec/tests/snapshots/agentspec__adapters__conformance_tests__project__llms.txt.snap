@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: llms-txt
+name: Demo Project
+description: Sample llms.txt used by the agentspec conformance suite.
+body: "## Docs\n\n- [README](https://example.com/README.md): Project overview\n- [Architecture](https://example.com/docs/architecture.md): Layer map\n\n## Optional\n\n- [Changelog](https://example.com/CHANGELOG.md): Release notes"

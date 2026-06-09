@@ -1,0 +1,5 @@
+{"type":"summary","summary":"Earlier session about CI"}
+{"type":"user","cwd":"/home/user/projects/demo","timestamp":"2026-01-02T11:00:00Z","isMeta":true,"message":{"content":"<system-reminder>injected context</system-reminder>"}}
+{"type":"user","timestamp":"2026-01-02T11:00:01Z","message":{"content":[{"type":"image","source":"data"}]}}
+{"type":"user","timestamp":"2026-01-02T11:00:02Z","message":{"content":"Real first prompt after the meta lines"}}
+{"type":"assistant","timestamp":"2026-01-02T11:00:05Z","message":{"content":[{"type":"text","text":"Acknowledged."}]}}

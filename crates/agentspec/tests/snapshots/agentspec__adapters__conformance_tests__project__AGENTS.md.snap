@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: project-config
+name: Demo Project
+description: A sample project configuration used by the conformance suite.
+body: "## Build\n\nRun `cargo build` from the repository root.\n\n## Conventions\n\nKeep functions small and tested."

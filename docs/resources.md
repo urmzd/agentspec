@@ -14,13 +14,12 @@ An open format for extending AI agents with specialized knowledge and workflows.
 
 ### Directory Structure
 
-```
-{name}/
-├── SKILL.md           # Required: metadata + instructions
-├── scripts/           # Optional: executable code
-├── references/        # Optional: documentation
-└── assets/            # Optional: templates, resources
-```
+A skill directory `{name}/` contains:
+
+- `SKILL.md` (required): metadata + instructions
+- `scripts/` (optional): executable code
+- `references/` (optional): documentation
+- `assets/` (optional): templates, resources
 
 ### Locations
 
@@ -69,7 +68,7 @@ Fields beyond the agentskills.io spec:
 
 agentspec implements adapters for **11 tools**, all of which expose both a skills and an agents directory: Claude Code (`claude-code`), Cline (`cline`), Windsurf (`windsurf`), OpenHands (`openhands`), Gemini CLI (`gemini-cli`), GitHub Copilot (`github-copilot`), Amp (`amp`), Cursor (`cursor`), Codex (`codex`), OpenCode (`opencode`), and Kimi CLI (`kimi-cli`).
 
-Other agents in the ecosystem (Goose, Roo Code, Junie, Kiro, Letta, Zed, etc.) adopt the agentskills.io format upstream but do **not** yet have a dedicated agentspec adapter — treat them as aspirational/spec reference, not as tools agentspec writes to today.
+Other agents in the ecosystem (Goose, Roo Code, Junie, Kiro, Letta, Zed, etc.) adopt the agentskills.io format upstream but do **not** yet have a dedicated agentspec adapter; treat them as aspirational/spec reference, not as tools agentspec writes to today.
 
 ### Discovery
 
@@ -136,7 +135,7 @@ Built-in agents: `Explore`, `Plan`, `general-purpose`, `statusline-setup`, `clau
 
 ### Codex Agent Format (TOML)
 
-> **Spec reference / not yet implemented.** agentspec's IR and adapter layer do **not** currently parse or emit Codex `.toml` agents — agent discovery is `.md`-only (YAML frontmatter + Markdown). The schema below is documented for reference; round-tripping Codex TOML agents through agentspec is a future addition.
+> **Spec reference / not yet implemented.** agentspec's IR and adapter layer do **not** currently parse or emit Codex `.toml` agents; agent discovery is `.md`-only (YAML frontmatter + Markdown). The schema below is documented for reference; round-tripping Codex TOML agents through agentspec is a future addition.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -162,7 +161,7 @@ Built-in agents: `default`, `worker`, `explorer`.
 
 ### Discovery
 
-Scan `.md` files inside directories named `agents`. Validate by parsing frontmatter for required `name` + `description` fields. (Codex `.toml` agents are not yet discovered — see the note above.)
+Scan `.md` files inside directories named `agents`. Validate by parsing frontmatter for required `name` + `description` fields. (Codex `.toml` agents are not yet discovered; see the note above.)
 
 ---
 
@@ -171,7 +170,7 @@ Scan `.md` files inside directories named `agents`. Validate by parsing frontmat
 - **Website**: https://agents.md
 - **Stewarded by**: Agentic AI Foundation (Linux Foundation)
 
-Root-level markdown file providing project instructions to coding agents. Tool-agnostic equivalent of CLAUDE.md — described as "a README for agents."
+Root-level markdown file providing project instructions to coding agents. Tool-agnostic equivalent of CLAUDE.md, described as "a README for agents."
 
 ### Location
 
@@ -190,7 +189,7 @@ Plain markdown. No required YAML frontmatter. Common sections:
 
 ### Hierarchical Resolution
 
-For monorepos, nested `AGENTS.md` files take precedence based on file proximity — the closest file to the working directory wins.
+For monorepos, nested `AGENTS.md` files take precedence based on file proximity: the closest file to the working directory wins.
 
 ### Relationship to CLAUDE.md
 
@@ -252,11 +251,11 @@ Project root: `./llms.txt`
 
 ### Format (required order)
 
-1. **H1 heading** (required) — project/site name
-2. **Blockquote** (optional) — brief summary with key info
-3. **Body content** (optional) — project details as paragraphs or lists
-4. **H2 sections** (optional) — curated resource links as `[name](url): description`
-5. **"Optional" H2** (optional) — secondary info skippable under context constraints
+1. **H1 heading** (required): project/site name
+2. **Blockquote** (optional): brief summary with key info
+3. **Body content** (optional): project details as paragraphs or lists
+4. **H2 sections** (optional): curated resource links as `[name](url): description`
+5. **"Optional" H2** (optional): secondary info skippable under context constraints
 
 ### Variants
 
@@ -273,21 +272,26 @@ Filename match (`llms.txt`) in project roots.
 
 ## Instruction Files
 
-Editor/tool-specific instruction files that live alongside project code. Unlike `CLAUDE.md` (which is Claude Code-specific) or `AGENTS.md` (which is tool-agnostic), these are per-tool configuration files each tool reads natively.
+Editor/tool-specific instruction files that live alongside project code, each read natively by its owning tool. `AGENTS.md` (tool-agnostic project config) and `llms.txt` are tracked separately as their own kinds.
 
 ### Known Files
 
-| File | Tool |
-|------|------|
-| `.cursorrules` | Cursor |
-| `.clinerules` | Cline |
-| `GEMINI.md` | Gemini CLI |
-| `.github/copilot-instructions.md` | GitHub Copilot |
-| `codex-instructions.md` | Codex |
+This table mirrors `PROJECT_FILES` in `crates/agentspec/src/project_files.rs`.
+
+| Project file | Tool | Global file |
+|--------------|------|-------------|
+| `CLAUDE.md` | Claude Code (see its own section above) | `~/.claude/CLAUDE.md` |
+| `GEMINI.md` | Gemini CLI | `~/.gemini/GEMINI.md` |
+| `.github/copilot-instructions.md` | GitHub Copilot | — |
+| `codex.md` | Codex | `~/.codex/instructions.md` |
+| `.cursorrules` | Cursor | — |
+| `.cursor/rules/` (directory) | Cursor | — |
+| `.clinerules` | Cline | — |
+| `.windsurfrules` | Windsurf | — |
 
 ### Location
 
-Project root (or `.github/` for Copilot). Each file is scoped to its owning tool.
+Project root (or `.github/` for Copilot, `.cursor/` for Cursor rules directories). Each file is scoped to its owning tool.
 
 ### Format
 
@@ -299,13 +303,13 @@ Filename match against the known list during filesystem walk. Detected as `Instr
 
 ### Project Sync
 
-agentspec's `project sync` command copies instruction files into `~/.agents/projects/<project>/` as a shared snapshot. The project root (identified by a `.git` directory) is the canonical source.
+agentspec's `project sync` command copies instruction files into `~/.agents/projects/<key>/` as a shared snapshot, where `<key>` is the project's full path encoded Claude-style (`/Users/u/work/app` becomes `-Users-u-work-app`), so two projects sharing a folder name never collide. The project root (identified by a `.git` directory) is the canonical source. `project desync`/`project remove` accept the key, the full path, or a directory basename when it is unambiguous.
 
 ---
 
 ## Plans
 
-Recorded planning artifacts — structured task breakdowns generated by or for AI coding tools.
+Recorded planning artifacts: structured task breakdowns generated by or for AI coding tools.
 
 ### Location
 
@@ -334,7 +338,7 @@ Plain markdown with YAML frontmatter (see the import schema below).
 
 ### Discovery
 
-Plans are **discovered** by scanning `~/.agents/plans/*.md`. They are first-class resources (`ResourceKind::Plan`) in agentspec's inventory — `status` and `manage list` surface them, showing any untracked plan as unmanaged.
+Plans are **discovered** by scanning `~/.agents/plans/*.md`. They are first-class resources (`ResourceKind::Plan`) in agentspec's inventory; `status` and `manage list` surface them, showing any untracked plan as unmanaged.
 
 > Plans do **not** appear in the **Configs** TUI tab. That tab shows per-project file-readiness indicators for project configs / instruction files / llms.txt, not plans.
 
@@ -352,12 +356,8 @@ Project path derived from git repository root. All worktrees share one memory di
 
 ### Structure
 
-```
-memory/
-├── MEMORY.md          # Index (first 200 lines / 25KB loaded at session start)
-├── {topic}.md         # Detailed topic files (loaded on demand)
-└── ...
-```
+- `memory/MEMORY.md`: index (first 200 lines / 25KB loaded at session start)
+- `memory/{topic}.md`: detailed topic files (loaded on demand)
 
 ### Memory File Frontmatter
 
@@ -400,8 +400,8 @@ Copilot exports are enriched from `~/.copilot/session-store.db` (SQLite, via `ru
 
 Native session stores are append-only / tool-internal, so agentspec does not fabricate native session files. Instead it stages a portable markdown handoff keyed by the **target** tool under `~/.agents/sessions/<target>/`:
 
-- `agentspec session sync <source> <target> [<id>] [--last]` — load a session from the source tool (reusing the read adapter + IR), render a portable markdown handoff, and stage it at `~/.agents/sessions/<target>/<id>.md`.
-- `agentspec session import <target> <file>` — stage an external markdown handoff at `~/.agents/sessions/<target>/<stem>.md`.
+- `agentspec session sync <source> <target> [<id>] [--last]`: load a session from the source tool (reusing the read adapter + IR), render a portable markdown handoff, and stage it at `~/.agents/sessions/<target>/<id>.md`.
+- `agentspec session import <target> <file>`: stage an external markdown handoff at `~/.agents/sessions/<target>/<stem>.md`.
 
 ### Discovery
 
@@ -419,14 +419,14 @@ Open protocol for connecting AI applications to external data sources, tools, an
 
 ### Configuration Files
 
-Only three tools expose an `mcp_config_path()` and are therefore **agentspec write targets**: Claude Code (`.claude/settings.json`), Gemini CLI (`.gemini/settings.json`), and Cursor (`.cursor/mcp.json`). The remaining rows below (`~/.claude.json`, `.vscode/mcp.json`, etc.) are **spec reference** for where the MCP ecosystem stores config — agentspec does not write them.
+Only three tools expose an `mcp_config_path()` and are therefore **agentspec write targets**: Claude Code (`.claude/settings.json`), Gemini CLI (`.gemini/settings.json`), and Cursor (`.cursor/mcp.json`). The remaining rows below (`~/.claude.json`, `.vscode/mcp.json`, etc.) are **spec reference** for where the MCP ecosystem stores config; agentspec does not write them.
 
 | Tool | File | Location | agentspec write target | Docs |
 |------|------|----------|------------------------|------|
 | Claude Code | `.claude/settings.json` | User/global (`mcpServers` key) | **Yes** | https://code.claude.com/docs/en/mcp |
 | Gemini CLI | `.gemini/settings.json` | User/global + project (`mcpServers` key) | **Yes** | https://geminicli.com/docs/tools/mcp-server/ |
 | Cursor | `.cursor/mcp.json` | User/global + project (`mcpServers` key) | **Yes** | |
-| Claude Code | `.mcp.json` | Project root (shared, commit to git) | reference — discovered by `sync` | https://code.claude.com/docs/en/mcp |
+| Claude Code | `.mcp.json` | Project root (shared, commit to git) | reference (discovered by `sync`) | https://code.claude.com/docs/en/mcp |
 | Claude Code | `~/.claude.json` | User/local scope (`mcpServers` key) | reference only | https://code.claude.com/docs/en/mcp |
 | VS Code | `.vscode/mcp.json` | Workspace | reference only | |
 
@@ -470,18 +470,18 @@ agentspec keeps a **canonical store** of MCP servers at `~/.agents/mcp/<name>.js
 
 Layers:
 
-1. **Canonical store** — `~/.agents/mcp/<name>.json`, the portable source of truth.
-2. **`.mcp.json`** at a project root — a project's own declaration; `agentspec sync` still auto-discovers these.
-3. **`CodingTool::mcp_config_path()`** — each MCP-capable provider defines where its native config lives.
+1. **Canonical store**: `~/.agents/mcp/<name>.json`, the portable source of truth.
+2. **`.mcp.json`** at a project root: a project's own declaration; `agentspec sync` still auto-discovers these.
+3. **`CodingTool::mcp_config_path()`**: each MCP-capable provider defines where its native config lives.
 
 Commands:
 
-- `agentspec mcp add <name> [--command <cmd>] [--args "a b"] [--env KEY=VAL ...] [--url <url>] [--type stdio|http|sse] [--tool <slug>]` — register a server. Requires `--command` (stdio) **xor** `--url` (remote http/sse). `--args` is space-delimited; `--env` is repeatable `KEY=VALUE` pairs (both **are** supported). Writes `~/.agents/mcp/<name>.json` **and** injects into every MCP-capable installed tool, or just `--tool` if given.
-- `agentspec mcp remove <name> [--tool <slug>] [--purge]` — remove from tool configs. Also deletes the canonical store file when no `--tool` is given, or when `--purge` is set.
-- `agentspec mcp list` — show the canonical store **and** each tool's registered servers.
-- `agentspec mcp link <name> [--tool <slug>] [--all-tools]` — inject a stored server into tool config(s).
-- `agentspec mcp sync` — link every canonical server into all MCP-capable installed tools.
-- `agentspec sync` — additionally auto-discovers `.mcp.json` in known project roots.
+- `agentspec mcp add <name> [--command <cmd>] [--args "a b"] [--env KEY=VAL ...] [--url <url>] [--type stdio|http|sse] [--tool <slug>]`: register a server. Requires `--command` (stdio) **xor** `--url` (remote http/sse). `--args` is space-delimited; `--env` is repeatable `KEY=VALUE` pairs (both **are** supported). Writes `~/.agents/mcp/<name>.json` **and** injects into every MCP-capable installed tool, or just `--tool` if given.
+- `agentspec mcp remove <name> [--tool <slug>] [--purge]`: remove from tool configs. Also deletes the canonical store file when no `--tool` is given, or when `--purge` is set.
+- `agentspec mcp list`: show the canonical store **and** each tool's registered servers.
+- `agentspec mcp link <name> [--tool <slug>] [--all-tools]`: inject a stored server into tool config(s).
+- `agentspec mcp sync`: link every canonical server into all MCP-capable installed tools.
+- `agentspec sync`: additionally auto-discovers `.mcp.json` in known project roots.
 
 ---
 
@@ -522,9 +522,9 @@ Claude Code renders all six rule kinds; Gemini CLI renders only `shell` / `file_
 
 ### Commands
 
-- `agentspec permissions init [--force]` — scaffold `~/.agents/permissions.yml` with example rules.
-- `agentspec permissions sync [--tool <slug>] [--dry-run]` — translate the profile into Claude's `permissions.allow` (`~/.claude/settings.json`) and Gemini's `tools.allowed` (`~/.gemini/settings.json`). `--dry-run` shows changes without writing.
-- `agentspec permissions show [--tool <slug>]` — display the profile and per-tool rendered allowlists.
+- `agentspec permissions init [--force]`: scaffold `~/.agents/permissions.yml` with example rules.
+- `agentspec permissions sync [--tool <slug>] [--dry-run]`: translate the profile into Claude's `permissions.allow` (`~/.claude/settings.json`) and Gemini's `tools.allowed` (`~/.gemini/settings.json`). `--dry-run` shows changes without writing.
+- `agentspec permissions show [--tool <slug>]`: display the profile and per-tool rendered allowlists.
 
 ### Sentinel-Key Merge
 
@@ -545,9 +545,9 @@ Portable lifecycle hook scripts.
 
 ### Commands
 
-- `agentspec hooks add <path>` — copy a hook script into the canonical store (`~/.agents/hooks/`).
-- `agentspec hooks list` — list the canonical store **and** each tool's hooks.
-- `agentspec hooks link <name> [--tool <slug>] [--all-tools]` — symlink a stored hook into a tool's hooks dir. Claude Code (`~/.claude/hooks/`) is the only tool with a hooks directory today; the design is extensible as other tools gain one.
+- `agentspec hooks add <path>`: copy a hook script into the canonical store (`~/.agents/hooks/`).
+- `agentspec hooks list`: list the canonical store **and** each tool's hooks.
+- `agentspec hooks link <name> [--tool <slug>] [--all-tools]`: symlink a stored hook into a tool's hooks dir. Claude Code (`~/.claude/hooks/`) is the only tool with a hooks directory today; the design is extensible as other tools gain one.
 
 ---
 
@@ -561,8 +561,8 @@ Inventory and export of installed Claude Code plugins.
 
 ### Commands
 
-- `agentspec plugins list` — inventory installed Claude Code plugins (each shown as `plugin@marketplace` with version, git SHA, and scope).
-- `agentspec plugins export [-o <file>]` — write a portable plugin manifest. Defaults to `~/.agents/plugins.yml` unless `-o`/`--output` overrides the path.
+- `agentspec plugins list`: inventory installed Claude Code plugins (each shown as `plugin@marketplace` with version, git SHA, and scope).
+- `agentspec plugins export [-o <file>]`: write a portable plugin manifest. Defaults to `~/.agents/plugins.yml` unless `-o`/`--output` overrides the path.
 
 ---
 

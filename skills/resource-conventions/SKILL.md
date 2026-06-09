@@ -6,8 +6,8 @@ description: Reference for the file formats, locations, and discovery convention
 # Resource Conventions
 
 Portable reference for every resource type agentspec manages. agentspec normalizes
-resources into an intermediate representation (IR) with **8 ResourceKinds** — `Skill`,
-`Agent`, `ProjectConfig`, `InstructionFile`, `LlmsTxt`, `Memory`, `Session`, `Plan` —
+resources into an intermediate representation (IR) with **8 ResourceKinds** (`Skill`,
+`Agent`, `ProjectConfig`, `InstructionFile`, `LlmsTxt`, `Memory`, `Session`, `Plan`)
 and supports **11 tools**: Claude Code, Cline, Windsurf, OpenHands, Gemini CLI,
 GitHub Copilot, Amp, Cursor, Codex, OpenCode, Kimi CLI. All 11 support skills + agents
 dirs; only **3** expose an MCP config path: Claude Code (`.claude/settings.json`),
@@ -18,19 +18,17 @@ Gemini CLI (`.gemini/settings.json`), Cursor (`.cursor/mcp.json`).
 The shared cross-tool store. agentspec is source of truth for managed kinds (skills,
 agents) and keeps copies of synced-in kinds.
 
-```
-~/.agents/
-├── skills/      # {name}/SKILL.md
-├── agents/      # {name}.md
-├── projects/    # <project>/ — project config + instruction-file snapshots
-├── memories/    # <project>/ — pulled tool memories
-├── plans/       # <name>.md
-├── sessions/    # <target>/<id>.md — portable handoffs
-├── mcp/         # <name>.json — stored MCP server definitions
-├── hooks/       # copied hook scripts
-├── permissions.yml   # portable permission profile (created on demand)
-└── plugins.yml       # exported plugin manifest (created on demand)
-```
+- `~/.agents/skills/{name}/SKILL.md`: managed skills
+- `~/.agents/agents/{name}.md`: managed agents
+- `~/.agents/projects/<key>/`: project config + instruction-file snapshots (key = full
+  project path encoded Claude-style, so same-basename projects never collide)
+- `~/.agents/memories/<project>/`: pulled tool memories
+- `~/.agents/plans/<name>.md`: planning artifacts
+- `~/.agents/sessions/<target>/<id>.md`: portable handoffs
+- `~/.agents/mcp/<name>.json`: stored MCP server definitions
+- `~/.agents/hooks/`: copied hook scripts
+- `~/.agents/permissions.yml`: portable permission profile (created on demand)
+- `~/.agents/plugins.yml`: exported plugin manifest (created on demand)
 
 Config dir: `~/.config/agentspec/config.yml`.
 
@@ -44,16 +42,18 @@ Config dir: `~/.config/agentspec/config.yml`.
 
 ## Agents / Subagents
 
-- **Location**: `agents/{name}.md` (Claude Code, Gemini CLI), `agents/{name}.toml` (Codex).
-  Tool: `.claude/agents/`, `.gemini/agents/`, `.codex/agents/`; shared:
-  `~/.agents/agents/{name}.md`.
-- **Format**: YAML frontmatter + Markdown (`name` + `description` required); Codex uses TOML.
-- **Discovery**: scan `.md`/`.toml` inside `agents/` dirs; validate required frontmatter.
+- **Location**: `agents/{name}.md` (Claude Code, Gemini CLI). Tool: `.claude/agents/`,
+  `.gemini/agents/`; shared: `~/.agents/agents/{name}.md`.
+- **Format**: YAML frontmatter + Markdown (`name` + `description` required).
+- **Discovery**: scan `.md` files inside `agents/` dirs; validate required frontmatter.
+- **Codex TOML**: Codex defines agents as `agents/{name}.toml`, but agentspec does not
+  yet parse or emit them; discovery is `.md`-only. The TOML schema in
+  `docs/resources.md` is a spec reference for a future addition.
 
 ## AGENTS.md (Project Config)
 
 - **Location**: project root `./AGENTS.md` (nested files resolve closest-wins in monorepos).
-- **Format**: plain Markdown, no required frontmatter — a tool-agnostic README for agents.
+- **Format**: plain Markdown, no required frontmatter; a tool-agnostic README for agents.
 - **Discovery**: filename match in project roots (dirs containing `.git`).
 
 ## CLAUDE.md (Claude Code Config)
@@ -67,17 +67,20 @@ Config dir: `~/.config/agentspec/config.yml`.
 ## llms.txt
 
 - **Location**: project root `./llms.txt` (and optional `/llms-full.txt`).
-- **Format**: Markdown in required order — H1 name, optional blockquote summary,
+- **Format**: Markdown in required order: H1 name, optional blockquote summary,
   optional body, optional H2 link sections (`[name](url): description`), optional `Optional` H2.
 - **Discovery**: filename match in project roots.
 
 ## Instruction Files
 
-Per-tool config files each tool reads natively.
+Per-tool config files each tool reads natively (mirrors `PROJECT_FILES` in
+`crates/agentspec/src/project_files.rs`).
 
-- **Files**: `.cursorrules` (Cursor), `.clinerules` (Cline), `GEMINI.md` (Gemini CLI),
-  `.github/copilot-instructions.md` (GitHub Copilot), `codex-instructions.md` (Codex).
-- **Location**: project root (or `.github/` for Copilot).
+- **Files**: `CLAUDE.md` (Claude Code), `GEMINI.md` (Gemini CLI),
+  `.github/copilot-instructions.md` (GitHub Copilot), `codex.md` (Codex; global
+  `~/.codex/instructions.md`), `.cursorrules` and `.cursor/rules/` directory (Cursor),
+  `.clinerules` (Cline), `.windsurfrules` (Windsurf).
+- **Location**: project root (or `.github/` for Copilot, `.cursor/` for Cursor rules).
 - **Format**: plain Markdown, no required frontmatter.
 - **Discovery**: filename match against the known list; owning tool derived from filename.
   `project sync` snapshots these into `~/.agents/projects/<project>/`.
