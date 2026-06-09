@@ -65,9 +65,9 @@ fn render_plan(name: &str, meta: &ArtifactMeta, session: &str, body: &str) -> St
     } else {
         meta.summary.clone()
     };
-    // Build frontmatter via serde_yaml so values containing `:`, `#`, newlines,
+    // Build frontmatter via serde_yaml_ng so values containing `:`, `#`, newlines,
     // or a stray `---` are quoted/escaped rather than producing malformed YAML.
-    let mut fm = serde_yaml::Mapping::new();
+    let mut fm = serde_yaml_ng::Mapping::new();
     fm.insert("name".into(), name.into());
     fm.insert("description".into(), description.into());
     fm.insert("source".into(), "gemini-antigravity".into());
@@ -76,7 +76,7 @@ fn render_plan(name: &str, meta: &ArtifactMeta, session: &str, body: &str) -> St
     if !meta.updated_at.is_empty() {
         fm.insert("updated_at".into(), meta.updated_at.as_str().into());
     }
-    let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(fm)).unwrap_or_default();
+    let yaml = serde_yaml_ng::to_string(&serde_yaml_ng::Value::Mapping(fm)).unwrap_or_default();
 
     let mut out = String::new();
     out.push_str("---\n");
@@ -207,7 +207,7 @@ pub fn list_plans(json: bool) -> Result<()> {
 fn read_plan_description(path: &Path) -> Option<String> {
     let content = std::fs::read_to_string(path).ok()?;
     let parsed = frontmatter::parse(&content).ok()?;
-    let fm: serde_yaml::Value = serde_yaml::from_str(&parsed.frontmatter).ok()?;
+    let fm: serde_yaml_ng::Value = serde_yaml_ng::from_str(&parsed.frontmatter).ok()?;
     fm.get("description")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
@@ -217,17 +217,17 @@ fn read_plan_description(path: &Path) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn parse_fm(md: &str) -> serde_yaml::Mapping {
+    fn parse_fm(md: &str) -> serde_yaml_ng::Mapping {
         let parsed = frontmatter::parse(md).unwrap();
-        serde_yaml::from_str::<serde_yaml::Value>(&parsed.frontmatter)
+        serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&parsed.frontmatter)
             .unwrap()
             .as_mapping()
             .unwrap()
             .clone()
     }
 
-    fn fm_str(fm: &serde_yaml::Mapping, key: &str) -> Option<String> {
-        fm.get(serde_yaml::Value::String(key.into()))
+    fn fm_str(fm: &serde_yaml_ng::Mapping, key: &str) -> Option<String> {
+        fm.get(serde_yaml_ng::Value::String(key.into()))
             .and_then(|v| v.as_str())
             .map(String::from)
     }
@@ -288,7 +288,7 @@ mod tests {
         let fm = parse_fm(&md);
         assert_eq!(fm_str(&fm, "description").unwrap(), "Imported task plan");
         assert!(
-            fm.get(serde_yaml::Value::String("updated_at".into()))
+            fm.get(serde_yaml_ng::Value::String("updated_at".into()))
                 .is_none()
         );
     }

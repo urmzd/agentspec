@@ -1,0 +1,36 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: agent
+name: infra-agent
+description: Manages infrastructure changes end to end.
+body: "You manage infrastructure.\n\nApply changes only after the plan is approved.\n"
+tools:
+  - Bash
+  - Read
+  - Write
+disallowed_tools:
+  - WebSearch
+model: claude-sonnet-4-5
+max_turns: 12
+color: purple
+permission_mode: acceptEdits
+background: true
+effort: high
+isolation: worktree
+initial_prompt: Plan before you apply.
+skills:
+  - terraform
+metadata:
+  customVendorField: 1
+extensions:
+  claude-code:
+    hooks:
+      preToolUse:
+        - command: "./guard.sh"
+          matcher: Bash
+    mcpServers:
+      github:
+        command: github-mcp
+    memory: project

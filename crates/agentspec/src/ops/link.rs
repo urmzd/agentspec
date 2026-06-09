@@ -61,16 +61,16 @@ pub fn link(
 
     let strategy = if copy {
         if shared_dir.is_dir() {
-            copy_dir_recursive(&shared_dir, &link_path)?;
+            crate::ops::manage::copy_dir(&shared_dir, &link_path)?;
         } else {
             std::fs::copy(&shared_dir, &link_path)?;
         }
-        println!("  copied {} '{}' to {}", kind, name, tool.name());
+        eprintln!("  copied {} '{}' to {}", kind, name, tool.name());
         LinkStrategy::Copy
     } else {
         let target = make_relative(&link_path, &shared_dir);
         std::os::unix::fs::symlink(&target, &link_path)?;
-        println!("  Linked {} '{}' to {}", kind, name, tool.name());
+        eprintln!("  Linked {} '{}' to {}", kind, name, tool.name());
         LinkStrategy::Symlink
     };
 
@@ -118,7 +118,7 @@ pub fn unlink(cfg: &mut Config, kind: ResourceKind, name: &str, tool_slug: &str)
     }
 
     std::fs::remove_file(&link_path)?;
-    println!("Unlinked {} '{}' from {}", kind, name, tool.name());
+    eprintln!("Unlinked {} '{}' from {}", kind, name, tool.name());
 
     // Remove the link record from config
     let tracked_kind: TrackedKind = kind.into();
@@ -162,14 +162,9 @@ pub fn unlink_from_all(cfg: &mut Config, kind: ResourceKind, name: &str) -> Resu
 }
 
 /// Compute a relative path from `from` to `to`.
-fn make_relative(from: &Path, to: &Path) -> std::path::PathBuf {
+pub(crate) fn make_relative(from: &Path, to: &Path) -> std::path::PathBuf {
     let from_dir = from.parent().unwrap();
     pathdiff::diff_paths(to, from_dir).unwrap_or_else(|| to.to_path_buf())
-}
-
-/// Public version of make_relative for use by other modules.
-pub fn make_relative_public(from: &Path, to: &Path) -> std::path::PathBuf {
-    make_relative(from, to)
 }
 
 /// Ensure all managed resources are symlinked to all installed tools.
@@ -302,7 +297,7 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
 
         let strategy = if copy {
             if shared_path.is_dir() {
-                copy_dir_recursive(&shared_path, &link_path)?;
+                crate::ops::manage::copy_dir(&shared_path, &link_path)?;
             } else {
                 std::fs::copy(&shared_path, &link_path)?;
             }
@@ -328,24 +323,4 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
     }
 
     Ok((reconciled, created))
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in walkdir::WalkDir::new(src)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let relative = entry.path().strip_prefix(src).unwrap();
-        let target = dst.join(relative);
-        if entry.file_type().is_dir() {
-            std::fs::create_dir_all(&target)?;
-        } else {
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::copy(entry.path(), &target)?;
-        }
-    }
-    Ok(())
 }

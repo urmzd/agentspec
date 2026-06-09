@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: instruction-file
+name: Gemini Instructions
+description: "Project instructions for Gemini CLI, used by the conformance suite."
+body: "## Style\n\nPrefer explicit names over abbreviations."

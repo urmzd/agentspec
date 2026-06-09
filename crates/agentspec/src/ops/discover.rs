@@ -11,6 +11,7 @@ use crate::inventory::{
 };
 use crate::ir::ResourceKind;
 use crate::ops::link;
+use crate::ops::manage::{copy_dir, resolve_tool_slugs};
 use crate::ops::memory;
 use crate::project_files;
 use crate::tools::{self, CodingTool};
@@ -110,15 +111,15 @@ pub fn has_valid_agent_frontmatter(path: &Path) -> bool {
         Ok(p) => p,
         Err(_) => return false,
     };
-    let fm: serde_yaml::Value = match serde_yaml::from_str(&parsed.frontmatter) {
+    let fm: serde_yaml_ng::Value = match serde_yaml_ng::from_str(&parsed.frontmatter) {
         Ok(v) => v,
         Err(_) => return false,
     };
     let Some(map) = fm.as_mapping() else {
         return false;
     };
-    map.contains_key(serde_yaml::Value::String("name".into()))
-        && map.contains_key(serde_yaml::Value::String("description".into()))
+    map.contains_key(serde_yaml_ng::Value::String("name".into()))
+        && map.contains_key(serde_yaml_ng::Value::String("description".into()))
 }
 
 /// Scan entries inside a directory during broad/targeted scan, discovering both
@@ -480,7 +481,7 @@ pub fn adopt(
         .find(|d| d.name == name && d.kind == kind)
         .ok_or_else(|| {
             AppError::Other(format!(
-                "{kind} '{name}' not found in discovery cache. Run `agentspec discover` first."
+                "{kind} '{name}' not found in discovery cache. Run `agentspec status` first."
             ))
         })?
         .clone();
@@ -548,7 +549,7 @@ pub fn adopt(
         } else {
             std::fs::remove_file(loc_path)?;
         }
-        let target = link::make_relative_public(loc_path, &abs_dest);
+        let target = link::make_relative(loc_path, &abs_dest);
         std::os::unix::fs::symlink(&target, loc_path)?;
     }
 
@@ -581,7 +582,7 @@ pub fn adopt(
         link::link_to_tools(cfg, resource_kind, name, &slugs, copy)?;
     }
 
-    println!(
+    eprintln!(
         "  {} Adopted {} '{}'",
         style("✓").green().bold(),
         kind,
@@ -604,8 +605,8 @@ pub fn adopt_all(cfg: &mut Config, all_tools: bool, copy: bool) -> Result<()> {
         .collect();
 
     if to_adopt.is_empty() {
-        println!(
-            "  {} Nothing to adopt. Run `agentspec discover` first.",
+        eprintln!(
+            "  {} Nothing to adopt. Run `agentspec status` first.",
             style("~").yellow()
         );
         return Ok(());
@@ -834,33 +835,78 @@ fn scan_plans_dir(cfg: &Config, found: &mut Vec<DiscoveredResource>) {
     }
 }
 
-fn resolve_tool_slugs(explicit: Option<&[String]>, all: bool) -> Vec<String> {
-    if all {
-        tools::installed_tools()
-            .iter()
-            .map(|t| t.slug().to_string())
-            .collect()
-    } else {
-        explicit.map(|s| s.to_vec()).unwrap_or_default()
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in walkdir::WalkDir::new(src)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let relative = entry.path().strip_prefix(src).unwrap();
-        let target = dst.join(relative);
-        if entry.file_type().is_dir() {
-            std::fs::create_dir_all(&target)?;
-        } else {
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::copy(entry.path(), &target)?;
-        }
+    fn write_skill(parent: &Path, name: &str) {
+        let dir = parent.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("SKILL.md"),
+            format!("---\nname: {name}\ndescription: test skill\n---\n\nbody\n"),
+        )
+        .unwrap();
     }
-    Ok(())
+
+    #[test]
+    fn broad_scan_skips_noise_dirs_targeted_scan_does_not() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_skill(&root.join("projects"), "visible-skill");
+        write_skill(&root.join("node_modules"), "dep-skill");
+        write_skill(&root.join(".git"), "git-skill");
+
+        let cfg = Config::empty();
+        let mut found = Vec::new();
+        broad_scan(root, &cfg, &mut found).unwrap();
+        let names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains(&"visible-skill"), "found: {names:?}");
+        assert!(!names.contains(&"dep-skill"), "found: {names:?}");
+        assert!(!names.contains(&"git-skill"), "found: {names:?}");
+
+        let mut found = Vec::new();
+        targeted_scan(&[root.join("node_modules")], &cfg, &mut found).unwrap();
+        let names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["dep-skill"]);
+    }
+
+    #[test]
+    fn broad_scan_discovers_agents_with_valid_frontmatter_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents = tmp.path().join("proj").join("agents");
+        std::fs::create_dir_all(&agents).unwrap();
+        std::fs::write(
+            agents.join("helper.md"),
+            "---\nname: helper\ndescription: test agent\n---\n\nbody\n",
+        )
+        .unwrap();
+        std::fs::write(agents.join("notes.md"), "just notes, no frontmatter\n").unwrap();
+
+        let cfg = Config::empty();
+        let mut found = Vec::new();
+        broad_scan(tmp.path(), &cfg, &mut found).unwrap();
+        let agent_names: Vec<&str> = found
+            .iter()
+            .filter(|d| d.kind == TrackedKind::Agent)
+            .map(|d| d.name.as_str())
+            .collect();
+        assert_eq!(agent_names, ["helper"]);
+    }
+
+    #[test]
+    fn has_valid_agent_frontmatter_requires_name_and_description() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ok = tmp.path().join("ok.md");
+        std::fs::write(&ok, "---\nname: x\ndescription: y\n---\nbody\n").unwrap();
+        assert!(has_valid_agent_frontmatter(&ok));
+
+        let missing_field = tmp.path().join("missing.md");
+        std::fs::write(&missing_field, "---\nname: x\n---\nbody\n").unwrap();
+        assert!(!has_valid_agent_frontmatter(&missing_field));
+
+        let no_frontmatter = tmp.path().join("plain.md");
+        std::fs::write(&no_frontmatter, "no frontmatter here\n").unwrap();
+        assert!(!has_valid_agent_frontmatter(&no_frontmatter));
+    }
 }

@@ -20,7 +20,10 @@ struct RawSkillFm {
     compatibility: Option<String>,
     #[serde(rename = "user-invocable")]
     user_invocable: Option<bool>,
-    metadata: Option<HashMap<String, serde_yaml::Value>>,
+    metadata: Option<HashMap<String, serde_yaml_ng::Value>>,
+    /// Out-of-spec top-level keys, preserved for round-tripping.
+    #[serde(flatten)]
+    extra: HashMap<String, serde_yaml_ng::Value>,
 }
 
 impl Adapter for AgentSkillsAdapter {
@@ -31,7 +34,7 @@ impl Adapter for AgentSkillsAdapter {
     fn parse(&self, path: &Path) -> Result<Resource> {
         let content = std::fs::read_to_string(path)?;
         let parsed = frontmatter::parse(&content)?;
-        let fm: RawSkillFm = serde_yaml::from_str(&parsed.frontmatter)?;
+        let fm: RawSkillFm = serde_yaml_ng::from_str(&parsed.frontmatter)?;
 
         let tools = fm
             .allowed_tools
@@ -42,8 +45,38 @@ impl Adapter for AgentSkillsAdapter {
         r.license = fm.license;
         r.compatibility = fm.compatibility;
         r.user_invocable = fm.user_invocable;
-        r.metadata = fm.metadata.unwrap_or_default();
+        // Fold out-of-spec top-level keys into metadata (the spec's home for
+        // extra properties); the explicit metadata block wins on collision.
+        r.metadata = fm.extra;
+        r.metadata.extend(fm.metadata.unwrap_or_default());
         Ok(r)
+    }
+
+    fn emit(&self, resource: &Resource) -> Result<String> {
+        let mut m = serde_yaml_ng::Mapping::new();
+        m.insert("name".into(), resource.name.clone().into());
+        m.insert("description".into(), resource.description.clone().into());
+        if let Some(tools) = &resource.tools {
+            m.insert("allowed-tools".into(), tools.join(" ").into());
+        }
+        if let Some(license) = &resource.license {
+            m.insert("license".into(), license.clone().into());
+        }
+        if let Some(compat) = &resource.compatibility {
+            m.insert("compatibility".into(), compat.clone().into());
+        }
+        if let Some(ui) = resource.user_invocable {
+            m.insert("user-invocable".into(), ui.into());
+        }
+        if !resource.metadata.is_empty() {
+            let mut meta = serde_yaml_ng::Mapping::new();
+            for (k, v) in super::sorted_yaml_entries(&resource.metadata) {
+                meta.insert(k.into(), v);
+            }
+            m.insert("metadata".into(), serde_yaml_ng::Value::Mapping(meta));
+        }
+        let yaml = serde_yaml_ng::to_string(&m)?;
+        Ok(crate::frontmatter::compose(&yaml, &resource.body))
     }
 
     fn validate(&self, resource: &Resource) -> Vec<String> {

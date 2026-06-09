@@ -1,0 +1,27 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: malformed
+tool_slug: claude-code
+cwd: /home/user/projects/demo
+started_at: "2026-01-02T12:00:00Z"
+ended_at: ~
+first_prompt: Survives the garbage above
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Survives the garbage above
+    timestamp: "2026-01-02T12:00:00Z"
+  - role: assistant
+    content:
+      - type: text
+        text: Still parsing.
+    timestamp: "2026-01-02T12:00:01Z"
+files_touched: []
+tools_used: []
+model: ~

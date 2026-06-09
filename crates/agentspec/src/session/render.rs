@@ -83,18 +83,11 @@ pub fn render_markdown(session: &SessionIR) -> String {
                 } => {
                     let label = if *is_error { "Error" } else { "Result" };
                     let truncated: String = content.chars().take(TOOL_RESULT_MAX_LEN).collect();
-                    let suffix = if content.len() > TOOL_RESULT_MAX_LEN {
-                        " ..."
-                    } else {
-                        ""
-                    };
+                    let is_truncated = content.chars().count() > TOOL_RESULT_MAX_LEN;
+                    let suffix = if is_truncated { " ..." } else { "" };
                     out.push_str(&format!(
                         "\n> **{label}**{}\n> ```\n> {}\n> ```\n",
-                        if content.len() > TOOL_RESULT_MAX_LEN {
-                            " (truncated)"
-                        } else {
-                            ""
-                        },
+                        if is_truncated { " (truncated)" } else { "" },
                         format!("{truncated}{suffix}").replace('\n', "\n> ")
                     ));
                 }
@@ -212,6 +205,44 @@ mod tests {
         assert!(md.contains("- **Next steps**: ns"));
         assert!(md.contains("## References"));
         assert!(md.contains("- **pr**: #42"));
+    }
+
+    #[test]
+    fn multibyte_tool_result_under_char_limit_is_not_marked_truncated() {
+        // 300 chars of 3-byte CJK: > 500 bytes but <= 500 chars.
+        let content = "日".repeat(300);
+        let mut s = base_session();
+        s.messages.push(super::super::ir::MessageIR {
+            role: RoleIR::Tool,
+            timestamp: None,
+            content: vec![ContentBlockIR::ToolResult {
+                tool_use_id: None,
+                content: content.clone(),
+                is_error: false,
+            }],
+        });
+        let md = render_markdown(&s);
+        assert!(!md.contains("(truncated)"));
+        assert!(!md.contains(" ..."));
+        assert!(md.contains(&content));
+    }
+
+    #[test]
+    fn long_tool_result_is_truncated_at_char_boundary() {
+        let content = "日".repeat(TOOL_RESULT_MAX_LEN + 1);
+        let mut s = base_session();
+        s.messages.push(super::super::ir::MessageIR {
+            role: RoleIR::Tool,
+            timestamp: None,
+            content: vec![ContentBlockIR::ToolResult {
+                tool_use_id: None,
+                content,
+                is_error: false,
+            }],
+        });
+        let md = render_markdown(&s);
+        assert!(md.contains("(truncated)"));
+        assert!(md.contains(" ..."));
     }
 
     #[test]

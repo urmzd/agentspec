@@ -1,0 +1,28 @@
+# agentspec
+
+> Universal agent skill and sub-agent manager: a Rust CLI + TUI that discovers, adopts, links, and verifies portable AI-agent resources (skills, agents, MCP servers, sessions, memories, instruction files, plans, permissions, hooks, plugins) across 11 AI coding tools, keeping a canonical store under `~/.agents/`.
+
+## Docs
+
+- [README](https://github.com/urmzd/agentspec/blob/main/README.md): Installation, quick start, full command reference
+- [AGENTS.md](https://github.com/urmzd/agentspec/blob/main/AGENTS.md): Architecture layers, commands, and extension guide for AI agents
+- [Resource Conventions](https://github.com/urmzd/agentspec/blob/main/docs/resources.md): File formats, locations, and discovery rules per resource kind
+- [ROADMAP](https://github.com/urmzd/agentspec/blob/main/ROADMAP.md): Shipped capabilities and future ideas
+
+## Key Files
+
+- [cli.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/cli.rs): clap definitions for the full CLI surface
+- [ir.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/ir.rs): Canonical Resource IR all vendor adapters target
+- [tools/mod.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/tools/mod.rs): CodingTool trait and the 11 supported tools
+- [adapters/mod.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/adapters/mod.rs): Adapter trait for vendor formats
+- [Justfile](https://github.com/urmzd/agentspec/blob/main/Justfile): Build, lint, and test commands
+
+## Skills
+
+- [resource-conventions](https://github.com/urmzd/agentspec/blob/main/skills/resource-conventions/SKILL.md): Where each resource kind lives and how it is discovered
+
+## Optional
+
+- [CHANGELOG](https://github.com/urmzd/agentspec/blob/main/CHANGELOG.md): Release history
+- [LICENSE](https://github.com/urmzd/agentspec/blob/main/LICENSE): Apache-2.0
+- [SECURITY](https://github.com/urmzd/agentspec/blob/main/SECURITY.md): Vulnerability reporting

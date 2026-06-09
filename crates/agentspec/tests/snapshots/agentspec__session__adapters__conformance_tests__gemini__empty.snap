@@ -1,0 +1,17 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: empty
+---
+id: 6d6d6d6d-0000-9999-8888-777766665555
+tool_slug: gemini-cli
+cwd: ~
+started_at: "2026-01-05T09:00:00Z"
+ended_at: ~
+first_prompt: ~
+summary: ~
+project: agentspec-fixture-project
+branch: ~
+messages: []
+files_touched: []
+tools_used: []
+model: ~

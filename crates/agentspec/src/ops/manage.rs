@@ -159,7 +159,7 @@ fn manage_local(
         SourceType::Local,
     )?;
 
-    println!("\n  {} resource(s) managed from {source}", installed);
+    eprintln!("\n  {} resource(s) managed from {source}", installed);
 
     Ok(())
 }
@@ -172,7 +172,7 @@ fn manage_git(
     all_tools: bool,
     copy: bool,
 ) -> Result<()> {
-    println!("  {} Cloning {source}...", style("↓").cyan().bold());
+    eprintln!("  {} Cloning {source}...", style("↓").cyan().bold());
 
     let (_tmp, install_dir) = clone_source_to_tempdir(gs)?;
 
@@ -186,7 +186,7 @@ fn manage_git(
         SourceType::Git,
     )?;
 
-    println!("\n  {} resource(s) managed from {source}", installed);
+    eprintln!("\n  {} resource(s) managed from {source}", installed);
 
     Ok(())
 }
@@ -255,7 +255,7 @@ fn install_from_dir(
         let dest = config::shared_skills_dir().join(&name);
 
         if dest.exists() {
-            println!("  {} {name} already exists, skipping", style("~").yellow());
+            eprintln!("  {} {name} already exists, skipping", style("~").yellow());
             continue;
         }
 
@@ -283,7 +283,7 @@ fn install_from_dir(
             link::link_to_tools(cfg, ResourceKind::Skill, &name, &slugs, copy)?;
         }
 
-        println!("  {} Managed skill '{}'", style("✓").green().bold(), name);
+        eprintln!("  {} Managed skill '{}'", style("✓").green().bold(), name);
         installed += 1;
     }
 
@@ -309,7 +309,7 @@ fn install_from_dir(
         let dest = config::shared_agents_dir().join(format!("{name}.md"));
 
         if dest.exists() {
-            println!("  {} {name} already exists, skipping", style("~").yellow());
+            eprintln!("  {} {name} already exists, skipping", style("~").yellow());
             continue;
         }
 
@@ -337,14 +337,14 @@ fn install_from_dir(
             link::link_to_tools(cfg, ResourceKind::Agent, &name, &slugs, copy)?;
         }
 
-        println!("  {} Managed agent '{}'", style("✓").green().bold(), name);
+        eprintln!("  {} Managed agent '{}'", style("✓").green().bold(), name);
         installed += 1;
     }
 
     Ok(installed)
 }
 
-fn resolve_tool_slugs(explicit: Option<&[String]>, all: bool) -> Vec<String> {
+pub(crate) fn resolve_tool_slugs(explicit: Option<&[String]>, all: bool) -> Vec<String> {
     if all {
         tools::installed_tools()
             .iter()
@@ -373,4 +373,102 @@ pub(crate) fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_source_prefers_existing_local_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        let local = tmp.path().to_string_lossy().to_string();
+        assert!(matches!(resolve_source(&local), SourceKind::Local(_)));
+        // No slash and not on disk: falls back to local (errors later).
+        assert!(matches!(
+            resolve_source("definitely-not-a-repo"),
+            SourceKind::Local(_)
+        ));
+    }
+
+    #[test]
+    fn resolve_source_parses_shorthand_and_urls() {
+        struct Case {
+            input: &'static str,
+            url: &'static str,
+            branch: Option<&'static str>,
+            subpath: Option<&'static str>,
+        }
+        let cases = [
+            Case {
+                input: "owner/repo",
+                url: "https://github.com/owner/repo.git",
+                branch: None,
+                subpath: None,
+            },
+            Case {
+                input: "owner/repo@skills/foo",
+                url: "https://github.com/owner/repo.git",
+                branch: None,
+                subpath: Some("skills/foo"),
+            },
+            Case {
+                input: "owner/repo#dev",
+                url: "https://github.com/owner/repo.git",
+                branch: Some("dev"),
+                subpath: None,
+            },
+            Case {
+                input: "owner/repo#dev@skills/foo",
+                url: "https://github.com/owner/repo.git",
+                branch: Some("dev"),
+                subpath: Some("skills/foo"),
+            },
+            Case {
+                input: "https://host.example/group/repo.git#main@sub",
+                url: "https://host.example/group/repo.git",
+                branch: Some("main"),
+                subpath: Some("sub"),
+            },
+        ];
+        for case in cases {
+            match resolve_source(case.input) {
+                SourceKind::Git(gs) => {
+                    assert_eq!(gs.url, case.url, "{}", case.input);
+                    assert_eq!(gs.branch.as_deref(), case.branch, "{}", case.input);
+                    assert_eq!(gs.subpath.as_deref(), case.subpath, "{}", case.input);
+                }
+                SourceKind::Local(p) => panic!("{}: parsed as local {p}", case.input),
+            }
+        }
+    }
+
+    #[test]
+    fn parse_suffixes_handles_all_combinations() {
+        assert_eq!(parse_suffixes(""), (None, None));
+        assert_eq!(parse_suffixes("#dev"), (Some("dev".into()), None));
+        assert_eq!(parse_suffixes("@sub/dir"), (None, Some("sub/dir".into())));
+        assert_eq!(
+            parse_suffixes("#dev@sub"),
+            (Some("dev".into()), Some("sub".into()))
+        );
+        assert_eq!(parse_suffixes("junk"), (None, None));
+    }
+
+    #[test]
+    fn copy_dir_copies_nested_trees() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(src.join("nested/deep")).unwrap();
+        std::fs::write(src.join("top.txt"), "top").unwrap();
+        std::fs::write(src.join("nested/deep/leaf.txt"), "leaf").unwrap();
+
+        let dst = tmp.path().join("dst");
+        copy_dir(&src, &dst).unwrap();
+        assert_eq!(std::fs::read_to_string(dst.join("top.txt")).unwrap(), "top");
+        assert_eq!(
+            std::fs::read_to_string(dst.join("nested/deep/leaf.txt")).unwrap(),
+            "leaf"
+        );
+    }
 }

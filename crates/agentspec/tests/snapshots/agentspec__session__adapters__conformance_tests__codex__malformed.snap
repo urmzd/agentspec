@@ -1,0 +1,22 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: feedface-0000-1111-2222-333344445555
+tool_slug: codex
+cwd: /home/user/projects/demo
+started_at: "2026-01-03T12:00:00Z"
+ended_at: ~
+first_prompt: Hello after garbage
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Hello after garbage
+    timestamp: "2026-01-03T12:00:01Z"
+files_touched: []
+tools_used: []
+model: ~

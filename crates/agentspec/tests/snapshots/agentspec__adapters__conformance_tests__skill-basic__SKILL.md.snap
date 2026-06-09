@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: skill
+name: demo-skill
+description: Demonstrates the minimal agentskills.io format.
+body: "# Demo Skill\n\nUse this skill when exercising the agentspec conformance suite.\n"

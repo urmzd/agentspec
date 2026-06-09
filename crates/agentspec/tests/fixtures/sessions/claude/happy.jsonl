@@ -1,0 +1,4 @@
+{"type":"file-history-snapshot","messageId":"snap-1","snapshot":{"trackedFiles":[]}}
+{"type":"user","cwd":"/home/user/projects/demo","timestamp":"2026-01-02T03:04:05Z","message":{"content":"Add a README to the demo project"}}
+{"type":"assistant","timestamp":"2026-01-02T03:04:07Z","message":{"content":[{"type":"text","text":"Creating README.md now."}]}}
+{"type":"user","timestamp":"2026-01-02T03:05:00Z","message":{"content":[{"type":"text","text":"Thanks, looks good"}]}}

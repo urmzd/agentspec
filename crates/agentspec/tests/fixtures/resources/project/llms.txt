@@ -1,0 +1,12 @@
+# Demo Project
+
+> Sample llms.txt used by the agentspec conformance suite.
+
+## Docs
+
+- [README](https://example.com/README.md): Project overview
+- [Architecture](https://example.com/docs/architecture.md): Layer map
+
+## Optional
+
+- [Changelog](https://example.com/CHANGELOG.md): Release notes

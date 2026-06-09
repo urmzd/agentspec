@@ -99,7 +99,7 @@ pub fn link_hook(name: &str, tool: Option<&str>, all_tools: bool) -> Result<()> 
             eprintln!("  {} {name} already linked to {slug}", style("~").yellow());
             continue;
         }
-        let target = link::make_relative_public(&link_path, &src);
+        let target = link::make_relative(&link_path, &src);
         std::os::unix::fs::symlink(&target, &link_path)?;
         eprintln!("  {} linked {name} → {slug}", style("✓").green().bold());
     }

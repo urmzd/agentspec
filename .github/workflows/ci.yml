@@ -35,16 +35,19 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy -- -D warnings
+      - run: cargo clippy --all-targets -- -D warnings
 
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test
+      - run: cargo test --locked
 
   integrate:
     name: Integration
@@ -61,4 +64,20 @@ jobs:
       - name: Verify binary runs
         run: |
           ./target/release/agentspec --help
-          ./target/release/agentspec --format json status
+          ./target/release/agentspec --format json status | jq -e '.managed'
+
+      # Each json-emitting subcommand must put exactly one JSON document on
+      # stdout; jq -e fails the job on contaminated or missing output.
+      - name: Verify --format json contract
+        run: |
+          bin=./target/release/agentspec
+          $bin --format json status --fast | jq -e '.managed'
+          $bin --format json sync --fast | jq -e '.projects_resynced >= 0'
+          $bin --format json manage list | jq -e '.unmanaged'
+          $bin --format json manage verify | jq -e 'type == "array"'
+          $bin --format json mcp list | jq -e '.store'
+          $bin --format json mcp sync | jq -e '.synced >= 0'
+          $bin --format json project status | jq -e '.synced'
+          $bin --format json prune | jq -e '.dry_run == true'
+          mkdir -p ~/.claude/projects
+          $bin --format json session list claude | jq -e 'type == "array"'

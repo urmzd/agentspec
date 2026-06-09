@@ -132,7 +132,7 @@ fn load_profile() -> Result<PermissionProfile> {
         )));
     }
     let text = std::fs::read_to_string(&path)?;
-    let profile: PermissionProfile = serde_yaml::from_str(&text)
+    let profile: PermissionProfile = serde_yaml_ng::from_str(&text)
         .map_err(|e| AppError::Other(format!("invalid permissions.yml: {e}")))?;
     Ok(profile)
 }
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn template_parses_as_profile() {
-        let p: PermissionProfile = serde_yaml::from_str(INIT_TEMPLATE).unwrap();
+        let p: PermissionProfile = serde_yaml_ng::from_str(INIT_TEMPLATE).unwrap();
         assert_eq!(p.allow.len(), 3);
         assert!(p.deny.is_empty());
     }

@@ -1,0 +1,32 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: happy
+tool_slug: claude-code
+cwd: /home/user/projects/demo
+started_at: "2026-01-02T03:04:05Z"
+ended_at: ~
+first_prompt: Add a README to the demo project
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Add a README to the demo project
+    timestamp: "2026-01-02T03:04:05Z"
+  - role: assistant
+    content:
+      - type: text
+        text: Creating README.md now.
+    timestamp: "2026-01-02T03:04:07Z"
+  - role: user
+    content:
+      - type: text
+        text: "Thanks, looks good"
+    timestamp: "2026-01-02T03:05:00Z"
+files_touched: []
+tools_used: []
+model: ~
