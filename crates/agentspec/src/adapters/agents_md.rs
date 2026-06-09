@@ -23,6 +23,14 @@ impl Adapter for AgentsMdAdapter {
         Ok(r)
     }
 
+    fn emit(&self, resource: &Resource) -> Result<String> {
+        Ok(emit_heading_doc(
+            &resource.name,
+            &resource.description,
+            &resource.body,
+        ))
+    }
+
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.name.is_empty() {
@@ -30,6 +38,22 @@ impl Adapter for AgentsMdAdapter {
         }
         issues
     }
+}
+
+/// Inverse of [`parse_heading_doc`]: `# name`, description paragraph, body.
+/// Public for reuse by `claude_md` adapter.
+pub fn emit_heading_doc(name: &str, description: &str, body: &str) -> String {
+    if name.is_empty() {
+        return body.to_string();
+    }
+    let mut out = format!("# {name}\n");
+    if !description.is_empty() {
+        out.push_str(&format!("\n{description}\n"));
+    }
+    if !body.is_empty() {
+        out.push_str(&format!("\n{body}\n"));
+    }
+    out
 }
 
 /// Extract name from first `# heading`, description from first paragraph, rest as body.

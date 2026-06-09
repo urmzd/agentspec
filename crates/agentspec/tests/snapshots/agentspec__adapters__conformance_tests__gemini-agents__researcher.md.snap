@@ -1,0 +1,23 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: agent
+name: researcher
+description: Performs background research with citations.
+body: "Research the topic and cite every source you use.\n"
+tools:
+  - google_web_search
+  - web_fetch
+model: gemini-2.5-pro
+max_turns: 8
+temperature: 0.4
+timeout_mins: 15
+metadata:
+  customGeminiField: experimental
+extensions:
+  gemini-cli:
+    kind: local
+    mcpServers:
+      context7:
+        command: context7-mcp

@@ -129,7 +129,7 @@ pub fn export_plugins(output: Option<&str>, json: bool) -> Result<()> {
     let serialized = if json {
         serde_json::to_string_pretty(&entries)?
     } else {
-        serde_yaml::to_string(&entries)
+        serde_yaml_ng::to_string(&entries)
             .map_err(|e| AppError::Other(format!("serialize failed: {e}")))?
     };
 
@@ -145,7 +145,7 @@ pub fn export_plugins(output: Option<&str>, json: bool) -> Result<()> {
             if let Some(parent) = manifest.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let yaml = serde_yaml::to_string(&entries)
+            let yaml = serde_yaml_ng::to_string(&entries)
                 .map_err(|e| AppError::Other(format!("serialize failed: {e}")))?;
             std::fs::write(&manifest, &yaml)?;
             eprintln!(

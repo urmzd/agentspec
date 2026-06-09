@@ -84,8 +84,15 @@ pub fn warn_integrity_issues(issues: &[IntegrityIssue]) {
     }
 }
 
-/// Explicit `agentspec verify` command.
-pub fn verify(cfg: &mut Config, accept: bool, accept_name: Option<&str>, json: bool) -> Result<()> {
+/// Explicit `agentspec verify` command. Returns the number of integrity
+/// issues found; the caller maps a nonzero count to a failing exit code
+/// after the config has been saved.
+pub fn verify(
+    cfg: &mut Config,
+    accept: bool,
+    accept_name: Option<&str>,
+    json: bool,
+) -> Result<usize> {
     let base = config::agents_base_dir();
 
     if accept {
@@ -108,14 +115,19 @@ pub fn verify(cfg: &mut Config, accept: bool, accept_name: Option<&str>, json: b
                 updated += 1;
             }
         }
-        if !json {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({ "accepted": updated }))?
+            );
+        } else {
             println!(
                 "  {} Updated {} resource hash(es)",
                 style("✓").green().bold(),
                 updated
             );
         }
-        return Ok(());
+        return Ok(0);
     }
 
     let issues = check_lockfile(cfg)?;
@@ -148,9 +160,5 @@ pub fn verify(cfg: &mut Config, accept: bool, accept_name: Option<&str>, json: b
         );
     }
 
-    if !issues.is_empty() {
-        std::process::exit(1);
-    }
-
-    Ok(())
+    Ok(issues.len())
 }

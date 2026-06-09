@@ -166,35 +166,51 @@ pub fn link_server(tool: Option<&str>, name: &str) -> Result<()> {
 }
 
 /// Link every server in the canonical store to all MCP-capable tools.
-pub fn sync_all_servers() -> Result<()> {
+pub fn sync_all_servers(json: bool) -> Result<()> {
+    let report = |synced: usize, tools: usize| -> Result<()> {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "synced": synced,
+                    "tools": tools,
+                }))?
+            );
+        }
+        Ok(())
+    };
+
     let stored = list_stored();
     if stored.is_empty() {
-        println!(
-            "  no servers in canonical store ({})",
-            config::shared_mcp_dir().display()
-        );
-        return Ok(());
+        if !json {
+            println!(
+                "  no servers in canonical store ({})",
+                config::shared_mcp_dir().display()
+            );
+        }
+        return report(0, 0);
     }
     let targets = mcp_targets();
     if targets.is_empty() {
-        println!("  no installed tools with MCP config support found");
-        return Ok(());
+        if !json {
+            println!("  no installed tools with MCP config support found");
+        }
+        return report(0, 0);
     }
-    let mut count = 0;
-    for (name, json) in &stored {
+    for (name, config) in &stored {
         for (slug, path) in &targets {
-            inject(path, name, json)?;
+            inject(path, name, config)?;
             eprintln!("  {name} → {slug}");
-            count += 1;
         }
     }
-    println!(
-        "  synced {} canonical server(s) to {} tool(s)",
-        stored.len(),
-        targets.len()
-    );
-    let _ = count;
-    Ok(())
+    if !json {
+        println!(
+            "  synced {} canonical server(s) to {} tool(s)",
+            stored.len(),
+            targets.len()
+        );
+    }
+    report(stored.len(), targets.len())
 }
 
 /// Remove a server from tool configs, and optionally the canonical store.
@@ -282,8 +298,33 @@ fn server_summary(config: &Value) -> String {
 }
 
 /// List the canonical store and each tool's registered MCP servers.
-pub fn list_servers() -> Result<()> {
+pub fn list_servers(json: bool) -> Result<()> {
     let stored = list_stored();
+
+    if json {
+        let store: serde_json::Map<String, Value> = stored.iter().cloned().collect();
+        let mut tools = serde_json::Map::new();
+        for (slug, path) in mcp_targets() {
+            if !path.exists() {
+                continue;
+            }
+            let root = read_json(&path);
+            if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object())
+                && !servers.is_empty()
+            {
+                tools.insert(slug, Value::Object(servers.clone()));
+            }
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "store": store,
+                "tools": tools,
+            }))?
+        );
+        return Ok(());
+    }
+
     println!("{}", style("canonical store (~/.agents/mcp):").bold());
     if stored.is_empty() {
         println!("  (none)");

@@ -208,7 +208,7 @@ fn quick_parse_meta(session_dir: &Path) -> Result<SessionMetaIR> {
     })
 }
 
-fn parse_session(session_dir: &Path) -> Result<SessionIR> {
+pub(crate) fn parse_session(session_dir: &Path) -> Result<SessionIR> {
     let path = events_file(session_dir);
     let content = fs::read_to_string(&path)?;
 

@@ -117,7 +117,7 @@ fn quick_parse_meta(path: &Path, project_name: &str) -> Result<SessionMetaIR> {
     })
 }
 
-fn parse_session(path: &Path, project_name: &str) -> Result<SessionIR> {
+pub(crate) fn parse_session(path: &Path, project_name: &str) -> Result<SessionIR> {
     let content = fs::read_to_string(path)?;
     let v: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| AppError::Other(format!("Failed to parse {}: {e}", path.display())))?;

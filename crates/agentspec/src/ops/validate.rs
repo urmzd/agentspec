@@ -5,7 +5,7 @@ use console::style;
 use crate::adapters;
 use crate::error::{AppError, Result};
 
-pub fn validate(path: Option<&str>) -> Result<()> {
+pub fn validate(path: Option<&str>, json: bool) -> Result<()> {
     let path = resolve_path(path)?;
 
     let adapter = adapters::adapter_for_path(&path)
@@ -14,7 +14,18 @@ pub fn validate(path: Option<&str>) -> Result<()> {
     let resource = adapter.parse(&path)?;
     let issues = adapter.validate(&resource);
 
-    if issues.is_empty() {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": resource.name,
+                "kind": format!("{}", resource.kind),
+                "vendor": adapter.vendor(),
+                "valid": issues.is_empty(),
+                "issues": issues,
+            }))?
+        );
+    } else if issues.is_empty() {
         println!(
             "  {} {} '{}' is valid ({})",
             style("✓").green().bold(),

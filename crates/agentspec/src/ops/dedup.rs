@@ -264,3 +264,87 @@ pub fn dedup(cfg: &Config, by_hash: bool, by_name: bool, json: bool) -> Result<(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::inventory::{DiscoveredResource, DiscoveryLocation, SourceType, TrackedResource};
+
+    fn managed(name: &str, hash: &str) -> TrackedResource {
+        TrackedResource::new(
+            name.to_string(),
+            TrackedKind::Skill,
+            "discovered".to_string(),
+            SourceType::Discovered,
+            format!("skills/{name}"),
+            hash.to_string(),
+        )
+    }
+
+    fn found(name: &str, hash: Option<&str>, paths: &[&str]) -> DiscoveredResource {
+        DiscoveredResource {
+            name: name.to_string(),
+            kind: TrackedKind::Skill,
+            found_in: paths
+                .iter()
+                .map(|p| DiscoveryLocation {
+                    tool: "claude-code".to_string(),
+                    path: p.to_string(),
+                })
+                .collect(),
+            content_hash: hash.map(String::from),
+        }
+    }
+
+    #[test]
+    fn hash_duplicates_group_managed_and_discovered_copies() {
+        let mut cfg = Config::empty();
+        cfg.resources.push(managed("alpha", "sha256:dead"));
+        cfg.discovered
+            .push(found("alpha-copy", Some("sha256:dead"), &["/tools/a"]));
+        cfg.discovered
+            .push(found("unique", Some("sha256:beef"), &["/tools/b"]));
+
+        let groups = find_hash_duplicates(&cfg);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].key, "sha256:dead");
+        assert_eq!(groups[0].members.len(), 2);
+        assert_eq!(groups[0].members.iter().filter(|m| m.managed).count(), 1);
+    }
+
+    #[test]
+    fn hash_duplicates_ignore_resources_without_hashes() {
+        let mut cfg = Config::empty();
+        cfg.resources.push(managed("no-hash-a", ""));
+        cfg.resources.push(managed("no-hash-b", ""));
+        cfg.discovered.push(found("no-hash-c", None, &["/a"]));
+        cfg.discovered.push(found("no-hash-d", None, &["/b"]));
+        assert!(find_hash_duplicates(&cfg).is_empty());
+    }
+
+    #[test]
+    fn name_duplicates_count_each_discovered_location() {
+        let mut cfg = Config::empty();
+        cfg.resources.push(managed("alpha", "sha256:aaa"));
+        cfg.discovered.push(found(
+            "alpha",
+            Some("sha256:bbb"),
+            &["/tools/a", "/tools/b"],
+        ));
+
+        let groups = find_name_duplicates(&cfg);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].key, "skill/alpha");
+        assert_eq!(groups[0].members.len(), 3);
+    }
+
+    #[test]
+    fn no_duplicates_for_distinct_resources() {
+        let mut cfg = Config::empty();
+        cfg.resources.push(managed("alpha", "sha256:aaa"));
+        cfg.discovered
+            .push(found("beta", Some("sha256:bbb"), &["/tools/a"]));
+        assert!(find_hash_duplicates(&cfg).is_empty());
+        assert!(find_name_duplicates(&cfg).is_empty());
+    }
+}

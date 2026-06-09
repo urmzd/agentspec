@@ -1,0 +1,5 @@
+{"type":"user","cwd":"/home/user/projects/demo","timestamp":"2026-01-02T10:00:00Z","message":{"content":"List the files in this directory"}}
+{"type":"assistant","timestamp":"2026-01-02T10:00:02Z","message":{"content":[{"type":"text","text":"Running ls."},{"type":"tool_use","id":"toolu_01","name":"Bash","input":{"command":"ls"}}]}}
+{"type":"assistant","timestamp":"2026-01-02T10:00:03Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"Cargo.toml\nsrc","is_error":false}]}}
+{"type":"assistant","timestamp":"2026-01-02T10:00:04Z","message":{"content":[{"type":"tool_use","id":"toolu_02","name":"Read","input":{"file_path":"/home/user/projects/demo/Cargo.toml"}},{"type":"tool_result","tool_use_id":"toolu_02","content":{"lines":12},"is_error":true}]}}
+{"type":"result","timestamp":"2026-01-02T10:00:05Z","content":"Done: two entries found."}

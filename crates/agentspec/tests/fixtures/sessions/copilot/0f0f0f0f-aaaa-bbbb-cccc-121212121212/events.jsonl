@@ -1,0 +1,5 @@
+{"type":"session.start","timestamp":"2026-01-04T09:00:00Z","data":{"sessionId":"0f0f0f0f-aaaa-bbbb-cccc-121212121212","startTime":"2026-01-04T09:00:00Z","selectedModel":"gpt-5","context":{"cwd":"/home/user/projects/demo","branch":"main"}}}
+{"type":"user.message","timestamp":"2026-01-04T09:00:05Z","data":{"content":"Fix the failing unit test"}}
+{"type":"assistant.message","timestamp":"2026-01-04T09:00:10Z","data":{"content":"Looking at the test now.","toolRequests":[{"id":"call_1","function":{"name":"bash","arguments":"{\"cmd\":\"cargo test\"}"}}]}}
+{"type":"tool.result","timestamp":"2026-01-04T09:00:15Z","data":{"toolCallId":"call_1","result":"1 failed"}}
+{"type":"assistant.message","timestamp":"2026-01-04T09:00:20Z","data":{"content":"The assertion expected 2 but got 3; updating it."}}

@@ -1,0 +1,8 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: project-config
+name: Demo Project Memory
+description: "Project memory for Claude Code, used by the conformance suite."
+body: "## Commands\n\n- Build: `cargo build`\n- Test: `cargo test`"

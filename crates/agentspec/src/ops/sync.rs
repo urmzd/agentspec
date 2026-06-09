@@ -66,7 +66,7 @@ pub fn sync(
     if !json {
         println!("  {} Resyncing tracked projects...", style("→").cyan());
     }
-    let _ = project_sync::resync_all(cfg, false);
+    let (projects_resynced, files_updated) = project_sync::resync_all(cfg, json).unwrap_or((0, 0));
 
     // 5. Discover and register MCP servers from .mcp.json files
     if !json {
@@ -78,13 +78,15 @@ pub fn sync(
     // 6. Verify integrity
     let issues = verify::verify_integrity(cfg)?;
 
-    // 6. Report
+    // 7. Report
     if json {
         let report = serde_json::json!({
             "managed": cfg.resources.len(),
             "discovered": cfg.discovered.len(),
             "links_reconciled": reconciled,
             "links_created": linked,
+            "projects_resynced": projects_resynced,
+            "files_updated": files_updated,
             "integrity_issues": issues.len(),
         });
         println!("{}", serde_json::to_string_pretty(&report)?);

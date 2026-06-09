@@ -1,0 +1,27 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: meta
+tool_slug: claude-code
+cwd: /home/user/projects/demo
+started_at: "2026-01-02T11:00:00Z"
+ended_at: ~
+first_prompt: Real first prompt after the meta lines
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Real first prompt after the meta lines
+    timestamp: "2026-01-02T11:00:02Z"
+  - role: assistant
+    content:
+      - type: text
+        text: Acknowledged.
+    timestamp: "2026-01-02T11:00:05Z"
+files_touched: []
+tools_used: []
+model: ~

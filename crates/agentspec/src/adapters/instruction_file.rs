@@ -31,6 +31,19 @@ impl Adapter for InstructionFileAdapter {
         Ok(r)
     }
 
+    fn emit(&self, resource: &Resource) -> Result<String> {
+        // A heading is only re-emitted alongside a description: when the
+        // description is empty the parsed name may have come from the
+        // filename, and a fabricated heading would change the parse.
+        if resource.description.is_empty() {
+            return Ok(resource.body.clone());
+        }
+        Ok(format!(
+            "# {}\n\n{}\n\n{}\n",
+            resource.name, resource.description, resource.body
+        ))
+    }
+
     fn validate(&self, resource: &Resource) -> Vec<String> {
         let mut issues = Vec::new();
         if resource.body.is_empty() {

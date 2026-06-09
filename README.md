@@ -25,7 +25,7 @@
     <td align="center">
       <img src="showcase/tui-demo.gif" alt="agentspec TUI demo" width="400" />
       <br />
-      <sub><b>Interactive TUI — all six tabs</b></sub>
+      <sub><b>Interactive TUI: all six tabs</b></sub>
     </td>
     <td align="center">
       <img src="showcase/tui.png" alt="agentspec TUI link picker" width="400" />
@@ -50,7 +50,7 @@
 - **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
 - **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
-- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs. Preview, link, and delete resources without leaving the terminal — it inherits your terminal theme.
+- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs. Preview, link, and delete resources without leaving the terminal. It inherits your terminal theme.
 - **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini) plus instruction-file adapters (AGENTS.md, CLAUDE.md, llms.txt). Copilot is supported as a session source.
 
 ### Supported tools
@@ -114,7 +114,7 @@ agentspec manage list --dedup                # Show duplicate resources
 agentspec manage link <name> <tool>          # Link a resource to a tool
 agentspec manage unlink <name> <tool>        # Unlink a resource from a tool
 agentspec manage validate [path]             # Validate a SKILL.md or AGENT.md
-agentspec manage create --name <n> --kind skill  # Scaffold a new resource
+agentspec manage create <name> --kind skill  # Scaffold a new resource
 agentspec manage update [name]               # Re-pull and refresh a resource (or all)
 agentspec manage verify                      # Verify resource integrity (checksums)
 agentspec manage verify --accept             # Accept current state and update hashes
@@ -126,8 +126,8 @@ agentspec manage memory --push               # Push shared memories back into to
 # Project config sync
 agentspec project sync                       # Sync project instruction files to shared store
 agentspec project status                     # Show project sync state
-agentspec project desync                     # Remove project from shared store
-agentspec project remove                     # Delete project config entirely
+agentspec project desync <project>           # Stop auto-sync (synced copy stays but goes stale)
+agentspec project remove <project>           # Delete the synced copy (originals untouched)
 
 # Sessions
 agentspec session find                       # Fuzzy-find a session across sources
@@ -167,8 +167,8 @@ agentspec hooks list                          # Show canonical store + per-tool 
 agentspec hooks link pre-commit.sh --all-tools  # Link a stored hook into tool hook dirs
 
 # Cleanup
-agentspec prune                              # Remove broken resources and stale symlinks
-agentspec prune --yes                        # Skip confirmation prompt
+agentspec prune                              # Dry-run report of broken resources and stale symlinks
+agentspec prune --yes                        # Actually remove them
 
 # Maintenance
 agentspec update                             # Update agentspec to the latest release
@@ -216,7 +216,7 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 | Crate | Description |
 |-------|-------------|
 | [`agentspec`](crates/agentspec) | The CLI + TUI described in this README |
-| [`agentspec-sdk`](crates/agentspec-sdk) | Rust SDK for bootstrapping AI-powered CLI tools — config and CLI scaffolding helpers |
+| [`agentspec-sdk`](crates/agentspec-sdk) | Rust SDK for bootstrapping AI-powered CLI tools: config and CLI scaffolding helpers |
 
 ## Roadmap
 

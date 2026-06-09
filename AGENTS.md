@@ -6,37 +6,9 @@
 
 ## Architecture
 
-Cargo workspace with two published crates: `crates/agentspec` (the CLI + TUI binary, async runtime via tokio) and `crates/agentspec-sdk` (a standalone SDK for bootstrapping AI-powered CLI tools — config and CLI scaffolding helpers; not consumed by the binary).
+Cargo workspace with two published crates: `crates/agentspec` (the CLI + TUI binary, fully synchronous) and `crates/agentspec-sdk` (a standalone SDK for bootstrapping AI-powered CLI tools: config and CLI scaffolding helpers; not consumed by the binary).
 
-Key layers (all paths relative to `crates/agentspec/`):
-
-| Layer | Path | Role |
-|-------|------|------|
-| IR | `src/ir.rs` | Canonical `Resource` type + 8 `ResourceKind`s (Skill, Agent, ProjectConfig, InstructionFile, LlmsTxt, Memory, Session, Plan) -- all vendor formats convert to/from this |
-| Adapters | `src/adapters/` | Vendor-specific parsers/emitters (agentskills, claude, gemini, agents_md, claude_md, instruction_file, llms_txt) |
-| Tools | `src/tools/mod.rs` | `CodingTool` trait + macro-defined impls for 11 AI tools |
-| MCP | `src/mcp.rs` | Canonical MCP server store (`~/.agents/mcp/`) + injection into tool configs |
-| Session | `src/session/` | Read adapters + session IR + markdown render + cross-tool sync |
-| Settings/JSON | `src/jsonfile.rs` | Sentinel-keyed JSON edits backing MCP + permissions config writes |
-| Inventory | `src/inventory.rs` | LIVE store: `Config` + `TrackedResource`, SHA-256 hashing |
-| Project files | `src/project_files.rs` | Project config / instruction-file discovery and readiness |
-| Ops | `src/ops/` | One module per command (create, dedup, discover, hooks, link, list, manage, memory, permissions, plans, plugins, project_sync, prune, refresh, remove, sync, validate, verify) |
-| TUI | `src/tui/screens/` | ratatui screens (skill/agent/tool/session/memory/config lists + preview, link-picker, and delete-confirm modals) |
-| CLI | `src/cli.rs` | clap derive command definitions |
-| Lock | `src/lockfile.rs` | LEGACY `.skill-lock.json` v3 serde (migration-only; superseded by the live inventory) |
-
-## Key Files
-
-All under `crates/agentspec/`:
-
-- `src/ir.rs` -- the canonical IR that all adapters target
-- `src/adapters/mod.rs` -- `Adapter` trait definition
-- `src/tools/mod.rs` -- `CodingTool` trait + `define_tool!` macro
-- `src/ops/link.rs` -- symlink creation, relative path computation, link reconciliation
-- `src/ops/sync.rs` -- full pipeline (discover, adopt, reconcile, link, verify)
-- `src/ops/manage.rs` -- `manage add` source resolution (local path, git URL, owner/repo)
-- `src/inventory.rs` -- `Config` struct, `TrackedResource`, SHA-256 hashing
-- `src/tui/app.rs` -- TUI state machine
+Anchors, all under `crates/agentspec/src/`: the canonical IR is the `Resource` type and 8 `ResourceKind`s in `ir.rs`; every vendor format converts to/from it through the `Adapter` trait defined in `adapters/mod.rs`. AI tools are described by the `CodingTool` trait and the `define_tool!` macro in `tools/mod.rs`. Live inventory state (`Config`, `TrackedResource`, SHA-256 hashing as the lock) lives in `inventory.rs`; `lockfile.rs` is legacy `.skill-lock.json` serde kept for migration only. Each CLI command maps to one module under `ops/` (clap definitions in `cli.rs`), session read adapters and the session IR live under `session/`, ratatui screens under `tui/screens/`, and sentinel-keyed JSON settings edits (MCP, permissions) in `jsonfile.rs`. Use `rg` on a trait or type name to find the matching implementations.
 
 ## Linking Mechanism
 
@@ -77,6 +49,7 @@ Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune
 2. Implement the `Adapter` trait (`parse`, `emit`, `validate`)
 3. Register in `crates/agentspec/src/adapters/mod.rs` (add a `match` arm in `adapter_for_path()`)
 4. Add corresponding `CodingTool` impl in `crates/agentspec/src/tools/mod.rs` via `define_tool!` macro
+5. Add an anonymized fixture under `crates/agentspec/tests/fixtures/` and extend the conformance suite (`src/adapters/conformance_tests.rs`, or `src/session/adapters/conformance_tests.rs` for session parsers): a golden snapshot in `tests/snapshots/` plus the `parse(emit(parse(f))) == parse(f)` round-trip case. Snapshot diffs are reviewable contract changes; regenerate deliberately with `INSTA_UPDATE=always cargo test`.
 
 ## Adding a New AI Tool
 

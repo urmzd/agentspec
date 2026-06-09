@@ -213,17 +213,17 @@ pub enum ProjectAction {
     },
     /// Stop auto-sync for a project (copy stays but goes stale)
     Desync {
-        /// Project name
+        /// Project name, path, or store key
         project: String,
     },
     /// Remove a project's synced copy from ~/.agents/ (originals untouched)
     Remove {
-        /// Project name
+        /// Project name, path, or store key
         project: String,
     },
     /// Show synced/desynced/discovered project status
     Status {
-        /// Show detailed status for a specific project
+        /// Show detailed status for a specific project (name, path, or store key)
         #[arg(long)]
         project: Option<String>,
     },

@@ -26,14 +26,14 @@ pub enum UpdateResult {
     Updated { from: String, to: String },
 }
 
-/// Detect the current platform target triple.
+/// Detect the current platform target triple. Only targets release.yml
+/// actually builds are listed.
 fn detect_target() -> Result<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => Ok("x86_64-unknown-linux-musl"),
         ("linux", "aarch64") => Ok("aarch64-unknown-linux-musl"),
         ("macos", "x86_64") => Ok("x86_64-apple-darwin"),
         ("macos", "aarch64") => Ok("aarch64-apple-darwin"),
-        ("windows", "x86_64") => Ok("x86_64-pc-windows-msvc"),
         (os, arch) => bail!("unsupported platform: {os}/{arch}"),
     }
 }

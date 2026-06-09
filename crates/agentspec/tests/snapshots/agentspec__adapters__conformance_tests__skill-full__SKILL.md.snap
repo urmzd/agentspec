@@ -1,0 +1,19 @@
+---
+source: crates/agentspec/src/adapters/conformance_tests.rs
+expression: resource
+---
+kind: skill
+name: release-helper
+description: "Cuts releases and validates changelogs across the workspace. Use when preparing or auditing a release.\n"
+body: "# Release Helper\n\n## Instructions\n\nRun the release pipeline:\n\n1. Validate the changelog.\n2. Tag the release.\n"
+tools:
+  - Bash
+  - Read
+  - Grep
+license: Apache-2.0
+compatibility: Requires git 2.40+
+user_invocable: true
+metadata:
+  author: urmzd
+  customVendorField: 1
+  version: 1.2.0

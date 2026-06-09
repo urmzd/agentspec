@@ -125,9 +125,10 @@ fn print_tool_legend(installed: &[Box<dyn CodingTool>]) {
 
 fn truncate(s: &str, max: usize) -> String {
     let first_line = s.lines().next().unwrap_or(s);
-    if first_line.len() <= max {
+    if first_line.chars().count() <= max {
         first_line.to_string()
     } else {
-        format!("{}...", &first_line[..max - 3])
+        let cut: String = first_line.chars().take(max - 3).collect();
+        format!("{cut}...")
     }
 }

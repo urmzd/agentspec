@@ -3,6 +3,7 @@ use crate::session::adapter::SessionAdapter;
 use crate::session::ir::*;
 use chrono::{DateTime, Utc};
 use std::fs;
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
 pub struct CodexSessionAdapter;
@@ -44,7 +45,7 @@ fn find_all_session_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn extract_session_id_from_filename(path: &Path) -> String {
+pub(crate) fn extract_session_id_from_filename(path: &Path) -> String {
     let stem = path
         .file_stem()
         .unwrap_or_default()
@@ -59,7 +60,7 @@ fn extract_session_id_from_filename(path: &Path) -> String {
     stem
 }
 
-fn parse_session_file(path: &Path) -> Result<SessionIR> {
+pub(crate) fn parse_session_file(path: &Path) -> Result<SessionIR> {
     let content = fs::read_to_string(path)?;
     let mut messages = Vec::new();
     let mut cwd = None;
@@ -112,13 +113,6 @@ fn parse_session_file(path: &Path) -> Result<SessionIR> {
 
                         let blocks = parse_codex_content(&payload["content"]);
                         if !blocks.is_empty() {
-                            if role == RoleIR::User
-                                && first_prompt.is_none()
-                                && let Some(ContentBlockIR::Text { text: t }) = blocks.first()
-                                && !t.starts_with('<')
-                            {
-                                first_prompt = Some(t.chars().take(100).collect());
-                            }
                             if role == RoleIR::User {
                                 let all_system = blocks.iter().all(|b| match b {
                                     ContentBlockIR::Text { text: t } => {
@@ -130,8 +124,16 @@ fn parse_session_file(path: &Path) -> Result<SessionIR> {
                                     }
                                     _ => false,
                                 });
+                                // Skip before capturing first_prompt so
+                                // injected context never becomes the prompt.
                                 if all_system {
                                     continue;
+                                }
+                                if first_prompt.is_none()
+                                    && let Some(ContentBlockIR::Text { text: t }) = blocks.first()
+                                    && !t.starts_with('<')
+                                {
+                                    first_prompt = Some(t.chars().take(100).collect());
                                 }
                             }
                             messages.push(MessageIR {
@@ -243,13 +245,14 @@ fn parse_codex_content(val: &serde_json::Value) -> Vec<ContentBlockIR> {
 
 fn quick_parse_meta(path: &Path) -> Result<SessionMetaIR> {
     let session_id = extract_session_id_from_filename(path);
-    let content = fs::read_to_string(path)?;
+    // Session files can be tens of MB; only the first lines are needed.
+    let reader = std::io::BufReader::new(fs::File::open(path)?);
     let mut cwd = None;
     let mut started_at = None;
     let mut first_prompt = None;
 
-    for line in content.lines().take(20) {
-        let v: serde_json::Value = match serde_json::from_str(line) {
+    for line in reader.lines().take(20).map_while(|l| l.ok()) {
+        let v: serde_json::Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => continue,
         };

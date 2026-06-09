@@ -1,6 +1,10 @@
 use console::style;
 
+use crate::adapters::Adapter;
+use crate::adapters::agentskills::AgentSkillsAdapter;
+use crate::adapters::claude::ClaudeAdapter;
 use crate::error::{AppError, Result};
+use crate::ir::Resource;
 
 pub fn create_skill(name: Option<&str>) -> Result<()> {
     let name = name
@@ -21,16 +25,18 @@ pub fn create_skill(name: Option<&str>) -> Result<()> {
     std::fs::create_dir_all(dir.join("references"))?;
     std::fs::create_dir_all(dir.join("scripts"))?;
 
-    let content = format!(
-        "---\nname: {name}\ndescription: |\n  {description}\n---\n\n# {name}\n\n## Instructions\n\n<!-- Add your skill instructions here -->\n"
+    let skill = Resource::new_skill(
+        name.clone(),
+        description,
+        format!("# {name}\n\n## Instructions\n\n<!-- Add your skill instructions here -->\n"),
     );
-    std::fs::write(dir.join("SKILL.md"), content)?;
+    std::fs::write(dir.join("SKILL.md"), AgentSkillsAdapter.emit(&skill)?)?;
 
-    println!(
+    eprintln!(
         "  {} Created skill scaffold at ./{name}/",
         style("✓").green().bold()
     );
-    println!("  Edit {name}/SKILL.md to add your instructions.");
+    eprintln!("  Edit {name}/SKILL.md to add your instructions.");
     Ok(())
 }
 
@@ -51,12 +57,15 @@ pub fn create_agent(name: Option<&str>) -> Result<()> {
     let description = prompt("Description (when should this agent be invoked?)");
     let model = prompt_default("Model (sonnet/opus/haiku/inherit)", "inherit");
 
-    let content = format!(
-        "---\nname: {name}\ndescription: |\n  {description}\nmodel: {model}\n---\n\nYou are a specialized agent.\n\n## Instructions\n\n<!-- Add your agent system prompt here -->\n"
+    let mut agent = Resource::new_agent(
+        name.clone(),
+        description,
+        "You are a specialized agent.\n\n## Instructions\n\n<!-- Add your agent system prompt here -->\n".to_string(),
     );
-    std::fs::write(&file, content)?;
+    agent.model = Some(model);
+    std::fs::write(&file, ClaudeAdapter.emit(&agent)?)?;
 
-    println!(
+    eprintln!(
         "  {} Created agent definition at ./{name}.md",
         style("✓").green().bold()
     );
@@ -88,7 +97,7 @@ pub fn create_project_config(name: Option<&str>) -> Result<()> {
     );
     std::fs::write(&file, content)?;
 
-    println!(
+    eprintln!(
         "  {} Created {filename} in current directory",
         style("✓").green().bold()
     );
@@ -111,7 +120,7 @@ pub fn create_llms_txt(_name: Option<&str>) -> Result<()> {
     );
     std::fs::write(&file, content)?;
 
-    println!(
+    eprintln!(
         "  {} Created llms.txt in current directory",
         style("✓").green().bold()
     );

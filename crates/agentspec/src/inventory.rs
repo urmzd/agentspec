@@ -175,13 +175,17 @@ impl Config {
             return Ok(Self::empty());
         }
         let data = std::fs::read_to_string(path)?;
-        let cfg: Self = serde_yaml::from_str(&data)?;
+        let cfg: Self = serde_yaml_ng::from_str(&data)?;
         Ok(cfg)
     }
 
+    /// Atomic write (temp file + rename) so a crash mid-write never leaves a
+    /// truncated config behind — this file is the single source of truth.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let data = serde_yaml::to_string(self)?;
-        std::fs::write(path, data)?;
+        let data = serde_yaml_ng::to_string(self)?;
+        let tmp = path.with_extension("yml.tmp");
+        std::fs::write(&tmp, data)?;
+        std::fs::rename(&tmp, path)?;
         Ok(())
     }
 
@@ -383,7 +387,7 @@ pub fn load_config() -> Result<Config> {
             #[serde(default)]
             resources: Vec<TrackedResource>,
         }
-        let old: OldLockfile = serde_yaml::from_str(&data)?;
+        let old: OldLockfile = serde_yaml_ng::from_str(&data)?;
         let cfg = Config {
             version: 1,
             last_scan: None,
@@ -402,4 +406,44 @@ pub fn load_config() -> Result<Config> {
 /// Save config to its OS-appropriate path.
 pub fn save_config(cfg: &Config) -> Result<()> {
     cfg.save(&config::config_path())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn save_then_load_roundtrips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("config.yml");
+
+        let mut cfg = Config::empty();
+        cfg.resources.push(TrackedResource::new(
+            "demo".into(),
+            TrackedKind::Skill,
+            "local".into(),
+            SourceType::Local,
+            "skills/demo".into(),
+            "sha256:abc".into(),
+        ));
+        cfg.add_project(TrackedProject {
+            name: "-tmp-demo".into(),
+            path: "/tmp/demo".into(),
+            sync: true,
+            synced_at: None,
+            config_hash: None,
+            source_hashes: HashMap::new(),
+        });
+
+        cfg.save(&path).unwrap();
+        // The temp file must not survive a successful save.
+        assert!(!path.with_extension("yml.tmp").exists());
+
+        let loaded = Config::load(&path).unwrap();
+        assert_eq!(loaded.resources.len(), 1);
+        assert_eq!(loaded.resources[0].name, "demo");
+        assert_eq!(loaded.resources[0].kind, TrackedKind::Skill);
+        assert_eq!(loaded.projects.len(), 1);
+        assert_eq!(loaded.projects[0].name, "-tmp-demo");
+    }
 }

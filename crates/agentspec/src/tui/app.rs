@@ -187,7 +187,7 @@ impl App {
 
         let skills = load_skills(&installed);
         let agents = load_agents(&installed);
-        let tool_entries = load_tool_entries(&installed);
+        let tool_entries = load_tool_entries();
 
         // Eager lightweight counts — full data loads on tab select
         let session_count = count_sessions();
@@ -213,7 +213,7 @@ impl App {
         })
     }
 
-    pub async fn run(
+    pub fn run(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
@@ -366,7 +366,7 @@ impl App {
                 self.installed_tools = installed.iter().map(|t| t.slug().to_string()).collect();
                 self.skills = load_skills(&installed);
                 self.agents = load_agents(&installed);
-                self.tool_entries = load_tool_entries(&installed);
+                self.tool_entries = load_tool_entries();
             }
         }
     }
@@ -757,7 +757,7 @@ fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
     entries
 }
 
-fn load_tool_entries(_installed: &[Box<dyn CodingTool>]) -> Vec<ToolEntry> {
+fn load_tool_entries() -> Vec<ToolEntry> {
     tools::all_tools()
         .into_iter()
         .map(|t| ToolEntry {

@@ -1,0 +1,27 @@
+---
+source: crates/agentspec/src/session/adapters/conformance_tests.rs
+expression: session
+---
+id: 1f2e3d4c-5b6a-7980-aabb-ccddeeff0011
+tool_slug: codex
+cwd: /home/user/projects/demo
+started_at: "2026-01-03T10:00:00Z"
+ended_at: ~
+first_prompt: Refactor the config loader
+summary: ~
+project: ~
+branch: ~
+messages:
+  - role: user
+    content:
+      - type: text
+        text: Refactor the config loader
+    timestamp: "2026-01-03T10:00:01Z"
+  - role: assistant
+    content:
+      - type: text
+        text: Starting with config.rs.
+    timestamp: "2026-01-03T10:00:05Z"
+files_touched: []
+tools_used: []
+model: ~

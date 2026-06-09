@@ -1,0 +1,29 @@
+{
+  "sessionId": "5e5e5e5e-1111-2222-3333-444444444444",
+  "projectHash": "agentspec-fixture-project",
+  "startTime": "2026-01-05T08:00:00Z",
+  "lastUpdated": "2026-01-05T08:30:00Z",
+  "messages": [
+    {
+      "type": "info",
+      "content": "Model switched to gemini-2.5-pro",
+      "timestamp": "2026-01-05T08:00:00Z"
+    },
+    {
+      "type": "user",
+      "content": [{ "text": "Summarize the architecture" }],
+      "timestamp": "2026-01-05T08:00:01Z"
+    },
+    {
+      "type": "gemini",
+      "content": "The project has three layers: cli, ops, inventory.",
+      "model": "gemini-2.5-pro",
+      "timestamp": "2026-01-05T08:00:10Z"
+    },
+    {
+      "type": "user",
+      "content": "Thanks",
+      "timestamp": "2026-01-05T08:01:00Z"
+    }
+  ]
+}
