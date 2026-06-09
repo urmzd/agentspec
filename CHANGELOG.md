@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.2 (2026-06-09)
+
+### Bug Fixes
+
+- honor the JSON contract, add vendor conformance suite, correctness fixes, dep purge (#14) ([299c04f](https://github.com/urmzd/agentspec/commit/299c04ff3db9abfd033ebf8cff1f2bfe44832038))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.10.1...v0.10.2)
+
+
 ## 0.10.1 (2026-06-05)
 
 ### Refactoring
