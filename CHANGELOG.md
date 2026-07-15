@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0 (2026-07-15)
+
+### Features
+
+- add fleet orchestration and session routing (#15) ([8854ae0](https://github.com/urmzd/agentspec/commit/8854ae0b04c6898338d917ad4688fff4d256a597))
+
+### Misc
+
+- bump GitHub Actions to Node 24 majors and switch app token to client-id ([0eb28c4](https://github.com/urmzd/agentspec/commit/0eb28c448ca4467424ac0f861028ffe08a96a9c5))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.10.2...v0.11.0)
+
+
 ## 0.10.2 (2026-06-09)
 
 ### Bug Fixes
