@@ -332,11 +332,11 @@ pub enum HooksAction {
 
 #[derive(Subcommand)]
 pub enum FleetAction {
-    /// Check tmux, agent CLIs, agentspec, and notifier availability
+    /// Check selected backend, agent CLIs, agentspec, and notifier availability
     Doctor,
-    /// Survey active tmux panes before adopting or spawning agents
+    /// Survey active backend state before adopting or spawning agents
     Survey {
-        /// Optional tmux session to inspect
+        /// Optional backend session or fleet to inspect
         session: Option<String>,
     },
     /// Create or adopt a fleet
@@ -415,7 +415,7 @@ pub enum FleetAction {
     State {
         /// Fleet/session name
         fleet: String,
-        /// Tmux pane id
+        /// Fleet pane id
         pane: String,
     },
     /// Record a fleet agent state transition
@@ -453,12 +453,12 @@ pub enum FleetAction {
         /// Fleet/session name
         fleet: String,
     },
-    /// Print the tmux attach command for a fleet
+    /// Print the backend attach or inspection command for a fleet
     Attach {
         /// Fleet/session name
         fleet: String,
     },
-    /// Tear down a fleet tmux session
+    /// Tear down a fleet in the selected backend
     Kill {
         /// Fleet/session name
         fleet: String,

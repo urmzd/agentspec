@@ -1269,9 +1269,13 @@ fn tmux_set_pane_option(pane: &str, option: &str, value: &str) -> Result<()> {
 
 fn tmux_pane_option(pane: &str, option: &str) -> Result<Option<String>> {
     let format = format!("#{{{option}}}");
-    let output = Command::new("tmux")
+    let output = match Command::new("tmux")
         .args(["display-message", "-p", "-t", pane, &format])
-        .output()?;
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
     if !output.status.success() {
         return Ok(None);
     }
