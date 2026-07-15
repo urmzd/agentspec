@@ -17,8 +17,9 @@ mod update;
 
 use clap::Parser;
 use cli::{
-    Cli, Command, HooksAction, ManageAction, McpAction, OutputFormat, PermissionsAction,
-    PlansAction, PluginsAction, ProjectAction, SessionAction,
+    Cli, Command, FleetAction, FleetBackend, HooksAction, ManageAction, McpAction, OutputFormat,
+    PermissionsAction, PlansAction, PluginsAction, ProjectAction, SessionAction,
+    SessionContextMode, WorktreeAction,
 };
 use inventory::{Config, TrackedKind};
 use ir::ResourceKind;
@@ -38,6 +39,82 @@ fn resolve_kind(cfg: &Config, name: &str) -> ResourceKind {
     }
     // Default to skill if unknown
     ResourceKind::Skill
+}
+
+fn session_context_mode(context: SessionContextMode) -> session::route::ContextMode {
+    match context {
+        SessionContextMode::Brief => session::route::ContextMode::Brief,
+        SessionContextMode::Full => session::route::ContextMode::Full,
+    }
+}
+
+fn fleet_backend_selection(backend: FleetBackend) -> ops::fleet::BackendSelection {
+    match backend {
+        FleetBackend::Auto => ops::fleet::BackendSelection::Auto,
+        FleetBackend::Store => ops::fleet::BackendSelection::Store,
+        FleetBackend::Tmux => ops::fleet::BackendSelection::Tmux,
+    }
+}
+
+fn active_backend_selection(
+    requested: FleetBackend,
+    active_backend: &str,
+) -> error::Result<ops::fleet::BackendSelection> {
+    if requested != FleetBackend::Auto {
+        return Ok(fleet_backend_selection(requested));
+    }
+
+    match active_backend {
+        "store" => Ok(ops::fleet::BackendSelection::Store),
+        "tmux" => Ok(ops::fleet::BackendSelection::Tmux),
+        other => Err(error::AppError::Other(format!(
+            "unknown active fleet backend: {other}"
+        ))),
+    }
+}
+
+fn context_label(context: session::route::ContextMode) -> &'static str {
+    match context {
+        session::route::ContextMode::Brief => "brief",
+        session::route::ContextMode::Full => "full",
+    }
+}
+
+fn print_session_policy(json: bool) -> color_eyre::Result<()> {
+    let policy = &session::route::ROUTING_POLICY;
+    if json {
+        println!("{}", serde_json::to_string_pretty(policy)?);
+        return Ok(());
+    }
+
+    println!("Session Routing Policy");
+    println!("Default context: {}", policy.default_context);
+    println!();
+    for mode in policy.modes {
+        let marker = if mode.default { " (default)" } else { "" };
+        println!("{}{}", mode.name, marker);
+        println!(
+            "  explicit: {}",
+            if mode.requires_explicit_selection {
+                "yes"
+            } else {
+                "no"
+            }
+        );
+        println!("  includes: {}", mode.includes.join(", "));
+        if mode.excludes.is_empty() {
+            println!("  excludes: none");
+        } else {
+            println!("  excludes: {}", mode.excludes.join(", "));
+        }
+        println!("  limits: {}", mode.limits.join(", "));
+    }
+    println!();
+    println!("Safeguards");
+    for safeguard in policy.safeguards {
+        println!("  - {safeguard}");
+    }
+    Ok(())
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -138,9 +215,32 @@ fn main() -> color_eyre::Result<()> {
             inventory::save_config(&cfg)?;
         }
         Some(Command::Session { action }) => match action {
+            SessionAction::Policy => {
+                print_session_policy(cli.format == OutputFormat::Json)?;
+            }
             SessionAction::Find => {
                 let (source, id) = session::find::run_find()?;
                 println!("{source} {id}");
+            }
+            SessionAction::Active { pane } => {
+                let active = session::active::active_sessions(pane.as_deref())?;
+                if cli.format == OutputFormat::Json {
+                    println!("{}", serde_json::to_string_pretty(&active)?);
+                } else if active.is_empty() {
+                    eprintln!("No active fleet panes found");
+                } else {
+                    for item in active {
+                        let session = item
+                            .session
+                            .as_ref()
+                            .map(|s| format!("{}:{} ({})", s.source, s.id, s.reason))
+                            .unwrap_or_else(|| "no session match".to_string());
+                        println!(
+                            "{}:{} | {} | {} | {}",
+                            item.backend, item.pane, item.tool, item.state, session
+                        );
+                    }
+                }
             }
             SessionAction::List { source } => {
                 let adapter = session::get_adapter(&source)?;
@@ -211,11 +311,282 @@ fn main() -> color_eyre::Result<()> {
                 target,
                 id,
                 last,
+                context,
+                note,
             } => {
-                session::sync::sync_session(&source, &target, id.as_deref(), last)?;
+                let context = session_context_mode(context);
+                let report = session::sync::sync_session(
+                    &source,
+                    &target,
+                    id.as_deref(),
+                    last,
+                    context,
+                    note.as_deref(),
+                )?;
+                if cli.format == OutputFormat::Json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "source": report.source,
+                            "target": report.target,
+                            "session_id": report.session_id,
+                            "context": context_label(report.context),
+                            "bytes": report.bytes,
+                            "path": report.path.display().to_string(),
+                        }))?
+                    );
+                }
             }
             SessionAction::Import { target, file } => {
                 session::sync::import_session(&target, &file)?;
+            }
+            SessionAction::Route {
+                source,
+                pane,
+                id,
+                last,
+                backend,
+                context,
+                note,
+                dry_run,
+            } => {
+                let context = session_context_mode(context);
+                if dry_run {
+                    let preview = session::route::preview_route_context(
+                        &source,
+                        &pane,
+                        id.as_deref(),
+                        last,
+                        context,
+                        note.as_deref(),
+                    )?;
+                    if cli.format == OutputFormat::Json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::json!({
+                                "source": preview.source,
+                                "session_id": preview.session_id,
+                                "pane": preview.pane,
+                                "context": context_label(preview.context),
+                                "bytes": preview.bytes,
+                                "dry_run": true,
+                                "markdown": preview.markdown,
+                            }))?
+                        );
+                    } else {
+                        print!("{}", preview.markdown);
+                    }
+                    return Ok(());
+                }
+
+                let backend = fleet_backend_selection(backend);
+                let report = session::route::route_session(
+                    &source,
+                    &pane,
+                    id.as_deref(),
+                    last,
+                    backend,
+                    context,
+                    note.as_deref(),
+                )?;
+                if cli.format == OutputFormat::Json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "source": report.source,
+                            "session_id": report.session_id,
+                            "pane": report.pane,
+                            "context": context_label(report.context),
+                            "bytes": report.bytes,
+                        }))?
+                    );
+                } else {
+                    eprintln!(
+                        "Routed {} context from {} session {} to {} ({} bytes)",
+                        context_label(report.context),
+                        report.source,
+                        report.session_id,
+                        report.pane,
+                        report.bytes
+                    );
+                }
+            }
+            SessionAction::RouteActive {
+                pane,
+                backend,
+                context,
+                note,
+                dry_run,
+            } => {
+                let active = session::active::best_for_pane(&pane)?;
+                let active_backend = active.backend.clone();
+                let Some(matched) = active.session else {
+                    return Err(error::AppError::Other(format!(
+                        "no matching session found for pane {pane}"
+                    ))
+                    .into());
+                };
+                let context = session_context_mode(context);
+                if dry_run {
+                    let preview = session::route::preview_route_context(
+                        &matched.source,
+                        &pane,
+                        Some(&matched.id),
+                        false,
+                        context,
+                        note.as_deref(),
+                    )?;
+                    if cli.format == OutputFormat::Json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::json!({
+                                "source": preview.source,
+                                "session_id": preview.session_id,
+                                "pane": preview.pane,
+                                "context": context_label(preview.context),
+                                "bytes": preview.bytes,
+                                "dry_run": true,
+                                "markdown": preview.markdown,
+                                "matched": {
+                                    "score": matched.score,
+                                    "reason": matched.reason,
+                                }
+                            }))?
+                        );
+                    } else {
+                        print!("{}", preview.markdown);
+                    }
+                    return Ok(());
+                }
+
+                let backend = active_backend_selection(backend, &active_backend)?;
+                let report = session::route::route_session(
+                    &matched.source,
+                    &pane,
+                    Some(&matched.id),
+                    false,
+                    backend,
+                    context,
+                    note.as_deref(),
+                )?;
+                if cli.format == OutputFormat::Json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "source": report.source,
+                            "session_id": report.session_id,
+                            "pane": report.pane,
+                            "context": context_label(report.context),
+                            "bytes": report.bytes,
+                            "matched": {
+                                "score": matched.score,
+                                "reason": matched.reason,
+                            }
+                        }))?
+                    );
+                } else {
+                    eprintln!(
+                        "Routed matched {} session {} to {} ({} bytes)",
+                        report.source, report.session_id, report.pane, report.bytes
+                    );
+                }
+            }
+            SessionAction::RouteFleet {
+                fleet,
+                backend,
+                context,
+                note,
+                dry_run,
+            } => {
+                let context = session_context_mode(context);
+                let active = session::active::active_sessions(None)?;
+                let mut routed = Vec::new();
+                let mut skipped = Vec::new();
+
+                for item in active.into_iter().filter(|item| item.fleet == fleet) {
+                    let Some(matched) = item.session else {
+                        skipped.push(serde_json::json!({
+                            "pane": item.pane,
+                            "agent": item.agent,
+                            "reason": "no-session-match",
+                        }));
+                        continue;
+                    };
+
+                    if dry_run {
+                        let preview = session::route::preview_route_context(
+                            &matched.source,
+                            &item.pane,
+                            Some(&matched.id),
+                            false,
+                            context,
+                            note.as_deref(),
+                        )?;
+                        if cli.format != OutputFormat::Json {
+                            println!(
+                                "\n--- {} / {} -> {} ({}) ---\n",
+                                matched.source, preview.session_id, item.pane, matched.reason
+                            );
+                            print!("{}", preview.markdown);
+                        }
+                        routed.push(serde_json::json!({
+                            "pane": preview.pane,
+                            "agent": item.agent,
+                            "source": preview.source,
+                            "session_id": preview.session_id,
+                            "context": context_label(preview.context),
+                            "bytes": preview.bytes,
+                            "markdown": preview.markdown,
+                            "matched": {
+                                "score": matched.score,
+                                "reason": matched.reason,
+                            }
+                        }));
+                    } else {
+                        let selected_backend = active_backend_selection(backend, &item.backend)?;
+                        let report = session::route::route_session(
+                            &matched.source,
+                            &item.pane,
+                            Some(&matched.id),
+                            false,
+                            selected_backend,
+                            context,
+                            note.as_deref(),
+                        )?;
+                        if cli.format != OutputFormat::Json {
+                            eprintln!(
+                                "Routed matched {} session {} to {} ({} bytes)",
+                                report.source, report.session_id, report.pane, report.bytes
+                            );
+                        }
+                        routed.push(serde_json::json!({
+                            "pane": report.pane,
+                            "agent": item.agent,
+                            "source": report.source,
+                            "session_id": report.session_id,
+                            "context": context_label(report.context),
+                            "bytes": report.bytes,
+                            "matched": {
+                                "score": matched.score,
+                                "reason": matched.reason,
+                            }
+                        }));
+                    }
+                }
+
+                if cli.format == OutputFormat::Json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "fleet": fleet,
+                            "dry_run": dry_run,
+                            "routed": routed,
+                            "skipped": skipped,
+                        }))?
+                    );
+                } else if routed.is_empty() {
+                    eprintln!("No matched active sessions found for fleet {fleet}");
+                }
             }
         },
         Some(Command::Prune { yes }) => {
@@ -475,6 +846,182 @@ fn main() -> color_eyre::Result<()> {
                 tool,
                 all_tools,
             } => ops::hooks::link_hook(&name, tool.as_deref(), all_tools)?,
+        },
+        Some(Command::Fleet { backend, action }) => {
+            let backend = match backend {
+                FleetBackend::Auto => ops::fleet::BackendSelection::Auto,
+                FleetBackend::Store => ops::fleet::BackendSelection::Store,
+                FleetBackend::Tmux => ops::fleet::BackendSelection::Tmux,
+            };
+            match action {
+                FleetAction::Doctor => {
+                    ops::fleet::doctor(backend, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Survey { session } => {
+                    ops::fleet::survey(
+                        backend,
+                        session.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Start { fleet } => {
+                    ops::fleet::start(backend, &fleet, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Adopt {
+                    fleet,
+                    pane,
+                    name,
+                    tool,
+                } => {
+                    ops::fleet::adopt(
+                        backend,
+                        &fleet,
+                        &pane,
+                        name.as_deref(),
+                        tool.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Group { fleet, name } => {
+                    ops::fleet::group(backend, &fleet, &name, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Spawn {
+                    fleet,
+                    window,
+                    tool,
+                    name,
+                    dir,
+                    worktree,
+                    repo,
+                    branch,
+                    base,
+                } => {
+                    if worktree.is_none() && (repo.is_some() || branch.is_some() || base.is_some())
+                    {
+                        return Err(error::AppError::Other(
+                            "--repo, --branch, and --base require --worktree".into(),
+                        )
+                        .into());
+                    }
+                    let worktree_dir = match worktree {
+                        Some(worktree) => {
+                            let created = ops::worktree::ensure(
+                                &worktree,
+                                repo.as_deref(),
+                                branch.as_deref(),
+                                base.as_deref(),
+                            )?;
+                            Some(created.path.to_string_lossy().to_string())
+                        }
+                        None => None,
+                    };
+                    let dir = worktree_dir.as_deref().or(dir.as_deref());
+                    ops::fleet::spawn(
+                        backend,
+                        &fleet,
+                        &window,
+                        &tool,
+                        name.as_deref(),
+                        dir,
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Send { pane, text } => {
+                    ops::fleet::send(
+                        backend,
+                        &pane,
+                        &text.join(" "),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Capture { pane, lines } => {
+                    ops::fleet::capture(backend, &pane, lines, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::List { fleet } => {
+                    ops::fleet::list(backend, &fleet, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::State { fleet, pane } => {
+                    ops::fleet::state(backend, &fleet, &pane, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Mark {
+                    fleet,
+                    pane,
+                    state,
+                    note,
+                } => {
+                    ops::fleet::mark(
+                        backend,
+                        &fleet,
+                        &pane,
+                        &state,
+                        note.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Event { fleet, line } => {
+                    ops::fleet::event(
+                        backend,
+                        &fleet,
+                        &line.join(" "),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Ping {
+                    fleet,
+                    message,
+                    pane,
+                } => {
+                    ops::fleet::ping(
+                        backend,
+                        &fleet,
+                        &message,
+                        pane.as_deref(),
+                        cli.format == OutputFormat::Json,
+                    )?;
+                }
+                FleetAction::Dashboard { fleet } => {
+                    ops::fleet::dashboard(backend, &fleet, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Attach { fleet } => {
+                    ops::fleet::attach(backend, &fleet, cli.format == OutputFormat::Json)?;
+                }
+                FleetAction::Kill { fleet } => {
+                    ops::fleet::kill(backend, &fleet, cli.format == OutputFormat::Json)?;
+                }
+            }
+        }
+        Some(Command::Worktree { action }) => match action {
+            WorktreeAction::List { repo } => {
+                ops::worktree::list(repo.as_deref(), cli.format == OutputFormat::Json)?;
+            }
+            WorktreeAction::Create {
+                name,
+                repo,
+                branch,
+                base,
+            } => {
+                ops::worktree::create(
+                    &name,
+                    repo.as_deref(),
+                    branch.as_deref(),
+                    base.as_deref(),
+                    cli.format == OutputFormat::Json,
+                )?;
+            }
+            WorktreeAction::Remove {
+                target,
+                repo,
+                force,
+                delete_branch,
+            } => {
+                ops::worktree::remove(
+                    &target,
+                    repo.as_deref(),
+                    force,
+                    delete_branch,
+                    cli.format == OutputFormat::Json,
+                )?;
+            }
         },
     }
 

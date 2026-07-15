@@ -6,6 +6,19 @@ pub enum OutputFormat {
     Json,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
+pub enum FleetBackend {
+    Auto,
+    Store,
+    Tmux,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
+pub enum SessionContextMode {
+    Brief,
+    Full,
+}
+
 #[derive(Parser)]
 #[command(
     name = "agentspec",
@@ -94,6 +107,19 @@ pub enum Command {
     Hooks {
         #[command(subcommand)]
         action: HooksAction,
+    },
+    /// Manage multi-agent fleets
+    Fleet {
+        /// Fleet backend (auto prefers tmux when available, otherwise store)
+        #[arg(long, value_enum, default_value = "auto")]
+        backend: FleetBackend,
+        #[command(subcommand)]
+        action: FleetAction,
+    },
+    /// Manage git worktrees under <repo>/.worktrees/
+    Worktree {
+        #[command(subcommand)]
+        action: WorktreeAction,
     },
     /// Update agentspec to the latest release
     Update,
@@ -305,6 +331,178 @@ pub enum HooksAction {
 }
 
 #[derive(Subcommand)]
+pub enum FleetAction {
+    /// Check selected backend, agent CLIs, agentspec, and notifier availability
+    Doctor,
+    /// Survey active backend state before adopting or spawning agents
+    Survey {
+        /// Optional backend session or fleet to inspect
+        session: Option<String>,
+    },
+    /// Create or adopt a fleet
+    Start {
+        /// Fleet/session name
+        fleet: String,
+    },
+    /// Tag an existing pane as a fleet agent
+    Adopt {
+        /// Fleet/session name
+        fleet: String,
+        /// Fleet pane id, such as %7 or store:fleet:agent-1
+        pane: String,
+        /// Agent display name
+        #[arg(long)]
+        name: Option<String>,
+        /// Agent tool name
+        #[arg(long)]
+        tool: Option<String>,
+    },
+    /// Add a workstream window to a fleet
+    Group {
+        /// Fleet/session name
+        fleet: String,
+        /// Window name
+        name: String,
+    },
+    /// Launch an agent CLI in a fleet window
+    Spawn {
+        /// Fleet/session name
+        fleet: String,
+        /// Window id or name
+        window: String,
+        /// Tool to launch: auto, claude, codex, copilot, or agy
+        tool: String,
+        /// Agent display name
+        #[arg(long)]
+        name: Option<String>,
+        /// Working directory for the agent CLI
+        #[arg(long, conflicts_with = "worktree")]
+        dir: Option<String>,
+        /// Create or reuse <repo>/.worktrees/<name> and launch the agent there
+        #[arg(long)]
+        worktree: Option<String>,
+        /// Repository path for --worktree (default: current directory)
+        #[arg(long)]
+        repo: Option<String>,
+        /// Branch to create for --worktree (default: worktree-<name>)
+        #[arg(long)]
+        branch: Option<String>,
+        /// Base ref for --worktree (default: origin/HEAD when set, otherwise HEAD)
+        #[arg(long)]
+        base: Option<String>,
+    },
+    /// Send a message to a fleet pane
+    Send {
+        /// Fleet pane id
+        pane: String,
+        /// Message text
+        #[arg(required = true, trailing_var_arg = true)]
+        text: Vec<String>,
+    },
+    /// Capture recent output from a pane
+    Capture {
+        /// Fleet pane id
+        pane: String,
+        /// Number of lines to capture
+        lines: Option<usize>,
+    },
+    /// List agents in a fleet with inferred state
+    List {
+        /// Fleet/session name
+        fleet: String,
+    },
+    /// Classify one fleet pane
+    State {
+        /// Fleet/session name
+        fleet: String,
+        /// Fleet pane id
+        pane: String,
+    },
+    /// Record a fleet agent state transition
+    Mark {
+        /// Fleet/session name
+        fleet: String,
+        /// Fleet pane id
+        pane: String,
+        /// New agent state
+        #[arg(value_parser = ["running", "idle", "needs-permission", "error", "stuck", "done", "relayed"])]
+        state: String,
+        /// Optional note to record with the transition
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Ingest a guardian state-transition contract line
+    Event {
+        /// Fleet/session name
+        fleet: String,
+        /// Guardian line: GUARDIAN[<pane>]: <state> - <summary> - <action>
+        #[arg(required = true, trailing_var_arg = true)]
+        line: Vec<String>,
+    },
+    /// Alert the user about a fleet event
+    Ping {
+        /// Fleet/session name
+        fleet: String,
+        /// Message text
+        message: String,
+        /// Optional pane id to target
+        pane: Option<String>,
+    },
+    /// Start or report the fleet dashboard
+    Dashboard {
+        /// Fleet/session name
+        fleet: String,
+    },
+    /// Print the backend attach or inspection command for a fleet
+    Attach {
+        /// Fleet/session name
+        fleet: String,
+    },
+    /// Tear down a fleet in the selected backend
+    Kill {
+        /// Fleet/session name
+        fleet: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum WorktreeAction {
+    /// List git worktrees for a repository
+    List {
+        /// Repository path (default: current directory)
+        repo: Option<String>,
+    },
+    /// Create a worktree under <repo>/.worktrees/<name>
+    Create {
+        /// Worktree slug and default branch suffix
+        name: String,
+        /// Repository path (default: current directory)
+        #[arg(long)]
+        repo: Option<String>,
+        /// Branch to create (default: worktree-<name>)
+        #[arg(long)]
+        branch: Option<String>,
+        /// Base ref (default: origin/HEAD when set, otherwise HEAD)
+        #[arg(long)]
+        base: Option<String>,
+    },
+    /// Remove a worktree under <repo>/.worktrees/
+    Remove {
+        /// Worktree name or path
+        target: String,
+        /// Repository path (default: current directory)
+        #[arg(long)]
+        repo: Option<String>,
+        /// Pass --force to git worktree remove
+        #[arg(long)]
+        force: bool,
+        /// Delete the checked-out branch after removing the worktree
+        #[arg(long)]
+        delete_branch: bool,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum PluginsAction {
     /// List installed plugins (Claude Code)
     List,
@@ -355,6 +553,8 @@ pub enum PlansAction {
 
 #[derive(Subcommand)]
 pub enum SessionAction {
+    /// Show the policy for routing or syncing context between sessions and fleet panes
+    Policy,
     /// List sessions for a source
     List {
         /// Source to list (claude, codex, copilot, gemini)
@@ -362,6 +562,12 @@ pub enum SessionAction {
     },
     /// Fuzzy-find a session across all sources
     Find,
+    /// Correlate active fleet panes with known session transcripts
+    Active {
+        /// Show only one fleet pane
+        #[arg(long)]
+        pane: Option<String>,
+    },
     /// Export a session as markdown
     Export {
         /// Source (claude, codex, copilot, gemini)
@@ -386,6 +592,12 @@ pub enum SessionAction {
         /// Use the most recent source session
         #[arg(long)]
         last: bool,
+        /// Context policy: brief excludes system/developer/tool output; full stages rendered transcript
+        #[arg(long, value_enum, default_value = "brief")]
+        context: SessionContextMode,
+        /// Add an operator note to the staged handoff
+        #[arg(long)]
+        note: Option<String>,
     },
     /// Import a markdown handoff into the canonical store for a target tool
     Import {
@@ -393,5 +605,63 @@ pub enum SessionAction {
         target: String,
         /// Path to the markdown handoff file
         file: String,
+    },
+    /// Route allowed session context into a fleet pane
+    Route {
+        /// Source tool (claude, codex, copilot, gemini)
+        source: String,
+        /// Target fleet pane id
+        pane: String,
+        /// Session ID (omit if using --last)
+        id: Option<String>,
+        /// Use the most recent source session
+        #[arg(long)]
+        last: bool,
+        /// Fleet backend used to deliver the context
+        #[arg(long, value_enum, default_value = "auto")]
+        backend: FleetBackend,
+        /// Context policy: brief excludes system/developer/tool output; full sends rendered transcript
+        #[arg(long, value_enum, default_value = "brief")]
+        context: SessionContextMode,
+        /// Add an operator note to the routed context
+        #[arg(long)]
+        note: Option<String>,
+        /// Render the routed context without sending it to the fleet pane
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Route the best-matched active session context into a fleet pane
+    RouteActive {
+        /// Target fleet pane id
+        pane: String,
+        /// Fleet backend used to deliver the context
+        #[arg(long, value_enum, default_value = "auto")]
+        backend: FleetBackend,
+        /// Context policy: brief excludes system/developer/tool output; full sends rendered transcript
+        #[arg(long, value_enum, default_value = "brief")]
+        context: SessionContextMode,
+        /// Add an operator note to the routed context
+        #[arg(long)]
+        note: Option<String>,
+        /// Render the routed context without sending it to the fleet pane
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Route matched active session context into every matched pane in a fleet
+    RouteFleet {
+        /// Fleet/session name
+        fleet: String,
+        /// Override delivery backend for all panes; auto uses each matched pane backend
+        #[arg(long, value_enum, default_value = "auto")]
+        backend: FleetBackend,
+        /// Context policy: brief excludes system/developer/tool output; full sends rendered transcript
+        #[arg(long, value_enum, default_value = "brief")]
+        context: SessionContextMode,
+        /// Add an operator note to each routed context
+        #[arg(long)]
+        note: Option<String>,
+        /// Render route previews without sending them to fleet panes
+        #[arg(long)]
+        dry_run: bool,
     },
 }

@@ -17,7 +17,16 @@ use console::style;
 
 use crate::config;
 use crate::error::{AppError, Result};
-use crate::session::{self, adapters, render};
+use crate::session::{self, adapters, route::ContextMode};
+
+pub struct SyncReport {
+    pub source: String,
+    pub target: String,
+    pub session_id: String,
+    pub context: ContextMode,
+    pub bytes: usize,
+    pub path: PathBuf,
+}
 
 /// Canonicalize a user-provided tool name into its session adapter slug.
 fn canonical_slug(name: &str) -> Result<String> {
@@ -66,7 +75,14 @@ fn write_handoff(dest: &Path, content: &str) -> Result<()> {
 }
 
 /// Translate a session from `source` into a portable handoff staged for `target`.
-pub fn sync_session(source: &str, target: &str, id: Option<&str>, last: bool) -> Result<()> {
+pub fn sync_session(
+    source: &str,
+    target: &str,
+    id: Option<&str>,
+    last: bool,
+    context: ContextMode,
+    note: Option<&str>,
+) -> Result<SyncReport> {
     let target_slug = canonical_slug(target)?;
     let adapter = session::get_adapter(source)?;
 
@@ -78,19 +94,27 @@ pub fn sync_session(source: &str, target: &str, id: Option<&str>, last: bool) ->
         return Err(AppError::Other("provide a session ID or use --last".into()));
     };
 
-    let markdown = render::render_markdown(&sess);
+    let markdown = session::route::render_context(&sess, context, note);
+    let bytes = markdown.len();
     let dest = store_for(&target_slug, &sess.id);
     write_handoff(&dest, &markdown)?;
 
     eprintln!(
-        "  {} synced {} session {} → {} handoff",
+        "  {} synced {} session {} → {} handoff ({context:?})",
         style("✓").green().bold(),
         adapter.tool_name(),
         sess.id,
         target_slug
     );
     eprintln!("  staged at {}", dest.display());
-    Ok(())
+    Ok(SyncReport {
+        source: adapter.tool_slug().to_string(),
+        target: target_slug,
+        session_id: sess.id,
+        context,
+        bytes,
+        path: dest,
+    })
 }
 
 /// Stage an external markdown handoff in the canonical store for `target`.

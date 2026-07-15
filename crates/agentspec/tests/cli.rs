@@ -5,7 +5,10 @@
 //! Each test runs against a throwaway HOME so no real user state is touched.
 
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::process::Command as StdCommand;
 
 use assert_cmd::Command;
 
@@ -22,6 +25,16 @@ fn stdout_json(stdout: &[u8]) -> serde_json::Value {
     let s = std::str::from_utf8(stdout).expect("stdout is not UTF-8");
     serde_json::from_str(s)
         .unwrap_or_else(|e| panic!("stdout is not a single JSON document: {e}\n---\n{s}"))
+}
+
+fn git(repo: &Path, args: &[&str]) {
+    let status = StdCommand::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .status()
+        .unwrap();
+    assert!(status.success(), "git command failed: {args:?}");
 }
 
 #[test]
@@ -189,6 +202,939 @@ fn session_list_and_export_json() {
     assert_eq!(v["id"], "abc-123");
     assert_eq!(v["source"], "claude");
     assert!(v["markdown"].as_str().unwrap().contains("hello agentspec"));
+}
+
+#[test]
+fn session_sync_brief_context_stages_allowed_handoff_only() {
+    let tmp = tempfile::tempdir().unwrap();
+    let proj = tmp
+        .path()
+        .join(".claude")
+        .join("projects")
+        .join("-tmp-proj");
+    fs::create_dir_all(&proj).unwrap();
+    fs::write(
+        proj.join("abc-123.jsonl"),
+        concat!(
+            r#"{"type":"system","timestamp":"2026-01-02T03:04:04Z","message":{"content":"hidden system prompt"}}"#,
+            "\n",
+            r#"{"type":"user","cwd":"/tmp/proj","timestamp":"2026-01-02T03:04:05Z","message":{"content":"continue the refactor"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-01-02T03:04:06Z","message":{"content":[{"type":"text","text":"I will inspect the files"},{"type":"tool_use","name":"Bash","input":{"command":"cat secret.txt"}}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "session",
+            "sync",
+            "claude",
+            "codex",
+            "--last",
+            "--context",
+            "brief",
+            "--note",
+            "Use this as background only.",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["source"], "claude-code");
+    assert_eq!(v["target"], "codex");
+    assert_eq!(v["session_id"], "abc-123");
+    assert_eq!(v["context"], "brief");
+
+    let path = v["path"].as_str().unwrap();
+    let handoff = fs::read_to_string(path).unwrap();
+    assert!(handoff.contains("Context policy: brief"));
+    assert!(handoff.contains("Use this as background only."));
+    assert!(handoff.contains("continue the refactor"));
+    assert!(handoff.contains("I will inspect the files"));
+    assert!(!handoff.contains("hidden system prompt"));
+    assert!(!handoff.contains("cat secret.txt"));
+}
+
+#[test]
+fn session_policy_json_describes_allowed_context() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["--format", "json", "session", "policy"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+
+    assert_eq!(v["default_context"], "brief");
+    let modes = v["modes"].as_array().unwrap();
+    let brief = modes.iter().find(|mode| mode["name"] == "brief").unwrap();
+    assert_eq!(brief["default"], true);
+    assert_eq!(brief["requires_explicit_selection"], false);
+    assert!(brief["includes"].to_string().contains("user text"));
+    assert!(brief["excludes"].to_string().contains("system prompts"));
+    assert!(brief["excludes"].to_string().contains("tool results"));
+
+    let full = modes.iter().find(|mode| mode["name"] == "full").unwrap();
+    assert_eq!(full["requires_explicit_selection"], true);
+    assert!(v["safeguards"].to_string().contains("--dry-run"));
+}
+
+#[test]
+#[cfg(unix)]
+fn fleet_survey_and_list_json_parse_helper_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let helper = tmp.path().join("fleet.sh");
+    fs::write(
+        &helper,
+        r#"#!/bin/sh
+case "$1" in
+  survey)
+    printf 'SESSION\tWINDOW\tPANE\tCOMMAND\tAGENT\tROLE\tNAME\tCWD\n'
+    printf 'main\tapi\t%%7\tcodex\tyes\tagent\treviewer\t/tmp/repo\n'
+    ;;
+  list)
+    printf 'WINDOW\tNAME\tTOOL\tSTATE\tPANE\n'
+    printf 'api\treviewer\tcodex\tneeds-permission\t%%7\n'
+    ;;
+  doctor)
+    printf 'tmux=ok\n'
+    ;;
+  start)
+    printf 'FLEET=%s\nATTACH=tmux attach -t %s\n' "$2" "$2"
+    ;;
+  *)
+    printf 'unknown command\n' >&2
+    exit 2
+    ;;
+esac
+"#,
+    )
+    .unwrap();
+    let mut perms = fs::metadata(&helper).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&helper, perms).unwrap();
+
+    let out = agentspec(tmp.path())
+        .env("AGENTSPEC_FLEET_SH", &helper)
+        .args(["--format", "json", "fleet", "--backend", "tmux", "survey"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["session"], "main");
+    assert_eq!(v[0]["pane"], "%7");
+    assert_eq!(v[0]["agent"], true);
+    assert_eq!(v[0]["role"], "agent");
+
+    let out = agentspec(tmp.path())
+        .env("AGENTSPEC_FLEET_SH", &helper)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "tmux",
+            "list",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["state"], "needs-permission");
+
+    let out = agentspec(tmp.path())
+        .env("AGENTSPEC_FLEET_SH", &helper)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "tmux",
+            "start",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["FLEET"], "main");
+}
+
+#[test]
+fn fleet_store_backend_works_without_tmux() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "start",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["backend"], "store");
+    assert_eq!(v["FLEET"], "main");
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "spawn",
+            "main",
+            "api",
+            "codex",
+            "--name",
+            "reviewer",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let pane = v["PANE"].as_str().unwrap().to_string();
+    assert!(pane.starts_with("store:main:reviewer"));
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "send",
+            &pane,
+            "review",
+            "the",
+            "diff",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert!(v["capture"].as_str().unwrap().contains("review the diff"));
+
+    let guardian_line =
+        format!(r#"GUARDIAN[{pane}]: needs-permission - "Approve edit?" - awaiting user decision"#);
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "event",
+            "main",
+            &guardian_line,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["backend"], "store");
+    assert_eq!(v["pane"], pane);
+    assert_eq!(v["state"], "needs-permission");
+    assert_eq!(v["summary"], r#""Approve edit?""#);
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "list",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["state"], "needs-permission");
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert!(v["capture"].as_str().unwrap().contains(&guardian_line));
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "mark",
+            "main",
+            &pane,
+            "done",
+            "--note",
+            "Review completed.",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["state"], "done");
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "list",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["state"], "done");
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert!(v["capture"].as_str().unwrap().contains("Review completed."));
+
+    let out = agentspec(tmp.path())
+        .args(["--format", "json", "fleet", "--backend", "store", "survey"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["session"], "main");
+    assert_eq!(v[0]["role"], "agent");
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "attach",
+            "main",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["backend"], "store");
+    assert_eq!(v["fleet"], "main");
+    assert_eq!(v["command"], "agentspec fleet --backend store list main");
+}
+
+#[test]
+fn fleet_spawn_can_create_managed_worktree_for_agent_dir() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+
+    let status = StdCommand::new("git")
+        .arg("init")
+        .arg(&repo)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    git(&repo, &["config", "user.email", "agentspec@example.com"]);
+    git(&repo, &["config", "user.name", "agentspec"]);
+    fs::write(repo.join("README.md"), "# demo\n").unwrap();
+    git(&repo, &["add", "README.md"]);
+    git(&repo, &["commit", "-m", "initial"]);
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "spawn",
+            "work",
+            "api",
+            "codex",
+            "--name",
+            "api-agent",
+            "--worktree",
+            "api",
+            "--repo",
+            repo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(repo.join(".worktrees").join("api").exists());
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "survey",
+            "work",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let actual = fs::canonicalize(v[0]["cwd"].as_str().unwrap()).unwrap();
+    let expected = fs::canonicalize(repo.join(".worktrees").join("api")).unwrap();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn session_route_brief_context_to_store_fleet_excludes_tool_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+
+    let proj = home.join(".claude").join("projects").join("-tmp-proj");
+    fs::create_dir_all(&proj).unwrap();
+    fs::write(
+        proj.join("abc-123.jsonl"),
+        concat!(
+            r#"{"type":"system","timestamp":"2026-01-02T03:04:04Z","message":{"content":"hidden system prompt"}}"#,
+            "\n",
+            r#"{"type":"user","cwd":"/tmp/proj","timestamp":"2026-01-02T03:04:05Z","message":{"content":"continue the refactor"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-01-02T03:04:06Z","message":{"content":[{"type":"text","text":"I will inspect the files"},{"type":"tool_use","name":"Bash","input":{"command":"cat secret.txt"}}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "start",
+            "handoff",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "spawn",
+            "handoff",
+            "api",
+            "codex",
+            "--name",
+            "receiver",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let pane = stdout_json(&out.stdout)["PANE"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "route",
+            "claude",
+            &pane,
+            "--last",
+            "--backend",
+            "store",
+            "--note",
+            "Use this as background only.",
+            "--dry-run",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    let preview = v["markdown"].as_str().unwrap();
+    assert_eq!(v["dry_run"], true);
+    assert_eq!(v["context"], "brief");
+    assert!(preview.contains("continue the refactor"));
+    assert!(preview.contains("I will inspect the files"));
+    assert!(!preview.contains("hidden system prompt"));
+    assert!(!preview.contains("cat secret.txt"));
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let capture = stdout_json(&out.stdout)["capture"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!capture.contains("continue the refactor"));
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "route",
+            "claude",
+            &pane,
+            "--last",
+            "--backend",
+            "store",
+            "--note",
+            "Use this as background only.",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["context"], "brief");
+    assert_eq!(v["pane"], pane);
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let capture = stdout_json(&out.stdout)["capture"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(capture.contains("continue the refactor"));
+    assert!(capture.contains("I will inspect the files"));
+    assert!(capture.contains("Use this as background only."));
+    assert!(!capture.contains("hidden system prompt"));
+    assert!(!capture.contains("cat secret.txt"));
+}
+
+#[test]
+fn session_active_and_route_active_match_store_pane_by_tool_and_cwd() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+
+    let proj = home.join(".claude").join("projects").join("-tmp-proj");
+    fs::create_dir_all(&proj).unwrap();
+    fs::write(
+        proj.join("abc-123.jsonl"),
+        concat!(
+            r#"{"type":"user","cwd":"/tmp/proj","timestamp":"2026-01-02T03:04:05Z","message":{"content":"resume the active task"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-01-02T03:04:06Z","message":{"content":[{"type":"text","text":"active task noted"}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "spawn",
+            "active",
+            "api",
+            "claude",
+            "--name",
+            "receiver",
+            "--dir",
+            "/tmp/proj",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let pane = stdout_json(&out.stdout)["PANE"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "session", "active", "--pane", &pane])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v[0]["pane"], pane);
+    assert_eq!(v[0]["session"]["id"], "abc-123");
+    assert_eq!(v[0]["session"]["reason"], "tool,cwd-exact");
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "route-active",
+            &pane,
+            "--backend",
+            "store",
+            "--note",
+            "Auto-routed context.",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["session_id"], "abc-123");
+    assert_eq!(v["matched"]["reason"], "tool,cwd-exact");
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &pane,
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let capture = stdout_json(&out.stdout)["capture"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(capture.contains("resume the active task"));
+    assert!(capture.contains("Auto-routed context."));
+}
+
+#[test]
+fn session_route_fleet_routes_each_matched_active_pane() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+
+    let proj_a = home.join(".claude").join("projects").join("-tmp-proj-a");
+    let proj_b = home.join(".claude").join("projects").join("-tmp-proj-b");
+    fs::create_dir_all(&proj_a).unwrap();
+    fs::create_dir_all(&proj_b).unwrap();
+    fs::write(
+        proj_a.join("aaa-111.jsonl"),
+        concat!(
+            r#"{"type":"user","cwd":"/tmp/proj-a","timestamp":"2026-01-02T03:04:05Z","message":{"content":"continue API work"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-01-02T03:04:06Z","message":{"content":[{"type":"text","text":"API context ready"}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        proj_b.join("bbb-222.jsonl"),
+        concat!(
+            r#"{"type":"user","cwd":"/tmp/proj-b","timestamp":"2026-01-02T03:05:05Z","message":{"content":"continue UI work"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-01-02T03:05:06Z","message":{"content":[{"type":"text","text":"UI context ready"}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+
+    let mut panes = Vec::new();
+    for (name, dir) in [
+        ("api", "/tmp/proj-a"),
+        ("ui", "/tmp/proj-b"),
+        ("unmatched", "/tmp/no-session"),
+    ] {
+        let out = agentspec(home)
+            .args([
+                "--format",
+                "json",
+                "fleet",
+                "--backend",
+                "store",
+                "spawn",
+                "bulk",
+                "work",
+                "claude",
+                "--name",
+                name,
+                "--dir",
+                dir,
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        panes.push(
+            stdout_json(&out.stdout)["PANE"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+    }
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "route-fleet",
+            "bulk",
+            "--dry-run",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["dry_run"], true);
+    assert_eq!(v["routed"].as_array().unwrap().len(), 2);
+    assert_eq!(v["skipped"].as_array().unwrap().len(), 1);
+    assert!(v["routed"].to_string().contains("continue API work"));
+    assert!(v["routed"].to_string().contains("continue UI work"));
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "route-fleet",
+            "bulk",
+            "--note",
+            "Bulk route context.",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["dry_run"], false);
+    assert_eq!(v["routed"].as_array().unwrap().len(), 2);
+    assert_eq!(v["skipped"].as_array().unwrap().len(), 1);
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &panes[0],
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let capture = stdout_json(&out.stdout)["capture"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(capture.contains("continue API work"));
+    assert!(capture.contains("Bulk route context."));
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "fleet",
+            "--backend",
+            "store",
+            "capture",
+            &panes[1],
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let capture = stdout_json(&out.stdout)["capture"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(capture.contains("continue UI work"));
+    assert!(capture.contains("Bulk route context."));
+}
+
+#[test]
+fn worktree_create_list_remove_round_trip() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+
+    let status = StdCommand::new("git")
+        .arg("init")
+        .arg(&repo)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    git(&repo, &["config", "user.email", "agentspec@example.com"]);
+    git(&repo, &["config", "user.name", "agentspec"]);
+    fs::write(repo.join("README.md"), "# demo\n").unwrap();
+    git(&repo, &["add", "README.md"]);
+    git(&repo, &["commit", "-m", "initial"]);
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "worktree",
+            "create",
+            "api",
+            "--repo",
+            repo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["branch"], "worktree-api");
+    assert!(repo.join(".worktrees").join("api").exists());
+    assert!(
+        fs::read_to_string(repo.join(".git").join("info").join("exclude"))
+            .unwrap()
+            .contains(".worktrees/")
+    );
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "worktree",
+            "list",
+            repo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let entries = v.as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["branch"] == "worktree-api")
+    );
+
+    let out = agentspec(tmp.path())
+        .args([
+            "--format",
+            "json",
+            "worktree",
+            "remove",
+            "api",
+            "--repo",
+            repo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["branch"], "worktree-api");
+    assert_eq!(v["branch_deleted"], true);
+    assert!(!repo.join(".worktrees").join("api").exists());
 }
 
 #[test]

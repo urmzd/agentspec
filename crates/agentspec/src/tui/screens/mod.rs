@@ -7,6 +7,11 @@ use super::modal::Modal;
 mod agent_list;
 mod config_list;
 mod delete_confirm;
+mod fleet_event_prompt;
+mod fleet_list;
+mod fleet_send_prompt;
+mod fleet_spawn_prompt;
+mod fleet_state_picker;
 mod link_picker;
 mod memory_list;
 mod preview;
@@ -37,6 +42,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Agents => agent_list::draw(f, chunks[2], app),
         Tab::Tools => tool_list::draw(f, chunks[2], app),
         Tab::Sessions => session_list::draw(f, chunks[2], app),
+        Tab::Fleets => fleet_list::draw(f, chunks[2], app),
         Tab::Memories => memory_list::draw(f, chunks[2], app),
         Tab::Configs => config_list::draw(f, chunks[2], app),
     }
@@ -46,6 +52,10 @@ pub fn draw(f: &mut Frame, app: &App) {
     match &app.modal {
         Modal::None => {}
         Modal::DeleteConfirm(dc) => delete_confirm::draw(f, dc),
+        Modal::FleetEventPrompt(prompt) => fleet_event_prompt::draw(f, prompt),
+        Modal::FleetSendPrompt(prompt) => fleet_send_prompt::draw(f, prompt),
+        Modal::FleetSpawnPrompt(prompt) => fleet_spawn_prompt::draw(f, prompt),
+        Modal::FleetStatePicker(picker) => fleet_state_picker::draw(f, picker),
         Modal::LinkPicker(lp) => link_picker::draw(f, lp),
         Modal::Preview(p) => preview::draw(f, p),
     }
@@ -170,6 +180,9 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
             Tab::Skills | Tab::Agents => {
                 "[l] Link tools  [Enter] Preview  [d] Delete  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
+            Tab::Fleets => {
+                "[a] Add  [s] Send  [e] Event  [m] Mark  [t] Attach  [c] Context  [i] Policy  [p/P] Preview  [r/R] Route"
+            }
             Tab::Sessions | Tab::Memories | Tab::Configs => {
                 "[Enter] Preview  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
@@ -251,6 +264,31 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
                 String::new()
             }
         }
+        Tab::Fleets => {
+            let fleets = app.filtered_fleets();
+            if let Some(fleet) = fleets.get(app.selected) {
+                let session = match (&fleet.session_source, &fleet.session_id) {
+                    (Some(source), Some(id)) => {
+                        let reason = fleet.session_reason.as_deref().unwrap_or("matched");
+                        format!("{source}:{id} ({reason})")
+                    }
+                    _ => "none".to_string(),
+                };
+                format!(
+                    "  {}:{} / {} | {} | {} messages | {} | route: {} | match: {}",
+                    fleet.backend,
+                    fleet.fleet,
+                    fleet.pane,
+                    fleet.state,
+                    fleet.message_count,
+                    fleet.updated_at,
+                    route_context_label(app.fleet_route_context),
+                    session
+                )
+            } else {
+                String::new()
+            }
+        }
         Tab::Memories => {
             let memories = app.filtered_memories();
             if let Some(m) = memories.get(app.selected) {
@@ -278,6 +316,13 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
     let bar = Paragraph::new(info).style(Style::default());
 
     f.render_widget(bar, area);
+}
+
+fn route_context_label(context: crate::session::route::ContextMode) -> &'static str {
+    match context {
+        crate::session::route::ContextMode::Brief => "brief",
+        crate::session::route::ContextMode::Full => "full",
+    }
 }
 
 fn truncate_str(s: &str, max: usize) -> String {

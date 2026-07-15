@@ -10,13 +10,16 @@ use crate::config;
 use crate::error::Result;
 use crate::inventory::{self, TrackedKind};
 use crate::ir::ResourceKind;
-use crate::ops::memory;
+use crate::ops::{fleet, memory, worktree};
 use crate::session;
 use crate::tools::{self, CodingTool};
 
 use super::action::{AgentSource, ReloadTarget};
 use super::event::poll_event;
-use super::modal::{DeleteConfirm, LinkPicker, Modal, ModalResult, Preview};
+use super::modal::{
+    DeleteConfirm, FleetEventPrompt, FleetSendPrompt, FleetSpawnPrompt, FleetSpawnRequest,
+    FleetStatePicker, LinkPicker, Modal, ModalResult, Preview,
+};
 use super::screens;
 
 /// Declared in display order — `all()`, `next()`, and `prev()` follow it.
@@ -27,6 +30,7 @@ pub enum Tab {
     Agents,
     Configs,
     Sessions,
+    Fleets,
     Memories,
 }
 
@@ -38,6 +42,7 @@ impl Tab {
             Tab::Agents,
             Tab::Configs,
             Tab::Sessions,
+            Tab::Fleets,
             Tab::Memories,
         ]
     }
@@ -49,6 +54,7 @@ impl Tab {
             Tab::Agents => "Agents",
             Tab::Configs => "Configs",
             Tab::Sessions => "Sessions",
+            Tab::Fleets => "Fleets",
             Tab::Memories => "Memories",
         }
     }
@@ -59,7 +65,8 @@ impl Tab {
             Tab::Skills => Tab::Agents,
             Tab::Agents => Tab::Configs,
             Tab::Configs => Tab::Sessions,
-            Tab::Sessions => Tab::Memories,
+            Tab::Sessions => Tab::Fleets,
+            Tab::Fleets => Tab::Memories,
             Tab::Memories => Tab::Tools,
         }
     }
@@ -71,7 +78,8 @@ impl Tab {
             Tab::Agents => Tab::Skills,
             Tab::Configs => Tab::Agents,
             Tab::Sessions => Tab::Configs,
-            Tab::Memories => Tab::Sessions,
+            Tab::Fleets => Tab::Sessions,
+            Tab::Memories => Tab::Fleets,
         }
     }
 }
@@ -109,6 +117,33 @@ pub struct SessionEntry {
     pub source: String,
     pub date: String,
     pub prompt: String,
+}
+
+pub struct FleetEntry {
+    pub backend: String,
+    pub fleet: String,
+    pub window: String,
+    pub name: String,
+    pub tool: String,
+    pub state: String,
+    pub pane: String,
+    pub message_count: usize,
+    pub last_message: String,
+    pub updated_at: String,
+    pub session_source: Option<String>,
+    pub session_id: Option<String>,
+    pub session_reason: Option<String>,
+    pub message_preview: String,
+}
+
+#[derive(Clone)]
+struct FleetRouteCandidate {
+    backend: String,
+    agent: String,
+    pane: String,
+    session_source: Option<String>,
+    session_id: Option<String>,
+    session_reason: Option<String>,
 }
 
 pub struct MemoryEntry {
@@ -168,6 +203,7 @@ pub struct App {
     pub agents: Vec<AgentEntry>,
     pub tool_entries: Vec<ToolEntry>,
     pub sessions: LazyTab<SessionEntry>,
+    pub fleets: LazyTab<FleetEntry>,
     pub memories: LazyTab<MemoryEntry>,
     pub configs: LazyTab<ProjectReadiness>,
     pub installed_tools: Vec<String>,
@@ -177,6 +213,8 @@ pub struct App {
     pub should_quit: bool,
     pub modal: Modal,
     pub status_message: Option<String>,
+    pub fleet_message_scroll: usize,
+    pub fleet_route_context: session::route::ContextMode,
 }
 
 impl App {
@@ -191,6 +229,7 @@ impl App {
 
         // Eager lightweight counts — full data loads on tab select
         let session_count = count_sessions();
+        let fleet_count = fleet::active_count();
         let memory_count = memory::scan_memories().len();
         let config_count = count_configs();
 
@@ -201,6 +240,7 @@ impl App {
             agents,
             tool_entries,
             sessions: LazyTab::CountOnly(session_count),
+            fleets: LazyTab::CountOnly(fleet_count),
             memories: LazyTab::CountOnly(memory_count),
             configs: LazyTab::CountOnly(config_count),
             installed_tools: installed_slugs,
@@ -210,6 +250,8 @@ impl App {
             should_quit: false,
             modal: Modal::None,
             status_message: None,
+            fleet_message_scroll: 0,
+            fleet_route_context: session::route::ContextMode::Brief,
         })
     }
 
@@ -232,6 +274,9 @@ impl App {
         match self.tab {
             Tab::Sessions if !self.sessions.is_loaded() => {
                 self.sessions = LazyTab::Loaded(load_sessions());
+            }
+            Tab::Fleets if !self.fleets.is_loaded() => {
+                self.fleets = LazyTab::Loaded(load_fleets());
             }
             Tab::Memories if !self.memories.is_loaded() => {
                 self.memories = LazyTab::Loaded(load_memories());
@@ -260,6 +305,22 @@ impl App {
                     self.modal = Modal::None;
                     self.dispatch_all(actions);
                 }
+                ModalResult::FleetStateSelected(state) => {
+                    self.modal = Modal::None;
+                    self.mark_selected_fleet_state(&state);
+                }
+                ModalResult::FleetMessageSubmitted(message) => {
+                    self.modal = Modal::None;
+                    self.send_selected_fleet_message(&message);
+                }
+                ModalResult::FleetEventSubmitted(line) => {
+                    self.modal = Modal::None;
+                    self.record_selected_fleet_event(&line);
+                }
+                ModalResult::FleetSpawnSubmitted(request) => {
+                    self.modal = Modal::None;
+                    self.spawn_fleet_agent(*request);
+                }
                 ModalResult::OpenLinkPicker => {
                     self.modal = Modal::None;
                     self.open_link_picker();
@@ -280,9 +341,11 @@ impl App {
                 }
                 KeyCode::Backspace => {
                     self.filter.pop();
+                    self.fleet_message_scroll = 0;
                 }
                 KeyCode::Char(c) => {
                     self.filter.push(c);
+                    self.fleet_message_scroll = 0;
                 }
                 _ => {}
             }
@@ -298,25 +361,42 @@ impl App {
             KeyCode::Tab | KeyCode::Right => {
                 self.tab = self.tab.next();
                 self.selected = 0;
+                self.fleet_message_scroll = 0;
                 self.ensure_tab_loaded();
             }
             KeyCode::BackTab | KeyCode::Left => {
                 self.tab = self.tab.prev();
                 self.selected = 0;
+                self.fleet_message_scroll = 0;
                 self.ensure_tab_loaded();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 let max = self.current_list_len();
                 if max > 0 {
+                    let previous = self.selected;
                     self.selected = (self.selected + 1).min(max - 1);
+                    if matches!(self.tab, Tab::Fleets) && self.selected != previous {
+                        self.fleet_message_scroll = 0;
+                    }
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
+                let previous = self.selected;
                 self.selected = self.selected.saturating_sub(1);
+                if matches!(self.tab, Tab::Fleets) && self.selected != previous {
+                    self.fleet_message_scroll = 0;
+                }
+            }
+            KeyCode::PageUp if matches!(self.tab, Tab::Fleets) => {
+                self.fleet_message_scroll = self.fleet_message_scroll.saturating_add(10);
+            }
+            KeyCode::PageDown if matches!(self.tab, Tab::Fleets) => {
+                self.fleet_message_scroll = self.fleet_message_scroll.saturating_sub(10);
             }
             KeyCode::Char('/') => {
                 self.filtering = true;
                 self.filter.clear();
+                self.fleet_message_scroll = 0;
             }
             KeyCode::Char('l') => {
                 if matches!(self.tab, Tab::Skills | Tab::Agents) {
@@ -327,6 +407,61 @@ impl App {
                 if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 =>
             {
                 self.open_delete_confirm();
+            }
+            KeyCode::Char('r')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.route_selected_fleet_context();
+            }
+            KeyCode::Char('R')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.route_selected_fleet_contexts();
+            }
+            KeyCode::Char('p')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.preview_selected_fleet_route_context();
+            }
+            KeyCode::Char('P')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.preview_selected_fleet_route_contexts();
+            }
+            KeyCode::Char('m')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.open_fleet_state_picker();
+            }
+            KeyCode::Char('s')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.open_fleet_send_prompt();
+            }
+            KeyCode::Char('e')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.open_fleet_event_prompt();
+            }
+            KeyCode::Char('a') if matches!(self.tab, Tab::Fleets) => {
+                self.open_fleet_spawn_prompt();
+            }
+            KeyCode::Char('c') if matches!(self.tab, Tab::Fleets) => {
+                self.toggle_fleet_route_context();
+            }
+            KeyCode::Char('i') if matches!(self.tab, Tab::Fleets) => {
+                self.open_route_policy_preview();
+            }
+            KeyCode::Char('t')
+                if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
+            {
+                self.open_fleet_attach_preview();
+            }
+            KeyCode::Char('u') if matches!(self.tab, Tab::Fleets) => {
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+                self.status_message = Some("Refreshed fleets".to_string());
             }
             KeyCode::Enter if self.current_list_len() > 0 => {
                 self.open_preview();
@@ -499,6 +634,14 @@ impl App {
                 };
                 (format!("Session: {} ({})", s.source, s.date), content)
             }
+            Tab::Fleets => {
+                let filtered = self.filtered_fleets();
+                let Some(f) = filtered.get(self.selected) else {
+                    return;
+                };
+                let content = f.message_preview.clone();
+                (format!("Fleet: {} / {}", f.fleet, f.name), content)
+            }
             Tab::Memories => {
                 let filtered = self.filtered_memories();
                 let Some(m) = filtered.get(self.selected) else {
@@ -550,6 +693,502 @@ impl App {
         self.modal = Modal::Preview(Preview::new(title, content, linkable));
     }
 
+    fn open_fleet_state_picker(&mut self) {
+        let filtered = self.filtered_fleets();
+        let Some(fleet) = filtered.get(self.selected) else {
+            return;
+        };
+        self.modal = Modal::FleetStatePicker(FleetStatePicker::new(
+            fleet.fleet.clone(),
+            fleet.name.clone(),
+            &fleet.state,
+        ));
+    }
+
+    fn open_fleet_event_prompt(&mut self) {
+        let filtered = self.filtered_fleets();
+        let Some(fleet) = filtered.get(self.selected) else {
+            return;
+        };
+        self.modal = Modal::FleetEventPrompt(FleetEventPrompt::new(fleet.fleet.clone()));
+    }
+
+    fn open_fleet_send_prompt(&mut self) {
+        let filtered = self.filtered_fleets();
+        let Some(fleet) = filtered.get(self.selected) else {
+            return;
+        };
+        self.modal = Modal::FleetSendPrompt(FleetSendPrompt::new(
+            fleet.fleet.clone(),
+            fleet.name.clone(),
+        ));
+    }
+
+    fn open_fleet_spawn_prompt(&mut self) {
+        let selected = self.filtered_fleets().get(self.selected).map(|fleet| {
+            (
+                fleet.backend.clone(),
+                fleet.fleet.clone(),
+                fleet.window.clone(),
+            )
+        });
+        let (backend, fleet, window) = selected
+            .map(|(backend, fleet, window)| (Some(backend), Some(fleet), Some(window)))
+            .unwrap_or((None, None, None));
+        self.modal = Modal::FleetSpawnPrompt(FleetSpawnPrompt::new(backend, fleet, window));
+    }
+
+    fn spawn_fleet_agent(&mut self, request: FleetSpawnRequest) {
+        let backend = match request.backend.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            "auto" => fleet::BackendSelection::Auto,
+            other => {
+                self.status_message = Some(format!("Spawn failed: unknown backend {other}"));
+                return;
+            }
+        };
+
+        let dir = match request.worktree.as_deref() {
+            Some(name) => match worktree::ensure(
+                name,
+                request.repo.as_deref(),
+                request.branch.as_deref(),
+                request.base.as_deref(),
+            ) {
+                Ok(created) => Some(created.path.to_string_lossy().to_string()),
+                Err(e) => {
+                    self.status_message = Some(format!("Worktree failed: {e}"));
+                    return;
+                }
+            },
+            None => request.dir.clone(),
+        };
+
+        match fleet::spawn_silent(
+            backend,
+            &request.fleet,
+            &request.window,
+            &request.tool,
+            Some(&request.name),
+            dir.as_deref(),
+        ) {
+            Ok(spawned) => {
+                let location = request
+                    .worktree
+                    .as_deref()
+                    .map(|name| format!(" using worktree {name}"))
+                    .unwrap_or_default();
+                self.status_message = Some(format!(
+                    "Spawned {} agent {}/{} in {}{}",
+                    request.backend, request.fleet, spawned.name, spawned.window, location
+                ));
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Spawn failed: {e}"));
+            }
+        }
+    }
+
+    fn toggle_fleet_route_context(&mut self) {
+        self.fleet_route_context = match self.fleet_route_context {
+            session::route::ContextMode::Brief => session::route::ContextMode::Full,
+            session::route::ContextMode::Full => session::route::ContextMode::Brief,
+        };
+        self.status_message = Some(format!(
+            "Fleet route context: {}",
+            route_context_label(self.fleet_route_context)
+        ));
+    }
+
+    fn open_route_policy_preview(&mut self) {
+        self.modal = Modal::Preview(Preview::new(
+            "Session Routing Policy".to_string(),
+            session::route::render_policy_markdown(),
+            false,
+        ));
+    }
+
+    fn open_fleet_attach_preview(&mut self) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (fleet.backend.clone(), fleet.fleet.clone())
+        };
+        let (backend_name, fleet_name) = selected;
+        let backend = match backend_name.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            _ => fleet::BackendSelection::Auto,
+        };
+
+        match fleet::attach_command(backend, &fleet_name) {
+            Ok(command) => {
+                let content = format!(
+                    "# Attach Fleet\n\n- Backend: {}\n- Fleet: {}\n\n```sh\n{}\n```\n",
+                    command.backend, command.fleet, command.command
+                );
+                self.modal = Modal::Preview(Preview::new(
+                    format!("Attach: {}", command.fleet),
+                    content,
+                    false,
+                ));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Attach failed: {e}"));
+            }
+        }
+    }
+
+    fn mark_selected_fleet_state(&mut self, state: &str) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (
+                fleet.backend.clone(),
+                fleet.fleet.clone(),
+                fleet.name.clone(),
+                fleet.pane.clone(),
+            )
+        };
+
+        let (backend_name, fleet_name, agent_name, pane) = selected;
+        let backend = match backend_name.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            _ => fleet::BackendSelection::Auto,
+        };
+
+        match fleet::mark_silent(
+            backend,
+            &fleet_name,
+            &pane,
+            state,
+            Some("Marked from agentspec TUI."),
+        ) {
+            Ok(()) => {
+                self.status_message = Some(format!("Marked {fleet_name}/{agent_name} as {state}"));
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Mark failed: {e}"));
+            }
+        }
+    }
+
+    fn record_selected_fleet_event(&mut self, line: &str) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (fleet.backend.clone(), fleet.fleet.clone())
+        };
+
+        let (backend_name, fleet_name) = selected;
+        let backend = match backend_name.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            _ => fleet::BackendSelection::Auto,
+        };
+
+        match fleet::event_silent(backend, &fleet_name, line) {
+            Ok(report) => {
+                self.status_message = Some(format!(
+                    "Recorded {} for {} ({})",
+                    report.state, report.pane, report.summary
+                ));
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Event failed: {e}"));
+            }
+        }
+    }
+
+    fn send_selected_fleet_message(&mut self, message: &str) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (
+                fleet.backend.clone(),
+                fleet.fleet.clone(),
+                fleet.name.clone(),
+                fleet.pane.clone(),
+            )
+        };
+
+        let (backend_name, fleet_name, agent_name, pane) = selected;
+        let backend = match backend_name.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            _ => fleet::BackendSelection::Auto,
+        };
+
+        match fleet::send_text(backend, &pane, message) {
+            Ok(()) => {
+                self.status_message = Some(format!("Sent message to {fleet_name}/{agent_name}"));
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Send failed: {e}"));
+            }
+        }
+    }
+
+    fn selected_fleet_route_candidates(&self) -> Option<(String, Vec<FleetRouteCandidate>)> {
+        let filtered = self.filtered_fleets();
+        let fleet_name = filtered.get(self.selected)?.fleet.clone();
+        let candidates = self
+            .fleets
+            .items()
+            .iter()
+            .filter(|fleet| fleet.fleet == fleet_name)
+            .map(|fleet| FleetRouteCandidate {
+                backend: fleet.backend.clone(),
+                agent: fleet.name.clone(),
+                pane: fleet.pane.clone(),
+                session_source: fleet.session_source.clone(),
+                session_id: fleet.session_id.clone(),
+                session_reason: fleet.session_reason.clone(),
+            })
+            .collect();
+        Some((fleet_name, candidates))
+    }
+
+    fn preview_selected_fleet_route_context(&mut self) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (
+                fleet.fleet.clone(),
+                fleet.name.clone(),
+                fleet.pane.clone(),
+                fleet.session_source.clone(),
+                fleet.session_id.clone(),
+                fleet.session_reason.clone(),
+            )
+        };
+
+        let (fleet_name, agent_name, pane, session_source, session_id, reason) = selected;
+        let (Some(session_source), Some(session_id)) = (session_source, session_id) else {
+            self.status_message = Some(format!("No matching session for {pane}"));
+            return;
+        };
+
+        match session::route::preview_route_context(
+            &session_source,
+            &pane,
+            Some(&session_id),
+            false,
+            self.fleet_route_context,
+            Some("Routed from agentspec TUI using the best active session match."),
+        ) {
+            Ok(preview) => {
+                let reason = reason.unwrap_or_else(|| "matched".to_string());
+                let title = format!(
+                    "Route Preview: {} session {} -> {fleet_name}/{agent_name} ({reason})",
+                    preview.source, preview.session_id
+                );
+                self.modal = Modal::Preview(Preview::new(title, preview.markdown, false));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Preview failed: {e}"));
+            }
+        }
+    }
+
+    fn preview_selected_fleet_route_contexts(&mut self) {
+        let Some((fleet_name, candidates)) = self.selected_fleet_route_candidates() else {
+            return;
+        };
+
+        let mut markdown = String::new();
+        let mut routed = 0usize;
+        let mut skipped = Vec::new();
+        markdown.push_str(&format!("# Fleet Route Preview: {fleet_name}\n\n"));
+        markdown.push_str(&format!(
+            "Context policy: {}. Each section is the exact context that would be routed to the matching pane.\n\n",
+            route_context_label(self.fleet_route_context)
+        ));
+
+        for candidate in &candidates {
+            let (Some(source), Some(session_id)) =
+                (&candidate.session_source, &candidate.session_id)
+            else {
+                skipped.push(format!("- {} ({})", candidate.agent, candidate.pane));
+                continue;
+            };
+
+            match session::route::preview_route_context(
+                source,
+                &candidate.pane,
+                Some(session_id),
+                false,
+                self.fleet_route_context,
+                Some("Routed from agentspec TUI using the best active session match."),
+            ) {
+                Ok(preview) => {
+                    routed += 1;
+                    let reason = candidate.session_reason.as_deref().unwrap_or("matched");
+                    markdown.push_str(&format!(
+                        "## {} / {} -> {} ({reason})\n\n",
+                        candidate.agent, preview.session_id, candidate.pane
+                    ));
+                    markdown.push_str(&preview.markdown);
+                    if !markdown.ends_with('\n') {
+                        markdown.push('\n');
+                    }
+                    markdown.push('\n');
+                }
+                Err(e) => {
+                    skipped.push(format!(
+                        "- {} ({}) preview failed: {e}",
+                        candidate.agent, candidate.pane
+                    ));
+                }
+            }
+        }
+
+        if !skipped.is_empty() {
+            markdown.push_str("## Skipped\n\n");
+            markdown.push_str(&skipped.join("\n"));
+            markdown.push('\n');
+        }
+
+        if routed == 0 {
+            self.status_message = Some(format!("No matched sessions for fleet {fleet_name}"));
+            return;
+        }
+
+        self.modal = Modal::Preview(Preview::new(
+            format!("Fleet Route Preview: {fleet_name} ({routed} matched)"),
+            markdown,
+            false,
+        ));
+    }
+
+    fn route_selected_fleet_context(&mut self) {
+        let selected = {
+            let filtered = self.filtered_fleets();
+            let Some(fleet) = filtered.get(self.selected) else {
+                return;
+            };
+            (
+                fleet.backend.clone(),
+                fleet.fleet.clone(),
+                fleet.name.clone(),
+                fleet.pane.clone(),
+                fleet.session_source.clone(),
+                fleet.session_id.clone(),
+                fleet.session_reason.clone(),
+            )
+        };
+
+        let (backend_name, fleet_name, agent_name, pane, session_source, session_id, reason) =
+            selected;
+        let backend = match backend_name.as_str() {
+            "store" => fleet::BackendSelection::Store,
+            "tmux" => fleet::BackendSelection::Tmux,
+            _ => fleet::BackendSelection::Auto,
+        };
+
+        let (Some(session_source), Some(session_id)) = (session_source, session_id) else {
+            self.status_message = Some(format!("No matching session for {pane}"));
+            return;
+        };
+        let reason = reason.unwrap_or_else(|| "matched".to_string());
+
+        match session::route::route_session(
+            &session_source,
+            &pane,
+            Some(&session_id),
+            false,
+            backend,
+            self.fleet_route_context,
+            Some("Routed from agentspec TUI using the best active session match."),
+        ) {
+            Ok(report) => {
+                self.status_message = Some(format!(
+                    "Routed {} {} session {} to {fleet_name}/{agent_name} ({})",
+                    route_context_label(report.context),
+                    report.source,
+                    report.session_id,
+                    reason
+                ));
+                self.fleets = LazyTab::Loaded(load_fleets());
+                self.clamp_selection();
+                self.fleet_message_scroll = 0;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Route failed: {e}"));
+            }
+        }
+    }
+
+    fn route_selected_fleet_contexts(&mut self) {
+        let Some((fleet_name, candidates)) = self.selected_fleet_route_candidates() else {
+            return;
+        };
+
+        let mut routed = 0usize;
+        let mut skipped = 0usize;
+        let mut failed = 0usize;
+        for candidate in candidates {
+            let (Some(source), Some(session_id)) = (
+                candidate.session_source.as_deref(),
+                candidate.session_id.as_deref(),
+            ) else {
+                skipped += 1;
+                continue;
+            };
+            let backend = match candidate.backend.as_str() {
+                "store" => fleet::BackendSelection::Store,
+                "tmux" => fleet::BackendSelection::Tmux,
+                _ => fleet::BackendSelection::Auto,
+            };
+            match session::route::route_session(
+                source,
+                &candidate.pane,
+                Some(session_id),
+                false,
+                backend,
+                self.fleet_route_context,
+                Some("Routed from agentspec TUI using the best active session match."),
+            ) {
+                Ok(_) => routed += 1,
+                Err(_) => failed += 1,
+            }
+        }
+
+        if routed > 0 {
+            self.fleets = LazyTab::Loaded(load_fleets());
+            self.clamp_selection();
+            self.fleet_message_scroll = 0;
+        }
+        self.status_message = Some(format!(
+            "Fleet {fleet_name}: routed {routed}, skipped {skipped}, failed {failed} ({})",
+            route_context_label(self.fleet_route_context)
+        ));
+    }
+
     // -----------------------------------------------------------------------
     // List helpers
     // -----------------------------------------------------------------------
@@ -560,6 +1199,7 @@ impl App {
             Tab::Agents => self.filtered_agents().len(),
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.filtered_sessions().len(),
+            Tab::Fleets => self.filtered_fleets().len(),
             Tab::Memories => self.filtered_memories().len(),
             Tab::Configs => self.filtered_configs().len(),
         }
@@ -572,6 +1212,7 @@ impl App {
             Tab::Agents => self.agents.len(),
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.sessions.count(),
+            Tab::Fleets => self.fleets.count(),
             Tab::Memories => self.memories.count(),
             Tab::Configs => self.configs.count(),
         }
@@ -592,6 +1233,25 @@ impl App {
     pub fn filtered_sessions(&self) -> Vec<&SessionEntry> {
         fuzzy_filter(&self.filter, self.sessions.items().iter(), |s| {
             format!("{} {}", s.source, s.prompt)
+        })
+    }
+
+    pub fn filtered_fleets(&self) -> Vec<&FleetEntry> {
+        fuzzy_filter(&self.filter, self.fleets.items().iter(), |f| {
+            format!(
+                "{} {} {} {} {} {} {} {} {} {} {}",
+                f.backend,
+                f.fleet,
+                f.window,
+                f.name,
+                f.tool,
+                f.state,
+                f.last_message,
+                f.message_preview,
+                f.session_source.as_deref().unwrap_or(""),
+                f.session_id.as_deref().unwrap_or(""),
+                f.session_reason.as_deref().unwrap_or("")
+            )
         })
     }
 
@@ -628,6 +1288,13 @@ where
         .collect();
     scored.sort_by_key(|b| std::cmp::Reverse(b.1));
     scored.into_iter().map(|(item, _)| item).collect()
+}
+
+fn route_context_label(context: session::route::ContextMode) -> &'static str {
+    match context {
+        session::route::ContextMode::Brief => "brief",
+        session::route::ContextMode::Full => "full",
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -813,6 +1480,36 @@ fn load_sessions() -> Vec<SessionEntry> {
 
     entries.sort_by(|a, b| b.date.cmp(&a.date));
     entries
+}
+
+fn load_fleets() -> Vec<FleetEntry> {
+    session::active::active_sessions(None)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|active| {
+            let message_preview = fleet::render_pane_markdown(&active.backend, &active.pane)
+                .unwrap_or_else(|e| format!("Error loading fleet messages: {e}"));
+            let matched = active.session;
+            FleetEntry {
+                backend: active.backend,
+                fleet: active.fleet,
+                window: active.window,
+                name: active.agent,
+                tool: active.tool,
+                state: active.state,
+                pane: active.pane,
+                message_count: active.message_count,
+                last_message: active
+                    .last_message
+                    .unwrap_or_else(|| "(no messages)".to_string()),
+                updated_at: active.updated_at,
+                session_source: matched.as_ref().map(|m| m.source.clone()),
+                session_id: matched.as_ref().map(|m| m.id.clone()),
+                session_reason: matched.map(|m| m.reason),
+                message_preview,
+            }
+        })
+        .collect()
 }
 
 fn load_memories() -> Vec<MemoryEntry> {

@@ -50,6 +50,10 @@ pub fn shared_sessions_dir() -> PathBuf {
     agents_base_dir().join("sessions")
 }
 
+pub fn shared_fleets_dir() -> PathBuf {
+    agents_base_dir().join("fleets")
+}
+
 pub fn shared_mcp_dir() -> PathBuf {
     agents_base_dir().join("mcp")
 }
@@ -81,6 +85,7 @@ pub fn ensure_dirs() -> std::io::Result<()> {
     std::fs::create_dir_all(shared_memories_dir())?;
     std::fs::create_dir_all(shared_plans_dir())?;
     std::fs::create_dir_all(shared_sessions_dir())?;
+    std::fs::create_dir_all(shared_fleets_dir())?;
     std::fs::create_dir_all(shared_mcp_dir())?;
     std::fs::create_dir_all(shared_hooks_dir())?;
     std::fs::create_dir_all(config_dir())?;

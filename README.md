@@ -41,6 +41,8 @@
 - **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
 - **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
 - **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
+- **Fleets.** Manage multi-agent fleets through a backend interface: a no-tmux store backend for portable orchestration state, and a native tmux backend compatible with the `orchestrate-agents` fleet helper.
+- **Worktrees.** Create, list, and remove per-repo git worktrees under `<repo>/.worktrees/` without switching the primary checkout.
 - **MCP server management.** Register, link, remove, and sync MCP servers across MCP-capable tools (Claude Code, Gemini CLI, Cursor) with a canonical store.
 - **Permission profile sync.** Maintain one portable allowlist and translate it into Claude and Gemini native permission settings.
 - **Hook management.** Store lifecycle hook scripts once and link them into tool hook directories.
@@ -50,7 +52,7 @@
 - **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
 - **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
-- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, memories, and configs. Preview, link, and delete resources without leaving the terminal. It inherits your terminal theme.
+- **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, fleets, memories, and configs. The Fleets tab includes backend-selected agent creation with `a` including optional managed worktree creation, a scrollable selected-agent message panel for store-backed transcripts and tmux captures, direct message sending with `s`, guardian event ingestion with `e`, state marking with `m`, attach command preview with `t`, route policy review with `i`, brief/full context toggling with `c`, matched-session route preview/routing with `p`/`r`, and fleet-wide preview/routing with `P`/`R`. It inherits your terminal theme.
 - **IR layer.** Canonical representation with vendor adapters (agentskills, Claude, Gemini) plus instruction-file adapters (AGENTS.md, CLAUDE.md, llms.txt). Copilot is supported as a session source.
 
 ### Supported tools
@@ -135,8 +137,31 @@ agentspec session list claude                # List sessions for a source (claud
 agentspec session export copilot --last      # Export most recent session (Copilot is enriched)
 agentspec session export claude <id>         # Export a specific session
 agentspec session export claude --last -o f.md  # Write export to file
-agentspec session sync claude codex --last   # Stage a portable handoff from source for a target tool
+agentspec session policy                     # Show what context may be routed or synced
+agentspec session sync claude codex --last   # Stage brief allowed context as a handoff for a target tool
+agentspec session sync claude codex --last --context full  # Stage the explicit full transcript
 agentspec session import codex handoff.md     # Import an external markdown handoff for a target tool
+agentspec session active                      # Correlate active fleet panes with likely sessions
+agentspec session route claude <pane> --last --dry-run  # Preview exactly what would be routed
+agentspec session route claude <pane> --last --backend store  # Send brief allowed context to a fleet pane
+agentspec session route-active <pane> --backend store  # Auto-pick the best session match for a pane
+agentspec session route-fleet refactor-auth --dry-run  # Preview matched context routes for every agent in a fleet
+
+# Fleets
+agentspec fleet doctor                       # Show selected backend and availability
+agentspec fleet start refactor-auth          # Create/adopt a fleet (auto backend)
+agentspec fleet --backend store spawn refactor-auth api codex --name reviewer
+agentspec fleet spawn refactor-auth api codex --name reviewer --worktree api --repo .
+agentspec fleet --backend store send store:refactor-auth:reviewer-1 "Review the API diff"
+agentspec fleet --backend store mark refactor-auth store:refactor-auth:reviewer-1 done --note "Review complete"
+agentspec fleet --backend store event refactor-auth 'GUARDIAN[store:refactor-auth:reviewer-1]: needs-permission - "Approve edit?" - awaiting user decision'
+agentspec fleet --backend tmux survey        # Survey active tmux panes through the native backend
+agentspec fleet list refactor-auth           # List agents and states
+
+# Worktrees
+agentspec worktree list                      # List git worktrees for the current repo
+agentspec worktree create api                # Create .worktrees/api from origin/HEAD or HEAD
+agentspec worktree remove api                # Remove .worktrees/api and worktree-* branch
 
 # MCP servers
 agentspec mcp add sr --command sr --args "mcp serve"  # Register a stdio server in store + tool configs
@@ -191,6 +216,7 @@ agentspec manage list --by-name              # Show only name duplicates (same n
 ~/.agents/memories/<project>/       Shared memory store
 ~/.agents/plans/<artifact>.md       Imported planning artifacts
 ~/.agents/sessions/<target>/        Portable session handoffs
+~/.agents/fleets/<name>.json        Store-backed multi-agent fleet state
 ~/.agents/mcp/<name>.json           Canonical MCP server store
 ~/.agents/hooks/                    Lifecycle hook scripts
 ~/.agents/permissions.yml           Portable permission profile (on demand)

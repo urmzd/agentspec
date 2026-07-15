@@ -1,9 +1,11 @@
+pub mod active;
 pub mod adapter;
 pub mod adapters;
 pub mod discover;
 pub mod find;
 pub mod ir;
 pub mod render;
+pub mod route;
 pub mod sync;
 
 use crate::error::{AppError, Result};
