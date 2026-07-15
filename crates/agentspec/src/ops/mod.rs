@@ -1,6 +1,7 @@
 pub mod create;
 pub mod dedup;
 pub mod discover;
+pub mod fleet;
 pub mod hooks;
 pub mod link;
 pub mod list;
@@ -16,3 +17,4 @@ pub mod remove;
 pub mod sync;
 pub mod validate;
 pub mod verify;
+pub mod worktree;
