@@ -4,31 +4,45 @@ dir = "./showcase"
 [font]
 family = "MonaspiceNe Nerd Font"
 
+# Both scenes run ./showcase/demo.sh, which seeds a sanitized demo HOME in
+# /tmp/agentspec-demo (fake skills, agents, MCP servers, sessions, memories,
+# projects) and launches the TUI against it. Captures must never run against
+# a real HOME: real sessions, memories, and project lists leak personal data.
+#
 # NOTE: teasr currently ships only `dracula` (default) and `monokai` themes —
 # unknown names silently fall back to dracula, so we set it explicitly.
+# NOTE: teasr's "enter" sends \n, which crossterm in raw mode reads as Ctrl+J,
+# so Enter-driven flows (preview, form submit) can't be captured — stick to
+# plain-char keys (`l`, `a`) and Tab.
 
-# ── Static PNG: Skills tab with the link picker open ──
+# ── Static PNG: MCP tab with the add-server form filled in ──
 # Deliberately different from the GIF (which tours the tabs) so the two
 # showcase assets are not redundant.
-# NOTE: teasr's "enter" sends \n, which crossterm in raw mode reads as Ctrl+J,
-# so Enter-driven flows (preview) can't be captured — `l` is a plain char.
 [[scenes]]
 type = "terminal"
 name = "tui"
-command = "agentspec"
+command = "./showcase/demo.sh"
 theme = "dracula"
 cols = 120
 rows = 30
 formats = [{ output_type = "png" }]
 frame_duration = 120
 
-# Wait for TUI to render
+# Wait for seeding + TUI render
 [[scenes.interactions]]
 type = "wait"
-duration = 2000
+duration = 4000
 hidden = true
 
-# Tools (default) -> Skills
+# Tools (default) -> Skills -> Agents -> MCP
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
 [[scenes.interactions]]
 type = "key"
 key = "tab"
@@ -38,10 +52,30 @@ type = "wait"
 duration = 500
 hidden = true
 
-# Open the link picker on the selected skill (`l` = link/expose to tools)
+# Open the add-server form and fill in a stdio server
 [[scenes.interactions]]
 type = "key"
-key = "l"
+key = "a"
+
+[[scenes.interactions]]
+type = "type"
+text = "linear"
+
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "type"
+text = "linear-mcp"
+
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "type"
+text = "serve --team platform"
 
 [[scenes.interactions]]
 type = "wait"
@@ -50,25 +84,25 @@ hidden = true
 
 [[scenes.interactions]]
 type = "snapshot"
-name = "link"
+name = "mcp-add"
 
-# ── Animated GIF: tour of all six tabs ──
+# ── Animated GIF: tour of all eight tabs ──
 # Tab cycle order (see Tab::next in crates/agentspec/src/tui/app.rs):
-# Tools -> Skills -> Agents -> Configs -> Sessions -> Memories
+# Tools -> Skills -> Agents -> MCP -> Configs -> Sessions -> Fleets -> Memories
 [[scenes]]
 type = "terminal"
 name = "tui-demo"
-command = "agentspec"
+command = "./showcase/demo.sh"
 theme = "dracula"
 cols = 120
 rows = 30
 formats = [{ output_type = "gif" }]
 frame_duration = 120
 
-# Wait for TUI to render
+# Wait for seeding + TUI render
 [[scenes.interactions]]
 type = "wait"
-duration = 2000
+duration = 4000
 hidden = true
 
 # Tab 1: Tools (default)
@@ -111,7 +145,7 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 4: Configs
+# Tab 4: MCP
 [[scenes.interactions]]
 type = "key"
 key = "tab"
@@ -127,7 +161,7 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 5: Sessions
+# Tab 5: Configs
 [[scenes.interactions]]
 type = "key"
 key = "tab"
@@ -143,7 +177,39 @@ type = "snapshot"
 type = "wait"
 duration = 1500
 
-# Tab 6: Memories
+# Tab 6: Sessions
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 7: Fleets
+[[scenes.interactions]]
+type = "key"
+key = "tab"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 500
+
+[[scenes.interactions]]
+type = "snapshot"
+
+[[scenes.interactions]]
+type = "wait"
+duration = 1500
+
+# Tab 8: Memories
 [[scenes.interactions]]
 type = "key"
 key = "tab"
