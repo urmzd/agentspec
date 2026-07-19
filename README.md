@@ -28,9 +28,9 @@
       <sub><b>Interactive TUI: every tab, including MCP server management</b></sub>
     </td>
     <td align="center">
-      <img src="showcase/tui.png" alt="agentspec TUI link picker" width="400" />
+      <img src="showcase/tui.png" alt="agentspec TUI MCP add-server form" width="400" />
       <br />
-      <sub><b>Link a skill to tools</b></sub>
+      <sub><b>Register an MCP server once, use it in every tool</b></sub>
     </td>
   </tr>
 </table>
