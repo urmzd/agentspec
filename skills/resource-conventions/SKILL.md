@@ -120,10 +120,11 @@ Per-tool config files each tool reads natively (mirrors `PROJECT_FILES` in
   (each under a `mcpServers` key). Projects may also declare servers in a root `.mcp.json`.
 - **Server types**: `stdio` (`command`/`args`/`env`), `http`/`sse` (`url`). stdio XOR remote.
 - **Commands**: `mcp add <name> [--command|--url] [--args] [--env] [--type] [--tool]`,
-  `mcp remove <name> [--tool] [--purge]`, `mcp list`, `mcp link <name> [--tool|--all-tools]`,
-  `mcp sync`.
-- **Discovery**: `agentspec sync` auto-discovers project `.mcp.json`; `mcp sync` links every
-  canonical server into all MCP-capable installed tools.
+  `mcp remove <name>` (everywhere), `mcp list`, `mcp link <name> [--tool|--all-tools]`,
+  `mcp unlink <name> [--tool]` (tool configs only, store kept), `mcp sync`.
+- **Discovery**: `agentspec sync` adopts project `.mcp.json` servers into the canonical store
+  (originals untouched, store wins) and links every canonical server into all MCP-capable
+  installed tools.
 
 ## Permissions
 

@@ -617,8 +617,9 @@ fn main() -> color_eyre::Result<()> {
                     kind,
                     tools,
                     all_tools,
-                    copy,
+                    symlink,
                 } => {
+                    let copy = !symlink;
                     let tracked_kind = kind.as_deref().map(|k| match k {
                         "skill" => TrackedKind::Skill,
                         "agent" => TrackedKind::Agent,
@@ -664,8 +665,8 @@ fn main() -> color_eyre::Result<()> {
                         }
                     }
                 }
-                ManageAction::All { all_tools, copy } => {
-                    ops::discover::adopt_all(&mut cfg, all_tools, copy)?;
+                ManageAction::All { all_tools, symlink } => {
+                    ops::discover::adopt_all(&mut cfg, all_tools, !symlink)?;
                 }
                 ManageAction::List {
                     dedup,
@@ -683,9 +684,13 @@ fn main() -> color_eyre::Result<()> {
                         ops::discover::status(&cfg, cli.format == OutputFormat::Json)?;
                     }
                 }
-                ManageAction::Link { name, tool } => {
+                ManageAction::Link {
+                    name,
+                    tool,
+                    symlink,
+                } => {
                     let kind = resolve_kind(&cfg, &name);
-                    ops::link::link(&mut cfg, kind, &name, &tool, false)?;
+                    ops::link::link(&mut cfg, kind, &name, &tool, !symlink)?;
                 }
                 ManageAction::Unlink { name, tool } => {
                     let kind = resolve_kind(&cfg, &name);
@@ -785,8 +790,8 @@ fn main() -> color_eyre::Result<()> {
                 };
                 mcp::add_server(tool.as_deref(), &name, &server)?;
             }
-            McpAction::Remove { name, tool, purge } => {
-                mcp::remove_server(tool.as_deref(), &name, purge)?;
+            McpAction::Remove { name } => {
+                mcp::remove_server(&name)?;
             }
             McpAction::List => {
                 mcp::list_servers(cli.format == OutputFormat::Json)?;
@@ -798,6 +803,9 @@ fn main() -> color_eyre::Result<()> {
             } => {
                 let target = if all_tools { None } else { tool.as_deref() };
                 mcp::link_server(target, &name)?;
+            }
+            McpAction::Unlink { name, tool } => {
+                mcp::unlink_server(tool.as_deref(), &name)?;
             }
             McpAction::Sync => {
                 mcp::sync_all_servers(cli.format == OutputFormat::Json)?;

@@ -142,9 +142,9 @@ pub enum ManageAction {
         /// Link to all detected tools
         #[arg(long)]
         all_tools: bool,
-        /// Copy to tool dirs instead of symlinking
+        /// Symlink into tool dirs instead of copying (default is copy)
         #[arg(long)]
-        copy: bool,
+        symlink: bool,
     },
     /// Remove a managed resource
     Remove {
@@ -156,9 +156,9 @@ pub enum ManageAction {
         /// Link to all detected tools
         #[arg(long)]
         all_tools: bool,
-        /// Copy to tool dirs instead of symlinking
+        /// Symlink into tool dirs instead of copying (default is copy)
         #[arg(long)]
-        copy: bool,
+        symlink: bool,
     },
     /// List managed resources
     List {
@@ -178,6 +178,9 @@ pub enum ManageAction {
         name: String,
         /// Tool slug
         tool: String,
+        /// Symlink into the tool dir instead of copying (default is copy)
+        #[arg(long)]
+        symlink: bool,
     },
     /// Unlink a resource from a tool
     Unlink {
@@ -280,16 +283,10 @@ pub enum McpAction {
         #[arg(long)]
         tool: Option<String>,
     },
-    /// Remove an MCP server from AI tool configs (and the store)
+    /// Remove an MCP server everywhere (canonical store and all tool configs)
     Remove {
         /// Server name
         name: String,
-        /// Remove only from a specific tool (claude-code, gemini-cli, cursor)
-        #[arg(long)]
-        tool: Option<String>,
-        /// Also delete from the canonical store (~/.agents/mcp/<name>.json)
-        #[arg(long)]
-        purge: bool,
     },
     /// List MCP servers (canonical store + per-tool registrations)
     List,
@@ -303,6 +300,14 @@ pub enum McpAction {
         /// Link to all installed MCP-capable tools
         #[arg(long)]
         all_tools: bool,
+    },
+    /// Remove a server from tool config(s), keeping the canonical store
+    Unlink {
+        /// Server name
+        name: String,
+        /// Unlink only from a specific tool (claude-code, gemini-cli, cursor)
+        #[arg(long)]
+        tool: Option<String>,
     },
     /// Link all canonical servers to all installed MCP-capable tools
     Sync,

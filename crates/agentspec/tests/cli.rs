@@ -148,6 +148,105 @@ fn mcp_sync_json_reports_counts() {
 }
 
 #[test]
+fn mcp_add_unlink_link_remove_round_trip() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    // A ~/.claude dir makes claude-code count as installed (MCP config at
+    // ~/.claude/settings.json).
+    fs::create_dir_all(home.join(".claude").join("skills")).unwrap();
+    let settings = home.join(".claude").join("settings.json");
+    let store = home.join(".agents").join("mcp").join("srv.json");
+
+    let out = agentspec(home)
+        .args(["mcp", "add", "srv", "--command", "echo", "--args", "hi"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(store.exists(), "add must write the canonical store");
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+    assert_eq!(v["mcpServers"]["srv"]["command"], "echo");
+
+    // Unlink removes the tool entry but keeps the store.
+    let out = agentspec(home)
+        .args(["mcp", "unlink", "srv", "--tool", "claude-code"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+    assert!(v["mcpServers"].get("srv").is_none());
+    assert!(store.exists(), "unlink must keep the canonical store");
+
+    // Unlinking an unlinked server fails.
+    let out = agentspec(home)
+        .args(["mcp", "unlink", "srv"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+
+    // Link re-injects from the store.
+    let out = agentspec(home)
+        .args(["mcp", "link", "srv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+    assert_eq!(v["mcpServers"]["srv"]["command"], "echo");
+
+    // Remove deletes everywhere: tool configs and the store.
+    let out = agentspec(home)
+        .args(["mcp", "remove", "srv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(!store.exists(), "remove must delete the canonical store");
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+    assert!(v["mcpServers"].get("srv").is_none());
+
+    // Removing an unknown server fails.
+    let out = agentspec(home)
+        .args(["mcp", "remove", "srv"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn sync_adopts_project_mcp_json_into_store_and_links_tools() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".claude").join("skills")).unwrap();
+    let mcp_json = r#"{"mcpServers":{"demo":{"command":"demo-server","args":["--stdio"]}}}"#;
+    fs::write(home.join(".mcp.json"), mcp_json).unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    stdout_json(&out.stdout);
+
+    // The server is adopted into the canonical store, the original .mcp.json
+    // is untouched, and the store copy is linked into tool configs.
+    let store = home.join(".agents").join("mcp").join("demo.json");
+    let stored: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&store).unwrap()).unwrap();
+    assert_eq!(stored["command"], "demo-server");
+    assert_eq!(
+        fs::read_to_string(home.join(".mcp.json")).unwrap(),
+        mcp_json
+    );
+    let settings: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(home.join(".claude").join("settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(settings["mcpServers"]["demo"]["command"], "demo-server");
+}
+
+#[test]
 fn session_list_json_empty_is_empty_array() {
     let tmp = tempfile::tempdir().unwrap();
     fs::create_dir_all(tmp.path().join(".claude").join("projects")).unwrap();
@@ -1260,16 +1359,13 @@ fn project_sync_same_basename_does_not_collide() {
 }
 
 #[test]
-fn adopt_replaces_original_with_relative_symlink_then_prune_recovers() {
+fn adopt_copies_to_store_and_never_touches_the_original() {
     let tmp = tempfile::tempdir().unwrap();
     let home = tmp.path();
     let skill_dir = home.join(".claude").join("skills").join("demo-skill");
     fs::create_dir_all(&skill_dir).unwrap();
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        "---\nname: demo-skill\ndescription: Demo skill for tests\n---\n\n# Demo\n",
-    )
-    .unwrap();
+    let skill_md = "---\nname: demo-skill\ndescription: Demo skill for tests\n---\n\n# Demo\n";
+    fs::write(skill_dir.join("SKILL.md"), skill_md).unwrap();
 
     let out = agentspec(home)
         .args(["--format", "json", "sync", "--fast", "--adopt"])
@@ -1277,19 +1373,17 @@ fn adopt_replaces_original_with_relative_symlink_then_prune_recovers() {
         .unwrap();
     assert!(out.status.success());
 
-    // The original tool copy is replaced by a relative symlink into the store.
-    let link = home.join(".claude").join("skills").join("demo-skill");
-    let meta = fs::symlink_metadata(&link).unwrap();
-    assert!(meta.file_type().is_symlink(), "original must be a symlink");
-    let target = fs::read_link(&link).unwrap();
+    // The original stays a real directory with its content intact — adoption
+    // copies to the store, it never leaves a symlink behind in the source.
+    let original = home.join(".claude").join("skills").join("demo-skill");
+    let meta = fs::symlink_metadata(&original).unwrap();
     assert!(
-        target.is_relative(),
-        "symlink target must be relative: {target:?}"
+        meta.file_type().is_dir(),
+        "original must remain a real directory"
     );
-    assert!(
-        fs::canonicalize(&link)
-            .unwrap()
-            .ends_with(".agents/skills/demo-skill")
+    assert_eq!(
+        fs::read_to_string(original.join("SKILL.md")).unwrap(),
+        skill_md
     );
     assert!(
         home.join(".agents")
@@ -1299,8 +1393,19 @@ fn adopt_replaces_original_with_relative_symlink_then_prune_recovers() {
             .exists()
     );
 
-    // Deleting the store copy leaves a dead config entry plus a broken
-    // symlink; prune --yes removes both.
+    // The original is recorded as the resource's local source of truth.
+    let out = agentspec(home)
+        .args(["--format", "json", "manage", "list"])
+        .output()
+        .unwrap();
+    let v = stdout_json(&out.stdout);
+    let managed = v["managed"].as_array().unwrap();
+    assert_eq!(managed.len(), 1);
+    assert_eq!(managed[0]["source_type"], "local");
+    assert_eq!(managed[0]["source"], original.to_str().unwrap());
+
+    // Deleting the store copy leaves a dead config entry; prune --yes removes
+    // it without touching the original.
     fs::remove_dir_all(home.join(".agents").join("skills").join("demo-skill")).unwrap();
     let out = agentspec(home)
         .args(["--format", "json", "prune", "--yes"])
@@ -1310,10 +1415,9 @@ fn adopt_replaces_original_with_relative_symlink_then_prune_recovers() {
     let v = stdout_json(&out.stdout);
     assert_eq!(v["dry_run"], false);
     assert_eq!(v["broken_resources"].as_array().unwrap().len(), 1);
-    assert_eq!(v["broken_symlinks"].as_array().unwrap().len(), 1);
     assert!(
-        fs::symlink_metadata(&link).is_err(),
-        "broken symlink must be deleted"
+        original.join("SKILL.md").exists(),
+        "prune must never delete the original"
     );
 
     // Store and config are consistent again.
@@ -1333,7 +1437,7 @@ fn adopt_replaces_original_with_relative_symlink_then_prune_recovers() {
 }
 
 #[test]
-fn unlink_then_link_round_trips_the_tool_symlink() {
+fn unlink_then_link_round_trips_the_tool_copy() {
     let tmp = tempfile::tempdir().unwrap();
     let home = tmp.path();
     let skill_dir = home.join(".claude").join("skills").join("linked-skill");
@@ -1350,13 +1454,9 @@ fn unlink_then_link_round_trips_the_tool_symlink() {
         .unwrap();
     assert!(out.status.success());
 
+    // The tool-dir original is reconciled as a copy-strategy link.
     let link = home.join(".claude").join("skills").join("linked-skill");
-    assert!(
-        fs::symlink_metadata(&link)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(fs::symlink_metadata(&link).unwrap().file_type().is_dir());
 
     let out = agentspec(home)
         .args(["manage", "unlink", "linked-skill", "claude-code"])
@@ -1365,7 +1465,7 @@ fn unlink_then_link_round_trips_the_tool_symlink() {
     assert!(out.status.success());
     assert!(
         fs::symlink_metadata(&link).is_err(),
-        "unlink must remove the symlink"
+        "unlink must remove the copied directory"
     );
 
     let out = agentspec(home)
@@ -1374,14 +1474,35 @@ fn unlink_then_link_round_trips_the_tool_symlink() {
         .unwrap();
     assert!(out.status.success());
     assert!(
-        fs::symlink_metadata(&link)
-            .unwrap()
-            .file_type()
-            .is_symlink()
+        fs::symlink_metadata(&link).unwrap().file_type().is_dir(),
+        "relink must create a real copy by default"
     );
     assert!(
         link.join("SKILL.md").exists(),
-        "relinked symlink must resolve"
+        "relinked copy must contain the skill"
+    );
+
+    // Symlink linking stays available as an explicit opt-in.
+    let out = agentspec(home)
+        .args(["manage", "unlink", "linked-skill", "claude-code"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let out = agentspec(home)
+        .args(["manage", "link", "linked-skill", "claude-code", "--symlink"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "--symlink must create a symlink"
+    );
+    assert!(
+        link.join("SKILL.md").exists(),
+        "symlink must resolve into the store"
     );
 }
 

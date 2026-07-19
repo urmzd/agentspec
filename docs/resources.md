@@ -477,11 +477,12 @@ Layers:
 Commands:
 
 - `agentspec mcp add <name> [--command <cmd>] [--args "a b"] [--env KEY=VAL ...] [--url <url>] [--type stdio|http|sse] [--tool <slug>]`: register a server. Requires `--command` (stdio) **xor** `--url` (remote http/sse). `--args` is space-delimited; `--env` is repeatable `KEY=VALUE` pairs (both **are** supported). Writes `~/.agents/mcp/<name>.json` **and** injects into every MCP-capable installed tool, or just `--tool` if given.
-- `agentspec mcp remove <name> [--tool <slug>] [--purge]`: remove from tool configs. Also deletes the canonical store file when no `--tool` is given, or when `--purge` is set.
+- `agentspec mcp remove <name>`: remove everywhere, from every tool config and the canonical store file.
 - `agentspec mcp list`: show the canonical store **and** each tool's registered servers.
 - `agentspec mcp link <name> [--tool <slug>] [--all-tools]`: inject a stored server into tool config(s).
+- `agentspec mcp unlink <name> [--tool <slug>]`: remove a server from tool config(s), keeping the canonical store.
 - `agentspec mcp sync`: link every canonical server into all MCP-capable installed tools.
-- `agentspec sync`: additionally auto-discovers `.mcp.json` in known project roots.
+- `agentspec sync`: additionally adopts `.mcp.json` servers from known project roots into the canonical store (originals untouched; an existing store entry wins), then links every stored server into all MCP-capable tools.
 
 ---
 
