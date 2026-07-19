@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0 (2026-07-19)
+
+### Features
+
+- **showcase**: capture TUI demos from a sanitized seeded HOME ([1a488c1](https://github.com/urmzd/agentspec/commit/1a488c1d11566f8c05c99e896ddc910c6f009565))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.11.0...v0.12.0)
+
+
 ## 0.11.0 (2026-07-15)
 
 ### Features
