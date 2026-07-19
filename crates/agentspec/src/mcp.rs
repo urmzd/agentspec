@@ -289,7 +289,46 @@ fn list_stored() -> Vec<(String, Value)> {
     out
 }
 
-fn server_summary(config: &Value) -> String {
+/// A canonical-store server and which tool configs currently carry it.
+pub struct McpInventoryEntry {
+    pub name: String,
+    pub config: Value,
+    pub linked_tools: Vec<String>,
+}
+
+/// Slugs of installed tools with MCP config support.
+pub fn tool_slugs() -> Vec<String> {
+    mcp_targets().into_iter().map(|(slug, _)| slug).collect()
+}
+
+/// Canonical store servers joined with their per-tool link state.
+pub fn inventory() -> Vec<McpInventoryEntry> {
+    let tool_roots: Vec<(String, Value)> = mcp_targets()
+        .into_iter()
+        .map(|(slug, path)| (slug, read_json(&path)))
+        .collect();
+    list_stored()
+        .into_iter()
+        .map(|(name, config)| {
+            let linked_tools = tool_roots
+                .iter()
+                .filter(|(_, root)| {
+                    root.get("mcpServers")
+                        .and_then(|servers| servers.get(&name))
+                        .is_some()
+                })
+                .map(|(slug, _)| slug.clone())
+                .collect();
+            McpInventoryEntry {
+                name,
+                config,
+                linked_tools,
+            }
+        })
+        .collect()
+}
+
+pub fn server_summary(config: &Value) -> String {
     if let Some(url) = config.get("url").and_then(|v| v.as_str()) {
         return url.to_string();
     }

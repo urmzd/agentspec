@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::ir::ResourceKind;
+use crate::mcp::McpServer;
 
 use super::action::{Action, AgentSource};
 use super::app::Tab;
@@ -40,6 +41,7 @@ pub enum Modal {
     FleetSpawnPrompt(FleetSpawnPrompt),
     FleetStatePicker(FleetStatePicker),
     LinkPicker(LinkPicker),
+    McpAddPrompt(McpAddPrompt),
     Preview(Preview),
 }
 
@@ -55,6 +57,7 @@ impl Modal {
             Modal::FleetSpawnPrompt(prompt) => Some(prompt.handle_key(key)),
             Modal::FleetStatePicker(picker) => Some(picker.handle_key(key)),
             Modal::LinkPicker(lp) => Some(lp.handle_key(key)),
+            Modal::McpAddPrompt(prompt) => Some(prompt.handle_key(key)),
             Modal::Preview(p) => Some(p.handle_key(key)),
         }
     }
@@ -82,6 +85,7 @@ impl DeleteConfirm {
                         name: self.name.clone(),
                         source: self.agent_source.clone().unwrap_or(AgentSource::Managed),
                     },
+                    Tab::Mcp => Action::DeleteMcpServer(self.name.clone()),
                     _ => return ModalResult::Dismiss,
                 };
                 ModalResult::Execute(vec![action])
@@ -391,9 +395,16 @@ impl FleetStatePicker {
 // Link picker
 // ---------------------------------------------------------------------------
 
+/// What a link picker links: a store resource or an MCP server.
+#[derive(Clone, Copy)]
+pub enum LinkTarget {
+    Resource(ResourceKind),
+    Mcp,
+}
+
 pub struct LinkPicker {
     pub name: String,
-    pub kind: ResourceKind,
+    pub target: LinkTarget,
     pub checks: Vec<(String, bool)>,
     pub original: Vec<(String, bool)>,
     pub selected: usize,
@@ -431,21 +442,151 @@ impl LinkPicker {
         let mut actions = Vec::new();
         for (i, (slug, now_checked)) in self.checks.iter().enumerate() {
             let was_checked = self.original.get(i).map(|(_, c)| *c).unwrap_or(false);
-            if *now_checked && !was_checked {
-                actions.push(Action::Link {
-                    kind: self.kind,
-                    name: self.name.clone(),
-                    tool: slug.clone(),
-                });
-            } else if !now_checked && was_checked {
-                actions.push(Action::Unlink {
-                    kind: self.kind,
-                    name: self.name.clone(),
-                    tool: slug.clone(),
-                });
+            if *now_checked == was_checked {
+                continue;
             }
+            let action = match (self.target, *now_checked) {
+                (LinkTarget::Resource(kind), true) => Action::Link {
+                    kind,
+                    name: self.name.clone(),
+                    tool: slug.clone(),
+                },
+                (LinkTarget::Resource(kind), false) => Action::Unlink {
+                    kind,
+                    name: self.name.clone(),
+                    tool: slug.clone(),
+                },
+                (LinkTarget::Mcp, true) => Action::McpLink {
+                    name: self.name.clone(),
+                    tool: slug.clone(),
+                },
+                (LinkTarget::Mcp, false) => Action::McpUnlink {
+                    name: self.name.clone(),
+                    tool: slug.clone(),
+                },
+            };
+            actions.push(action);
         }
         actions
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MCP add-server prompt
+// ---------------------------------------------------------------------------
+
+pub struct McpAddPrompt {
+    pub fields: Vec<(&'static str, String)>,
+    pub selected: usize,
+    pub status: Option<String>,
+}
+
+impl McpAddPrompt {
+    pub fn new() -> Self {
+        Self {
+            fields: vec![
+                ("Name", String::new()),
+                ("Command", String::new()),
+                ("Args", String::new()),
+                ("Env", String::new()),
+                ("URL", String::new()),
+                ("Type", String::new()),
+            ],
+            selected: 0,
+            status: None,
+        }
+    }
+
+    /// Build the server from the form. Mirrors `mcp add` CLI validation.
+    pub fn request(&self) -> Result<(String, McpServer), String> {
+        let name = self.field_value("Name").trim().to_string();
+        let command = self.field_value("Command").trim().to_string();
+        let args = self.field_value("Args").trim().to_string();
+        let env = self.field_value("Env").trim().to_string();
+        let url = self.field_value("URL").trim().to_string();
+        let server_type = self.field_value("Type").trim().to_string();
+
+        if name.is_empty() {
+            return Err("Name is required".to_string());
+        }
+        if !server_type.is_empty() && !matches!(server_type.as_str(), "stdio" | "http" | "sse") {
+            return Err("Type must be stdio, http, or sse".to_string());
+        }
+        let mut env_map = std::collections::HashMap::new();
+        for pair in env.split_whitespace() {
+            match pair.split_once('=') {
+                Some((k, v)) if !k.is_empty() => {
+                    env_map.insert(k.to_string(), v.to_string());
+                }
+                _ => return Err(format!("Env must be KEY=VALUE pairs, got: {pair}")),
+            }
+        }
+
+        let server = McpServer {
+            command: if command.is_empty() {
+                None
+            } else {
+                Some(command)
+            },
+            args: args.split_whitespace().map(str::to_string).collect(),
+            env: env_map,
+            url: if url.is_empty() { None } else { Some(url) },
+            server_type: if server_type.is_empty() {
+                None
+            } else {
+                Some(server_type)
+            },
+        };
+        server.validate().map_err(|e| e.to_string())?;
+        Ok((name, server))
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) -> ModalResult {
+        match key.code {
+            KeyCode::Esc => ModalResult::Dismiss,
+            KeyCode::Enter => match self.request() {
+                Ok((name, server)) => {
+                    ModalResult::Execute(vec![Action::AddMcpServer { name, server }])
+                }
+                Err(message) => {
+                    self.status = Some(message);
+                    ModalResult::Continue
+                }
+            },
+            KeyCode::Tab | KeyCode::Down => {
+                self.selected = (self.selected + 1).min(self.fields.len().saturating_sub(1));
+                self.status = None;
+                ModalResult::Continue
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                self.selected = self.selected.saturating_sub(1);
+                self.status = None;
+                ModalResult::Continue
+            }
+            KeyCode::Backspace => {
+                if let Some((_, value)) = self.fields.get_mut(self.selected) {
+                    value.pop();
+                }
+                self.status = None;
+                ModalResult::Continue
+            }
+            KeyCode::Char(c) => {
+                if let Some((_, value)) = self.fields.get_mut(self.selected) {
+                    value.push(c);
+                }
+                self.status = None;
+                ModalResult::Continue
+            }
+            _ => ModalResult::Continue,
+        }
+    }
+
+    fn field_value(&self, name: &str) -> &str {
+        self.fields
+            .iter()
+            .find(|(field, _)| *field == name)
+            .map(|(_, value)| value.as_str())
+            .unwrap_or("")
     }
 }
 
@@ -639,6 +780,54 @@ mod tests {
         prompt.fields[6].1 = "api-review".into();
 
         assert_eq!(prompt.request(), Err("Use Dir or Worktree, not both"));
+    }
+
+    #[test]
+    fn mcp_add_prompt_builds_stdio_server() {
+        let mut prompt = McpAddPrompt::new();
+        prompt.fields[0].1 = "sr".into();
+        prompt.fields[1].1 = "sr".into();
+        prompt.fields[2].1 = "mcp serve".into();
+        prompt.fields[3].1 = "API_KEY=x".into();
+
+        let (name, server) = prompt.request().unwrap();
+        assert_eq!(name, "sr");
+        assert_eq!(server.command.as_deref(), Some("sr"));
+        assert_eq!(server.args, vec!["mcp", "serve"]);
+        assert_eq!(server.env.get("API_KEY").map(String::as_str), Some("x"));
+        assert_eq!(server.url, None);
+    }
+
+    #[test]
+    fn mcp_add_prompt_requires_name() {
+        let mut prompt = McpAddPrompt::new();
+        prompt.fields[1].1 = "echo".into();
+        assert_eq!(prompt.request().unwrap_err(), "Name is required");
+    }
+
+    #[test]
+    fn mcp_add_prompt_rejects_command_and_url() {
+        let mut prompt = McpAddPrompt::new();
+        prompt.fields[0].1 = "x".into();
+        prompt.fields[1].1 = "echo".into();
+        prompt.fields[4].1 = "https://x".into();
+        assert!(prompt.request().is_err());
+    }
+
+    #[test]
+    fn mcp_add_prompt_rejects_bad_type_and_env() {
+        let mut prompt = McpAddPrompt::new();
+        prompt.fields[0].1 = "x".into();
+        prompt.fields[1].1 = "echo".into();
+        prompt.fields[5].1 = "grpc".into();
+        assert_eq!(
+            prompt.request().unwrap_err(),
+            "Type must be stdio, http, or sse"
+        );
+
+        prompt.fields[5].1 = String::new();
+        prompt.fields[3].1 = "NOEQUALS".into();
+        assert!(prompt.request().unwrap_err().starts_with("Env must be"));
     }
 
     #[test]

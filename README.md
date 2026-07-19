@@ -25,7 +25,7 @@
     <td align="center">
       <img src="showcase/tui-demo.gif" alt="agentspec TUI demo" width="400" />
       <br />
-      <sub><b>Interactive TUI: all six tabs</b></sub>
+      <sub><b>Interactive TUI: every tab, including MCP server management</b></sub>
     </td>
     <td align="center">
       <img src="showcase/tui.png" alt="agentspec TUI link picker" width="400" />

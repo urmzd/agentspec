@@ -10,6 +10,7 @@ use crate::config;
 use crate::error::Result;
 use crate::inventory::{self, TrackedKind};
 use crate::ir::ResourceKind;
+use crate::mcp;
 use crate::ops::{fleet, memory, worktree};
 use crate::session;
 use crate::tools::{self, CodingTool};
@@ -18,7 +19,7 @@ use super::action::{AgentSource, ReloadTarget};
 use super::event::poll_event;
 use super::modal::{
     DeleteConfirm, FleetEventPrompt, FleetSendPrompt, FleetSpawnPrompt, FleetSpawnRequest,
-    FleetStatePicker, LinkPicker, Modal, ModalResult, Preview,
+    FleetStatePicker, LinkPicker, LinkTarget, McpAddPrompt, Modal, ModalResult, Preview,
 };
 use super::screens;
 
@@ -28,6 +29,7 @@ pub enum Tab {
     Tools,
     Skills,
     Agents,
+    Mcp,
     Configs,
     Sessions,
     Fleets,
@@ -40,6 +42,7 @@ impl Tab {
             Tab::Tools,
             Tab::Skills,
             Tab::Agents,
+            Tab::Mcp,
             Tab::Configs,
             Tab::Sessions,
             Tab::Fleets,
@@ -52,6 +55,7 @@ impl Tab {
             Tab::Tools => "Tools",
             Tab::Skills => "Skills",
             Tab::Agents => "Agents",
+            Tab::Mcp => "MCP",
             Tab::Configs => "Configs",
             Tab::Sessions => "Sessions",
             Tab::Fleets => "Fleets",
@@ -63,7 +67,8 @@ impl Tab {
         match self {
             Tab::Tools => Tab::Skills,
             Tab::Skills => Tab::Agents,
-            Tab::Agents => Tab::Configs,
+            Tab::Agents => Tab::Mcp,
+            Tab::Mcp => Tab::Configs,
             Tab::Configs => Tab::Sessions,
             Tab::Sessions => Tab::Fleets,
             Tab::Fleets => Tab::Memories,
@@ -76,7 +81,8 @@ impl Tab {
             Tab::Tools => Tab::Memories,
             Tab::Skills => Tab::Tools,
             Tab::Agents => Tab::Skills,
-            Tab::Configs => Tab::Agents,
+            Tab::Mcp => Tab::Agents,
+            Tab::Configs => Tab::Mcp,
             Tab::Sessions => Tab::Configs,
             Tab::Fleets => Tab::Sessions,
             Tab::Memories => Tab::Fleets,
@@ -101,6 +107,19 @@ pub struct AgentEntry {
     pub model: Option<String>,
     pub linked_tools: Vec<String>,
     pub source: AgentSource,
+}
+
+pub struct McpEntry {
+    /// Server name (canonical store filename stem).
+    pub name: String,
+    /// url, or command + args.
+    pub summary: String,
+    /// stdio / http / sse, derived from the config shape.
+    pub transport: String,
+    /// Slugs of MCP-capable tools whose config carries this server.
+    pub linked_tools: Vec<String>,
+    /// Pretty-printed server JSON for the preview modal.
+    pub config_pretty: String,
 }
 
 pub struct ToolEntry {
@@ -201,6 +220,9 @@ pub struct App {
     pub cfg: inventory::Config,
     pub skills: Vec<SkillEntry>,
     pub agents: Vec<AgentEntry>,
+    pub mcp_servers: Vec<McpEntry>,
+    /// Slugs of installed MCP-capable tools (the MCP link-picker choices).
+    pub mcp_tools: Vec<String>,
     pub tool_entries: Vec<ToolEntry>,
     pub sessions: LazyTab<SessionEntry>,
     pub fleets: LazyTab<FleetEntry>,
@@ -225,6 +247,8 @@ impl App {
 
         let skills = load_skills(&installed);
         let agents = load_agents(&installed);
+        let mcp_servers = load_mcp_servers();
+        let mcp_tools = mcp::tool_slugs();
         let tool_entries = load_tool_entries();
 
         // Eager lightweight counts — full data loads on tab select
@@ -238,6 +262,8 @@ impl App {
             cfg,
             skills,
             agents,
+            mcp_servers,
+            mcp_tools,
             tool_entries,
             sessions: LazyTab::CountOnly(session_count),
             fleets: LazyTab::CountOnly(fleet_count),
@@ -399,14 +425,18 @@ impl App {
                 self.fleet_message_scroll = 0;
             }
             KeyCode::Char('l') => {
-                if matches!(self.tab, Tab::Skills | Tab::Agents) {
+                if matches!(self.tab, Tab::Skills | Tab::Agents | Tab::Mcp) {
                     self.open_link_picker();
                 }
             }
             KeyCode::Char('d')
-                if matches!(self.tab, Tab::Skills | Tab::Agents) && self.current_list_len() > 0 =>
+                if matches!(self.tab, Tab::Skills | Tab::Agents | Tab::Mcp)
+                    && self.current_list_len() > 0 =>
             {
                 self.open_delete_confirm();
+            }
+            KeyCode::Char('a') if matches!(self.tab, Tab::Mcp) => {
+                self.modal = Modal::McpAddPrompt(McpAddPrompt::new());
             }
             KeyCode::Char('r')
                 if matches!(self.tab, Tab::Fleets) && self.current_list_len() > 0 =>
@@ -503,6 +533,10 @@ impl App {
                 self.agents = load_agents(&installed);
                 self.tool_entries = load_tool_entries();
             }
+            ReloadTarget::Mcp => {
+                self.mcp_servers = load_mcp_servers();
+                self.mcp_tools = mcp::tool_slugs();
+            }
         }
     }
 
@@ -533,6 +567,11 @@ impl App {
                     None => (None, None),
                 }
             }
+            Tab::Mcp => {
+                let filtered = self.filtered_mcp_servers();
+                let name = filtered.get(self.selected).map(|s| s.name.clone());
+                (name, None)
+            }
             _ => return,
         };
 
@@ -561,24 +600,38 @@ impl App {
                     None => return,
                 }
             }
+            Tab::Mcp => {
+                let filtered = self.filtered_mcp_servers();
+                match filtered.get(self.selected) {
+                    Some(s) => (s.name.clone(), s.linked_tools.clone()),
+                    None => return,
+                }
+            }
             _ => return,
         };
 
-        let kind = match self.tab {
-            Tab::Skills => ResourceKind::Skill,
-            Tab::Agents => ResourceKind::Agent,
+        // MCP servers link only to MCP-capable tools; resources to any tool.
+        let (target, choices) = match self.tab {
+            Tab::Skills => (
+                LinkTarget::Resource(ResourceKind::Skill),
+                &self.installed_tools,
+            ),
+            Tab::Agents => (
+                LinkTarget::Resource(ResourceKind::Agent),
+                &self.installed_tools,
+            ),
+            Tab::Mcp => (LinkTarget::Mcp, &self.mcp_tools),
             _ => return,
         };
 
-        let checks: Vec<(String, bool)> = self
-            .installed_tools
+        let checks: Vec<(String, bool)> = choices
             .iter()
             .map(|slug| (slug.clone(), linked.contains(slug)))
             .collect();
 
         self.modal = Modal::LinkPicker(LinkPicker {
             name,
-            kind,
+            target,
             original: checks.clone(),
             checks,
             selected: 0,
@@ -618,6 +671,22 @@ impl App {
                     }
                 };
                 (format!("Agent: {}", a.name), content)
+            }
+            Tab::Mcp => {
+                let filtered = self.filtered_mcp_servers();
+                let Some(s) = filtered.get(self.selected) else {
+                    return;
+                };
+                let linked = if s.linked_tools.is_empty() {
+                    "(none)".to_string()
+                } else {
+                    s.linked_tools.join(", ")
+                };
+                let content = format!(
+                    "Store: ~/.agents/mcp/{}.json\nTransport: {}\nLinked tools: {linked}\n\n{}",
+                    s.name, s.transport, s.config_pretty
+                );
+                (format!("MCP: {}", s.name), content)
             }
             Tab::Sessions => {
                 let filtered = self.filtered_sessions();
@@ -688,8 +757,9 @@ impl App {
             Tab::Tools => return,
         };
 
-        // Skills and agents can be linked straight from the preview via `l`.
-        let linkable = matches!(self.tab, Tab::Skills | Tab::Agents);
+        // Skills, agents, and MCP servers can be linked straight from the
+        // preview via `l`.
+        let linkable = matches!(self.tab, Tab::Skills | Tab::Agents | Tab::Mcp);
         self.modal = Modal::Preview(Preview::new(title, content, linkable));
     }
 
@@ -1197,6 +1267,7 @@ impl App {
         match self.tab {
             Tab::Skills => self.filtered_skills().len(),
             Tab::Agents => self.filtered_agents().len(),
+            Tab::Mcp => self.filtered_mcp_servers().len(),
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.filtered_sessions().len(),
             Tab::Fleets => self.filtered_fleets().len(),
@@ -1210,6 +1281,7 @@ impl App {
         match tab {
             Tab::Skills => self.skills.len(),
             Tab::Agents => self.agents.len(),
+            Tab::Mcp => self.mcp_servers.len(),
             Tab::Tools => self.tool_entries.len(),
             Tab::Sessions => self.sessions.count(),
             Tab::Fleets => self.fleets.count(),
@@ -1227,6 +1299,12 @@ impl App {
     pub fn filtered_agents(&self) -> Vec<&AgentEntry> {
         fuzzy_filter(&self.filter, self.agents.iter(), |a| {
             format!("{} {}", a.name, a.description)
+        })
+    }
+
+    pub fn filtered_mcp_servers(&self) -> Vec<&McpEntry> {
+        fuzzy_filter(&self.filter, self.mcp_servers.iter(), |s| {
+            format!("{} {} {}", s.name, s.transport, s.summary)
         })
     }
 
@@ -1339,6 +1417,35 @@ fn load_skills(installed: &[Box<dyn CodingTool>]) -> Vec<SkillEntry> {
 
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     entries
+}
+
+fn load_mcp_servers() -> Vec<McpEntry> {
+    mcp::inventory()
+        .into_iter()
+        .map(|entry| {
+            let transport = entry
+                .config
+                .get("type")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    if entry.config.get("url").is_some() {
+                        "http".to_string()
+                    } else {
+                        "stdio".to_string()
+                    }
+                });
+            let config_pretty = serde_json::to_string_pretty(&entry.config)
+                .unwrap_or_else(|_| "(unrenderable config)".to_string());
+            McpEntry {
+                summary: mcp::server_summary(&entry.config),
+                transport,
+                name: entry.name,
+                linked_tools: entry.linked_tools,
+                config_pretty,
+            }
+        })
+        .collect()
 }
 
 fn load_agents(installed: &[Box<dyn CodingTool>]) -> Vec<AgentEntry> {
