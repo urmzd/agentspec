@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0 (2026-07-20)
+
+### Features
+
+- copy-default linking, non-destructive adoption, and consistent MCP management (#16) ([af6a139](https://github.com/urmzd/agentspec/commit/af6a139002eda7624e85d9b53162273917508761))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.12.0...v0.13.0)
+
+
 ## 0.12.0 (2026-07-19)
 
 ### Features
