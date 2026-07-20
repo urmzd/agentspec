@@ -13,6 +13,8 @@ mod fleet_send_prompt;
 mod fleet_spawn_prompt;
 mod fleet_state_picker;
 mod link_picker;
+mod mcp_add_prompt;
+mod mcp_list;
 mod memory_list;
 mod preview;
 mod session_list;
@@ -40,6 +42,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     match app.tab {
         Tab::Skills => skill_list::draw(f, chunks[2], app),
         Tab::Agents => agent_list::draw(f, chunks[2], app),
+        Tab::Mcp => mcp_list::draw(f, chunks[2], app),
         Tab::Tools => tool_list::draw(f, chunks[2], app),
         Tab::Sessions => session_list::draw(f, chunks[2], app),
         Tab::Fleets => fleet_list::draw(f, chunks[2], app),
@@ -57,6 +60,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Modal::FleetSpawnPrompt(prompt) => fleet_spawn_prompt::draw(f, prompt),
         Modal::FleetStatePicker(picker) => fleet_state_picker::draw(f, picker),
         Modal::LinkPicker(lp) => link_picker::draw(f, lp),
+        Modal::McpAddPrompt(prompt) => mcp_add_prompt::draw(f, prompt),
         Modal::Preview(p) => preview::draw(f, p),
     }
 }
@@ -180,6 +184,9 @@ fn draw_help_bar(f: &mut Frame, area: Rect, app: &App) {
             Tab::Skills | Tab::Agents => {
                 "[l] Link tools  [Enter] Preview  [d] Delete  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
             }
+            Tab::Mcp => {
+                "[a] Add  [l] Link tools  [Enter] Preview  [d] Remove  [/] Filter  [Tab] Switch  [j/k] Nav  [q] Quit"
+            }
             Tab::Fleets => {
                 "[a] Add  [s] Send  [e] Event  [m] Mark  [t] Attach  [c] Context  [i] Policy  [p/P] Preview  [r/R] Route"
             }
@@ -237,6 +244,24 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
                     a.linked_tools.join(", ")
                 };
                 format!("  {} | model: {model} | linked: {tools_str}", a.name)
+            } else {
+                String::new()
+            }
+        }
+        Tab::Mcp => {
+            let servers = app.filtered_mcp_servers();
+            if let Some(s) = servers.get(app.selected) {
+                let tools_str = if s.linked_tools.is_empty() {
+                    "none".to_string()
+                } else {
+                    s.linked_tools.join(", ")
+                };
+                format!(
+                    "  {} | {} | {} | linked: {tools_str}",
+                    s.name,
+                    s.transport,
+                    truncate_str(&s.summary, 50)
+                )
             } else {
                 String::new()
             }

@@ -6,8 +6,8 @@ use crate::config;
 use crate::error::{AppError, Result};
 use crate::frontmatter;
 use crate::inventory::{
-    self, Config, DiscoveredResource, DiscoveryLocation, LinkStrategy, ResourceLink, SourceType,
-    TrackedKind, TrackedResource, hash_resource,
+    self, Config, DiscoveredResource, DiscoveryLocation, SourceType, TrackedKind, TrackedResource,
+    hash_resource,
 };
 use crate::ir::ResourceKind;
 use crate::ops::link;
@@ -531,48 +531,25 @@ pub fn adopt(
 
     let hash = hash_resource(kind, &abs_dest)?;
 
-    // Replace original with symlink (for each found_in location).
-    // For in-place-adopted kinds, abs_dest is the source file itself — skip
-    // those locations so we don't delete-and-self-symlink the canonical copy.
-    let abs_dest_canonical = std::fs::canonicalize(&abs_dest).ok();
-    for loc in &discovered.found_in {
-        let loc_path = Path::new(&loc.path);
-        if !loc_path.exists() || loc_path.is_symlink() || loc.tool == "shared-store" {
-            continue;
-        }
-        let loc_canonical = std::fs::canonicalize(loc_path).ok();
-        if loc_canonical.is_some() && loc_canonical == abs_dest_canonical {
-            continue;
-        }
-        if kind == TrackedKind::Skill {
-            std::fs::remove_dir_all(loc_path)?;
+    // Originals are never modified or deleted. A non-shared-store origin
+    // (e.g. a skill living in a git repo) becomes the resource's upstream:
+    // `manage update` and `sync` re-copy source → shared store, so the
+    // relationship is a sync, never a symlink left behind in the source.
+    let (source, source_type) =
+        if is_shared_store || !matches!(kind, TrackedKind::Skill | TrackedKind::Agent) {
+            ("discovered".to_string(), SourceType::Discovered)
         } else {
-            std::fs::remove_file(loc_path)?;
-        }
-        let target = link::make_relative(loc_path, &abs_dest);
-        std::os::unix::fs::symlink(&target, loc_path)?;
-    }
+            (source_loc.path.clone(), SourceType::Local)
+        };
 
-    // Build tracked resource
-    let mut tracked = TrackedResource::new(
+    let tracked = TrackedResource::new(
         name.to_string(),
         kind,
-        "discovered".to_string(),
-        SourceType::Discovered,
+        source,
+        source_type,
         relative_path,
         hash,
     );
-
-    // Record existing links from discovery
-    for loc in &discovered.found_in {
-        if loc.tool != "shared-store" {
-            tracked.links.push(ResourceLink {
-                tool: loc.tool.clone(),
-                strategy: LinkStrategy::Symlink,
-                path: loc.path.clone(),
-            });
-        }
-    }
 
     cfg.add(tracked);
 

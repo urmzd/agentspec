@@ -110,18 +110,30 @@ pub fn unlink(cfg: &mut Config, kind: ResourceKind, name: &str, tool_slug: &str)
         _ => unreachable!("handled above"),
     };
 
-    if !link_path.is_symlink() {
+    let tracked_kind: TrackedKind = kind.into();
+    let is_tracked_link = cfg
+        .find(name, tracked_kind)
+        .is_some_and(|r| r.links.iter().any(|l| l.tool == tool_slug));
+
+    if link_path.is_symlink() {
+        std::fs::remove_file(&link_path)?;
+    } else if is_tracked_link && link_path.exists() {
+        // Copy-strategy link — remove the copied file or directory.
+        if link_path.is_dir() {
+            std::fs::remove_dir_all(&link_path)?;
+        } else {
+            std::fs::remove_file(&link_path)?;
+        }
+    } else {
         return Err(AppError::Other(format!(
             "{name} is not linked to {}",
             tool.slug()
         )));
     }
 
-    std::fs::remove_file(&link_path)?;
     eprintln!("Unlinked {} '{}' from {}", kind, name, tool.name());
 
     // Remove the link record from config
-    let tracked_kind: TrackedKind = kind.into();
     if let Some(resource) = cfg.find_mut(name, tracked_kind) {
         resource.links.retain(|l| l.tool != tool_slug);
     }
@@ -148,14 +160,26 @@ pub fn unlink_from_all(cfg: &mut Config, kind: ResourceKind, name: &str) -> Resu
     if !matches!(kind, ResourceKind::Skill | ResourceKind::Agent) {
         return Ok(());
     }
+    // Copy-strategy links aren't discoverable by scanning for symlinks, so
+    // start from the link records in config, then add any symlinks on disk.
+    let tracked_kind: TrackedKind = kind.into();
+    let mut slugs: Vec<String> = cfg
+        .find(name, tracked_kind)
+        .map(|r| r.links.iter().map(|l| l.tool.clone()).collect())
+        .unwrap_or_default();
     for tool in tools::installed_tools() {
         let linked = match kind {
             ResourceKind::Skill => tool.linked_skills(),
             ResourceKind::Agent => tool.linked_agents(),
             _ => continue,
         };
-        if linked.contains(&name.to_string()) {
-            unlink(cfg, kind, name, tool.slug())?;
+        if linked.contains(&name.to_string()) && !slugs.iter().any(|s| s == tool.slug()) {
+            slugs.push(tool.slug().to_string());
+        }
+    }
+    for slug in slugs {
+        if let Err(e) = unlink(cfg, kind, name, &slug) {
+            eprintln!("Warning: could not unlink from {slug}: {e}");
         }
     }
     Ok(())
@@ -167,8 +191,9 @@ pub(crate) fn make_relative(from: &Path, to: &Path) -> std::path::PathBuf {
     pathdiff::diff_paths(to, from_dir).unwrap_or_else(|| to.to_path_buf())
 }
 
-/// Ensure all managed resources are symlinked to all installed tools.
-/// Reconciles existing symlinks into config tracking, then creates missing ones.
+/// Ensure all managed resources are linked to all installed tools (copied by
+/// default, symlinked when `copy` is false).
+/// Reconciles existing links into config tracking, then creates missing ones.
 /// Returns (reconciled, created) counts.
 pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> {
     let installed = tools::installed_tools();

@@ -5,7 +5,7 @@ use console::style;
 use crate::error::Result;
 use crate::inventory::Config;
 use crate::mcp;
-use crate::ops::{discover, link, project_sync, verify};
+use crate::ops::{discover, link, project_sync, refresh, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
 pub fn sync(
@@ -42,11 +42,32 @@ pub fn sync(
         discover::adopt_all(cfg, false, false)?;
     }
 
-    // 3. Ensure all managed resources are linked to all installed tools
+    // 3. Refresh local-sourced resources from their origins (e.g. skills that
+    // live in a repo), so origin → shared store → copy links stay in sync.
+    if !json {
+        println!("  {} Refreshing local sources...", style("→").cyan());
+    }
+    let (refreshed, refresh_failed) = refresh::update_local_sources(cfg);
+    if !json && refreshed > 0 {
+        println!(
+            "  {} Refreshed {} resource(s) from local sources",
+            style("✓").green().bold(),
+            refreshed
+        );
+    }
+    if !json && refresh_failed > 0 {
+        println!(
+            "  {} {} local source(s) failed to refresh",
+            style("✗").red().bold(),
+            refresh_failed
+        );
+    }
+
+    // 4. Ensure all managed resources are linked to all installed tools
     if !json {
         println!("  {} Ensuring links...", style("→").cyan());
     }
-    let (reconciled, linked) = link::ensure_all_links(cfg, false)?;
+    let (reconciled, linked) = link::ensure_all_links(cfg, true)?;
     if !json && reconciled > 0 {
         println!(
             "  {} Reconciled {} existing link(s) into tracking",
@@ -62,23 +83,26 @@ pub fn sync(
         );
     }
 
-    // 4. Resync tracked projects
+    // 5. Resync tracked projects
     if !json {
         println!("  {} Resyncing tracked projects...", style("→").cyan());
     }
     let (projects_resynced, files_updated) = project_sync::resync_all(cfg, json).unwrap_or((0, 0));
 
-    // 5. Discover and register MCP servers from .mcp.json files
+    // 6. Adopt project .mcp.json servers into the canonical store (originals
+    // untouched), then link every stored server to all MCP-capable tools —
+    // the same store-first flow the resources above follow.
     if !json {
-        println!("  {} Discovering MCP servers...", style("→").cyan());
+        println!("  {} Syncing MCP servers...", style("→").cyan());
     }
     let project_roots = mcp::collect_project_roots();
-    let _ = mcp::discover_and_register(&project_roots);
+    let _ = mcp::discover_and_adopt(&project_roots);
+    let _ = mcp::link_all_stored();
 
-    // 6. Verify integrity
+    // 7. Verify integrity
     let issues = verify::verify_integrity(cfg)?;
 
-    // 7. Report
+    // 8. Report
     if json {
         let report = serde_json::json!({
             "managed": cfg.resources.len(),

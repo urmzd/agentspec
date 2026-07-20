@@ -86,6 +86,29 @@ pub fn update_all(cfg: &mut Config, json: bool) -> Result<()> {
     Ok(())
 }
 
+/// Refresh every Local-sourced resource from its origin. Used by the sync
+/// pipeline so resources adopted from a repo flow origin → shared store →
+/// copy links on every sync. Returns (updated, failed) counts.
+pub fn update_local_sources(cfg: &mut Config) -> (usize, usize) {
+    let targets: Vec<(String, TrackedKind)> = cfg
+        .resources
+        .iter()
+        .filter(|r| matches!(r.source_type, SourceType::Local))
+        .map(|r| (r.name.clone(), r.kind))
+        .collect();
+
+    let outcomes = refresh_targets(cfg, &targets);
+    let updated = outcomes
+        .iter()
+        .filter(|o| matches!(o, UpdateOutcome::Updated { .. }))
+        .count();
+    let failed = outcomes
+        .iter()
+        .filter(|o| matches!(o, UpdateOutcome::Failed { .. }))
+        .count();
+    (updated, failed)
+}
+
 fn refresh_targets(cfg: &mut Config, targets: &[(String, TrackedKind)]) -> Vec<UpdateOutcome> {
     let mut outcomes = Vec::with_capacity(targets.len());
     for (name, kind) in targets {

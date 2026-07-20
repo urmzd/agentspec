@@ -12,18 +12,17 @@ Anchors, all under `crates/agentspec/src/`: the canonical IR is the `Resource` t
 
 ## Linking Mechanism
 
-Resources live in the shared store (`~/.agents/skills/`, `~/.agents/agents/`). Tools get relative symlinks pointing into the shared store.
+Resources live in the shared store (`~/.agents/skills/`, `~/.agents/agents/`). Tools get real copies of the store version by default; `--symlink` opts into relative symlinks instead. Adoption never modifies or deletes originals: a resource adopted from a non-store location records that location as its `local` source, and `sync` re-copies source -> store -> tool links.
 
-**`manage add <source> --all-tools`** resolves the source (local path, `owner/repo`, or git URL with optional `#branch@subpath`), copies to shared store, then creates symlinks in every installed tool's directory. Existing names are skipped (first-installed wins).
+**`manage add <source> --all-tools`** resolves the source (local path, `owner/repo`, or git URL with optional `#branch@subpath`), copies to shared store, then copies into every installed tool's directory. Existing names are skipped (first-installed wins).
 
-**`sync`** runs a 3-phase pipeline:
-1. **Reconcile** -- adopts existing symlinks on disk that aren't tracked in config (handles links created by older versions or external tools)
-2. **Link** -- creates missing symlinks for managed resources not yet present in tool directories
-3. **Verify** -- checks SHA-256 hashes against stored values to detect external modifications
+**`sync`** pipeline:
+1. **Reconcile** -- adopts existing links on disk that aren't tracked in config (handles links created by older versions or external tools)
+2. **Refresh** -- re-copies `local`-sourced resources from their origins into the store
+3. **Link** -- creates missing tool copies for managed resources not yet present in tool directories
+4. **Verify** -- checks SHA-256 hashes against stored values to detect external modifications
 
-**Relative symlinks** are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.
-
-**Copy fallback** via `--copy` flag for filesystems that don't support symlinks.
+**Relative symlinks** (the `--symlink` strategy) are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.
 
 ## Commands
 

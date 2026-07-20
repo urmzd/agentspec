@@ -25,7 +25,7 @@
     <td align="center">
       <img src="showcase/tui-demo.gif" alt="agentspec TUI demo" width="400" />
       <br />
-      <sub><b>Interactive TUI: all six tabs</b></sub>
+      <sub><b>Interactive TUI: every tab, including MCP server management</b></sub>
     </td>
     <td align="center">
       <img src="showcase/tui.png" alt="agentspec TUI MCP add-server form" width="400" />
@@ -169,7 +169,8 @@ agentspec mcp add docs --url https://example.com/mcp --type http  # Register a r
 agentspec mcp add sr --command sr --tool claude-code  # Register only in one tool
 agentspec mcp list                           # Show canonical store + per-tool registrations
 agentspec mcp link sr --all-tools            # Inject a stored server into all MCP-capable tools
-agentspec mcp remove sr --purge              # Remove from tool configs and delete from store
+agentspec mcp unlink sr --tool claude-code   # Remove from one tool config, keep the store
+agentspec mcp remove sr                      # Remove everywhere: tool configs + canonical store
 agentspec mcp sync                           # Link every stored server into all MCP-capable tools
 
 # Plans
@@ -235,7 +236,7 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 
 ### Linking
 
-`manage link` creates symlinks from tool directories (e.g. `~/.claude/skills/foo`) pointing into the shared store (`~/.agents/skills/foo`). Use `--copy` to copy instead of symlinking, and `--all-tools` to link to every detected tool at once.
+`manage link` copies resources from the shared store (`~/.agents/skills/foo`) into tool directories (e.g. `~/.claude/skills/foo`). Use `--symlink` to create a relative symlink instead of a copy, and `--all-tools` to link to every detected tool at once.
 
 ## Workspace crates
 

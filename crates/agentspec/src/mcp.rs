@@ -9,7 +9,9 @@
 //! - Gemini CLI: `mcpServers` in `~/.gemini/settings.json`
 //! - Cursor: `mcpServers` in `~/.cursor/mcp.json`
 //!
-//! `sync` also auto-discovers project `.mcp.json` files and registers them.
+//! `sync` also auto-discovers project `.mcp.json` files, adopts their servers
+//! into the canonical store (originals untouched), and links every stored
+//! server into all MCP-capable tools — the store is always authoritative.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -74,7 +76,8 @@ fn store_path(name: &str) -> PathBuf {
 }
 
 /// Inject a server definition into one tool's `mcpServers` map.
-fn inject(path: &Path, name: &str, server: &Value) -> Result<()> {
+/// Returns whether the config actually changed (already-in-sync is a no-op).
+fn inject(path: &Path, name: &str, server: &Value) -> Result<bool> {
     let mut root = read_json(path);
     if !root.is_object() {
         root = serde_json::json!({});
@@ -88,11 +91,13 @@ fn inject(path: &Path, name: &str, server: &Value) -> Result<()> {
     if !servers.is_object() {
         *servers = serde_json::json!({});
     }
-    servers
-        .as_object_mut()
-        .unwrap()
-        .insert(name.to_string(), server.clone());
-    write_json(path, &root)
+    let servers = servers.as_object_mut().unwrap();
+    if servers.get(name) == Some(server) {
+        return Ok(false);
+    }
+    servers.insert(name.to_string(), server.clone());
+    write_json(path, &root)?;
+    Ok(true)
 }
 
 /// Resolve the fan-out targets given an optional tool filter.
@@ -165,65 +170,52 @@ pub fn link_server(tool: Option<&str>, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Link every server in the canonical store to all MCP-capable tools.
-pub fn sync_all_servers(json: bool) -> Result<()> {
-    let report = |synced: usize, tools: usize| -> Result<()> {
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "synced": synced,
-                    "tools": tools,
-                }))?
-            );
-        }
-        Ok(())
-    };
-
+/// Inject every stored server into every MCP-capable tool, quietly skipping
+/// entries that are already in sync. Returns (servers, tools) counts.
+pub fn link_all_stored() -> Result<(usize, usize)> {
     let stored = list_stored();
-    if stored.is_empty() {
-        if !json {
-            println!(
-                "  no servers in canonical store ({})",
-                config::shared_mcp_dir().display()
-            );
-        }
-        return report(0, 0);
-    }
     let targets = mcp_targets();
-    if targets.is_empty() {
-        if !json {
-            println!("  no installed tools with MCP config support found");
-        }
-        return report(0, 0);
-    }
     for (name, config) in &stored {
         for (slug, path) in &targets {
-            inject(path, name, config)?;
-            eprintln!("  {name} → {slug}");
+            if inject(path, name, config)? {
+                eprintln!("  {name} → {slug}");
+            }
         }
     }
-    if !json {
-        println!(
-            "  synced {} canonical server(s) to {} tool(s)",
-            stored.len(),
-            targets.len()
-        );
-    }
-    report(stored.len(), targets.len())
+    Ok((stored.len(), targets.len()))
 }
 
-/// Remove a server from tool configs, and optionally the canonical store.
-pub fn remove_server(tool: Option<&str>, name: &str, purge: bool) -> Result<()> {
-    let targets = match tool {
-        Some(t) => mcp_targets()
-            .into_iter()
-            .filter(|(slug, _)| slug == t)
-            .collect(),
-        None => mcp_targets(),
-    };
+/// Link every server in the canonical store to all MCP-capable tools.
+pub fn sync_all_servers(json: bool) -> Result<()> {
+    let (synced, tools) = link_all_stored()?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "synced": synced,
+                "tools": tools,
+            }))?
+        );
+        return Ok(());
+    }
+    if synced == 0 {
+        println!(
+            "  no servers in canonical store ({})",
+            config::shared_mcp_dir().display()
+        );
+    } else if tools == 0 {
+        println!("  no installed tools with MCP config support found");
+    } else {
+        println!("  synced {synced} canonical server(s) to {tools} tool(s)");
+    }
+    Ok(())
+}
 
-    for (slug, path) in &targets {
+/// Remove a server's entry from each of the given tool configs.
+/// Returns how many configs actually contained it.
+fn unlink_from_targets(targets: &[(String, PathBuf)], name: &str) -> Result<usize> {
+    let mut removed = 0;
+    for (slug, path) in targets {
         if !path.exists() {
             continue;
         }
@@ -232,18 +224,39 @@ pub fn remove_server(tool: Option<&str>, name: &str, purge: bool) -> Result<()> 
             && servers.remove(name).is_some()
         {
             write_json(path, &root)?;
-            eprintln!("  removed {name} from {slug}");
+            eprintln!("  unlinked {name} from {slug}");
+            removed += 1;
         }
     }
+    Ok(removed)
+}
 
-    if purge || tool.is_none() {
-        let sp = store_path(name);
-        if sp.exists() {
-            std::fs::remove_file(&sp)?;
-            eprintln!("  removed {name} from canonical store");
-        }
+/// Remove a server from tool config(s), keeping the canonical store.
+pub fn unlink_server(tool: Option<&str>, name: &str) -> Result<()> {
+    let targets = resolve_targets(tool)?;
+    if unlink_from_targets(&targets, name)? == 0 {
+        return Err(AppError::Other(format!(
+            "server '{name}' is not linked to {}",
+            tool.unwrap_or("any tool")
+        )));
     }
+    Ok(())
+}
 
+/// Remove a server everywhere: every tool config and the canonical store.
+pub fn remove_server(name: &str) -> Result<()> {
+    let mut found = unlink_from_targets(&mcp_targets(), name)? > 0;
+    let sp = store_path(name);
+    if sp.exists() {
+        std::fs::remove_file(&sp)?;
+        eprintln!("  removed {name} from canonical store");
+        found = true;
+    }
+    if !found {
+        return Err(AppError::Other(format!(
+            "server '{name}' is not in the canonical store or any tool config"
+        )));
+    }
     Ok(())
 }
 
@@ -276,7 +289,46 @@ fn list_stored() -> Vec<(String, Value)> {
     out
 }
 
-fn server_summary(config: &Value) -> String {
+/// A canonical-store server and which tool configs currently carry it.
+pub struct McpInventoryEntry {
+    pub name: String,
+    pub config: Value,
+    pub linked_tools: Vec<String>,
+}
+
+/// Slugs of installed tools with MCP config support.
+pub fn tool_slugs() -> Vec<String> {
+    mcp_targets().into_iter().map(|(slug, _)| slug).collect()
+}
+
+/// Canonical store servers joined with their per-tool link state.
+pub fn inventory() -> Vec<McpInventoryEntry> {
+    let tool_roots: Vec<(String, Value)> = mcp_targets()
+        .into_iter()
+        .map(|(slug, path)| (slug, read_json(&path)))
+        .collect();
+    list_stored()
+        .into_iter()
+        .map(|(name, config)| {
+            let linked_tools = tool_roots
+                .iter()
+                .filter(|(_, root)| {
+                    root.get("mcpServers")
+                        .and_then(|servers| servers.get(&name))
+                        .is_some()
+                })
+                .map(|(slug, _)| slug.clone())
+                .collect();
+            McpInventoryEntry {
+                name,
+                config,
+                linked_tools,
+            }
+        })
+        .collect()
+}
+
+pub fn server_summary(config: &Value) -> String {
     if let Some(url) = config.get("url").and_then(|v| v.as_str()) {
         return url.to_string();
     }
@@ -351,15 +403,13 @@ pub fn list_servers(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Discover `.mcp.json` files in project roots and auto-register servers
-/// in all installed tools. Called during `agentspec sync`.
-pub fn discover_and_register(project_roots: &[PathBuf]) -> Result<()> {
-    let targets = mcp_targets();
-    if targets.is_empty() {
-        return Ok(());
-    }
-
-    let mut registered = 0;
+/// Discover `.mcp.json` files in project roots and adopt their servers into
+/// the canonical store. Originals are never modified, and a server already in
+/// the store wins over a project definition — the store is authoritative,
+/// mirroring how resource adoption treats local sources. Called during
+/// `agentspec sync`. Returns the number of newly adopted servers.
+pub fn discover_and_adopt(project_roots: &[PathBuf]) -> Result<usize> {
+    let mut adopted = 0;
 
     for root in project_roots {
         let mcp_path = root.join(".mcp.json");
@@ -386,38 +436,22 @@ pub fn discover_and_register(project_roots: &[PathBuf]) -> Result<()> {
         };
 
         for (name, server_config) in servers {
-            for (slug, config_path) in &targets {
-                let mut tool_root = read_json(config_path);
-                if !tool_root.is_object() {
-                    tool_root = serde_json::json!({});
-                }
-                let tool_servers = tool_root
-                    .as_object_mut()
-                    .unwrap()
-                    .entry("mcpServers")
-                    .or_insert_with(|| serde_json::json!({}));
-                if !tool_servers.is_object() {
-                    *tool_servers = serde_json::json!({});
-                }
-
-                if tool_servers.get(name).is_none() {
-                    tool_servers
-                        .as_object_mut()
-                        .unwrap()
-                        .insert(name.clone(), server_config.clone());
-                    write_json(config_path, &tool_root)?;
-                    eprintln!("  discovered {name} → {slug}");
-                    registered += 1;
-                }
+            let sp = store_path(name);
+            if sp.exists() {
+                continue;
             }
+            std::fs::create_dir_all(config::shared_mcp_dir())?;
+            write_json(&sp, server_config)?;
+            eprintln!("  adopted {name} from {}", mcp_path.display());
+            adopted += 1;
         }
     }
 
-    if registered > 0 {
-        eprintln!("  registered {registered} MCP server(s) from .mcp.json");
+    if adopted > 0 {
+        eprintln!("  adopted {adopted} MCP server(s) from .mcp.json into the store");
     }
 
-    Ok(())
+    Ok(adopted)
 }
 
 /// Collect project roots for MCP discovery.
