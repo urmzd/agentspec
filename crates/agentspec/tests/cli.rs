@@ -2040,3 +2040,18 @@ fn version_flag_and_subcommand_agree() {
         String::from_utf8_lossy(&sub.stdout).trim()
     );
 }
+
+#[test]
+fn bundled_skills_live_inside_the_published_crate() {
+    // `include_str!` in ops/bootstrap.rs must resolve inside this crate's
+    // directory: cargo publish builds from a tarball that contains nothing
+    // above it, so a path reaching the workspace root breaks the release
+    // while compiling fine locally.
+    let crate_skills = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
+    for name in ["agentspec-usage", "resource-conventions"] {
+        assert!(
+            crate_skills.join(name).join("SKILL.md").is_file(),
+            "{name}/SKILL.md must live under crates/agentspec/skills/"
+        );
+    }
+}

@@ -271,12 +271,12 @@ Cross-tool session sync, memory sync, MCP server management, permission profile 
 ## Agent Skill
 
 agentspec ships its own usage skills, compiled into the binary and sourced from
-[`skills/`](skills/):
+[`crates/agentspec/skills/`](crates/agentspec/skills/):
 
 | Skill | Teaches |
 | --- | --- |
-| [`agentspec-usage`](skills/agentspec-usage/SKILL.md) | when and how to drive the CLI |
-| [`resource-conventions`](skills/resource-conventions/SKILL.md) | where every resource lives and what format it uses |
+| [`agentspec-usage`](crates/agentspec/skills/agentspec-usage/SKILL.md) | when and how to drive the CLI |
+| [`resource-conventions`](crates/agentspec/skills/resource-conventions/SKILL.md) | where every resource lives and what format it uses |
 
 ```sh
 agentspec bootstrap              # write both into ~/.agents/skills and link them everywhere
