@@ -8,7 +8,7 @@
 
 Cargo workspace with two published crates: `crates/agentspec` (the CLI + TUI binary, fully synchronous) and `crates/agentspec-sdk` (a standalone SDK for bootstrapping AI-powered CLI tools: config and CLI scaffolding helpers; not consumed by the binary).
 
-Anchors, all under `crates/agentspec/src/`: the canonical IR is the `Resource` type and 8 `ResourceKind`s in `ir.rs`; every vendor format converts to/from it through the `Adapter` trait defined in `adapters/mod.rs`. AI tools are described by the `CodingTool` trait and the `define_tool!` macro in `tools/mod.rs`. Live inventory state (`Config`, `TrackedResource`, SHA-256 hashing as the lock) lives in `inventory.rs`; `lockfile.rs` is legacy `.skill-lock.json` serde kept for migration only. Each CLI command maps to one module under `ops/` (clap definitions in `cli.rs`), session read adapters and the session IR live under `session/`, ratatui screens under `tui/screens/`, and sentinel-keyed JSON settings edits (MCP, permissions) in `jsonfile.rs`. Use `rg` on a trait or type name to find the matching implementations.
+Anchors, all under `crates/agentspec/src/`: the canonical IR is the `Resource` type and 8 `ResourceKind`s in `ir.rs`; every vendor format converts to/from it through the `Adapter` trait defined in `adapters/mod.rs`. AI tools are described by the `CodingTool` trait and the `define_tool!` macro in `tools/mod.rs`, which also declares each tool's `McpDialect` (where and in what format it stores MCP servers). Live inventory state (`Config`, `TrackedResource`, SHA-256 hashing as the lock) lives in `inventory.rs`; `lockfile.rs` is legacy `.skill-lock.json` serde kept for migration only. Each CLI command maps to one module under `ops/` (clap definitions in `cli.rs`), session read adapters and the session IR live under `session/`, ratatui screens under `tui/screens/`, sentinel-keyed JSON settings edits (permissions) in `jsonfile.rs`, and MCP under `mcp/` (`mod.rs` owns the canonical store and fan-out, `dialect.rs` translates one stored definition into each tool's native format). Use `rg` on a trait or type name to find the matching implementations.
 
 ## Linking Mechanism
 
@@ -33,7 +33,9 @@ just run       # cargo run
 cargo build    # debug build
 ```
 
-Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
+Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `fleet`, `worktree`, `bootstrap`, `tools`, `commands`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
+
+`bootstrap`, `tools`, and `commands` are the discovery surface: `bootstrap` writes the skills bundled via `include_str!` from `skills/` into the store and links them into every tool, `tools` reports what agentspec sees installed, and `commands` dumps the clap tree (JSON for agents, an indented list for people). Keep `Cli`'s `long_about` in `cli.rs` accurate when the concepts change — it is the first thing both humans and agents read.
 
 ## Code Style
 
@@ -54,3 +56,15 @@ Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune
 
 1. Add one line in `crates/agentspec/src/tools/mod.rs` using the `define_tool!` macro
 2. Add it to `all_tools()` vec
+3. If the tool hosts MCP servers, give it an `mcp:` target. Reuse an existing `McpDialect`
+   when the format matches; a genuinely new format needs a new variant plus read/write/remove
+   arms in `mcp/dialect.rs` and a round-trip test there. Never invent a config path — leave
+   `mcp` unset rather than guessing.
+
+## MCP Dialects
+
+One canonical definition per server lives in `~/.agents/mcp/<name>.json` in the `mcpServers`
+shape. `mcp/dialect.rs` translates it on write and back on read, so `mcp add` fans out to
+every MCP-capable tool at once. Codex is edited through `toml_edit` so user comments and
+formatting survive. `mcp doctor` prints the resolved table; `mcp adopt` pulls tool-native
+servers back into the store.

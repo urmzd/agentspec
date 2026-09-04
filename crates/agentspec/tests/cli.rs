@@ -131,7 +131,10 @@ fn mcp_list_json_includes_store() {
     assert!(out.status.success());
     let v = stdout_json(&out.stdout);
     assert_eq!(v["store"]["test"]["command"], "echo");
-    assert!(v["tools"].is_object());
+    // `tools` is one record per installed MCP-capable tool, carrying the
+    // config path and dialect alongside the servers it holds.
+    assert!(v["tools"].is_array());
+    assert!(v["store_dir"].as_str().unwrap().ends_with("/.agents/mcp"));
 }
 
 #[test]
@@ -1533,4 +1536,507 @@ fn dedup_reports_identical_content_found_in_two_locations() {
     let groups = v["by_hash"].as_array().unwrap();
     assert_eq!(groups.len(), 1, "expected one duplicate group: {v}");
     assert_eq!(groups[0]["members"].as_array().unwrap().len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// Discovery: bootstrap, tools, commands
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bootstrap_installs_bundled_skills_and_links_them_into_tools() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "bootstrap"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+
+    let names: Vec<&str> = v["skills"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"agentspec-usage"), "got {names:?}");
+    assert_eq!(v["skills"][0]["status"], "installed");
+    assert!(
+        v["skills"][0]["linked"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t == "claude-code")
+    );
+
+    // Store copy and tool copy both land on disk.
+    assert!(
+        home.join(".agents/skills/agentspec-usage/SKILL.md")
+            .exists()
+    );
+    assert!(
+        home.join(".claude/skills/agentspec-usage/SKILL.md")
+            .exists()
+    );
+
+    // Re-running is idempotent, not a duplicate install.
+    let again = agentspec(home)
+        .args(["--format", "json", "bootstrap"])
+        .output()
+        .unwrap();
+    assert!(again.status.success());
+    let v2 = stdout_json(&again.stdout);
+    assert_eq!(v2["skills"][0]["status"], "unchanged");
+}
+
+#[test]
+fn bootstrap_keeps_a_same_named_skill_the_user_owns() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let mine = home.join(".agents/skills/agentspec-usage");
+    fs::create_dir_all(&mine).unwrap();
+    fs::write(mine.join("SKILL.md"), "mine, hands off").unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "bootstrap"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let usage = v["skills"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "agentspec-usage")
+        .unwrap();
+    assert_eq!(usage["status"], "skipped");
+    assert_eq!(
+        fs::read_to_string(mine.join("SKILL.md")).unwrap(),
+        "mine, hands off"
+    );
+}
+
+#[test]
+fn tools_json_reports_every_supported_tool() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["--format", "json", "tools"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let tools = v["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), v["total"].as_u64().unwrap() as usize);
+    let copilot = tools
+        .iter()
+        .find(|t| t["slug"] == "github-copilot")
+        .expect("github-copilot must be listed");
+    assert_eq!(copilot["mcp"]["dialect"], "json");
+}
+
+#[test]
+fn commands_json_exposes_the_full_tree() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["--format", "json", "commands"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["name"], "agentspec");
+    assert!(v["long_about"].as_str().unwrap().contains("~/.agents/"));
+    let mcp = v["subcommands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "mcp")
+        .unwrap();
+    let subs: Vec<&str> = mcp["subcommands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["name"].as_str().unwrap())
+        .collect();
+    assert!(subs.contains(&"doctor"), "got {subs:?}");
+    assert!(subs.contains(&"adopt"), "got {subs:?}");
+}
+
+// ---------------------------------------------------------------------------
+// MCP parity across tool dialects
+// ---------------------------------------------------------------------------
+
+/// Make the tools with distinct MCP dialects look installed.
+fn install_mcp_tools(home: &Path) {
+    for dir in [
+        ".claude",
+        ".copilot",
+        ".cursor",
+        ".codex",
+        ".config/opencode",
+    ] {
+        fs::create_dir_all(home.join(dir)).unwrap();
+    }
+    // A hand-written Codex config the write must not clobber.
+    fs::write(
+        home.join(".codex/config.toml"),
+        "# hand written\nmodel = \"gpt\"\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn mcp_add_writes_each_tool_in_its_own_dialect() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    install_mcp_tools(home);
+
+    let out = agentspec(home)
+        .args([
+            "mcp",
+            "add",
+            "sr",
+            "--command",
+            "sr",
+            "--args",
+            "mcp serve",
+            "--env",
+            "API_KEY=secret",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // GitHub Copilot: mcpServers JSON at its own config path.
+    let copilot: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".copilot/mcp-config.json")).unwrap())
+            .unwrap();
+    assert_eq!(copilot["mcpServers"]["sr"]["command"], "sr");
+    assert_eq!(copilot["mcpServers"]["sr"]["env"]["API_KEY"], "secret");
+
+    // Codex: TOML tables, with the user's existing config preserved.
+    let codex = fs::read_to_string(home.join(".codex/config.toml")).unwrap();
+    assert!(codex.contains("# hand written"), "comment lost:\n{codex}");
+    assert!(codex.contains("[mcp_servers.sr]"), "no table:\n{codex}");
+    assert!(codex.contains("command = \"sr\""), "{codex}");
+
+    // OpenCode: argv array under `mcp`.
+    let oc: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(home.join(".config/opencode/opencode.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(oc["mcp"]["sr"]["type"], "local");
+    assert_eq!(
+        oc["mcp"]["sr"]["command"],
+        serde_json::json!(["sr", "mcp", "serve"])
+    );
+}
+
+#[test]
+fn mcp_remove_clears_every_dialect() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    install_mcp_tools(home);
+
+    agentspec(home)
+        .args(["mcp", "add", "sr", "--command", "sr"])
+        .output()
+        .unwrap();
+    let out = agentspec(home)
+        .args(["mcp", "remove", "sr"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+
+    let codex = fs::read_to_string(home.join(".codex/config.toml")).unwrap();
+    assert!(!codex.contains("mcp_servers.sr"), "{codex}");
+    let oc: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(home.join(".config/opencode/opencode.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(oc["mcp"].get("sr").is_none());
+    assert!(!home.join(".agents/mcp/sr.json").exists());
+}
+
+#[test]
+fn mcp_adopt_pulls_tool_native_servers_into_the_store() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    install_mcp_tools(home);
+    // A server registered directly in Copilot, never through agentspec.
+    fs::write(
+        home.join(".copilot/mcp-config.json"),
+        r#"{"mcpServers":{"native":{"command":"foo","args":["bar"]}}}"#,
+    )
+    .unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "mcp", "adopt"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["adopted"], serde_json::json!(["native"]));
+
+    let stored: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".agents/mcp/native.json")).unwrap())
+            .unwrap();
+    assert_eq!(stored["command"], "foo");
+
+    // The original tool config is untouched by adoption.
+    let copilot: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".copilot/mcp-config.json")).unwrap())
+            .unwrap();
+    assert_eq!(copilot["mcpServers"]["native"]["command"], "foo");
+}
+
+#[test]
+fn mcp_doctor_json_reports_dialect_and_install_state() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".copilot")).unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "mcp", "doctor"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let rows = v["tools"].as_array().unwrap();
+    let copilot = rows.iter().find(|r| r["tool"] == "github-copilot").unwrap();
+    assert_eq!(copilot["installed"], true);
+    assert_eq!(copilot["dialect"], "json");
+    assert!(
+        copilot["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(".copilot/mcp-config.json")
+    );
+    let codex = rows.iter().find(|r| r["tool"] == "codex").unwrap();
+    assert_eq!(codex["installed"], false);
+    assert_eq!(codex["dialect"], "toml");
+}
+
+#[test]
+fn mcp_list_json_flags_servers_missing_from_the_store() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".copilot")).unwrap();
+    fs::write(
+        home.join(".copilot/mcp-config.json"),
+        r#"{"mcpServers":{"native":{"command":"foo"}}}"#,
+    )
+    .unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "mcp", "list"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let copilot = v["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["tool"] == "github-copilot")
+        .unwrap();
+    assert_eq!(copilot["unadopted"], serde_json::json!(["native"]));
+}
+
+// ---------------------------------------------------------------------------
+// Session search
+// ---------------------------------------------------------------------------
+
+/// Write a minimal Claude Code transcript with a user and an assistant turn.
+fn write_claude_session(home: &Path, project_dir: &str, id: &str, user: &str, assistant: &str) {
+    let dir = home.join(".claude/projects").join(project_dir);
+    fs::create_dir_all(&dir).unwrap();
+    let lines = format!(
+        r#"{{"type":"user","sessionId":"{id}","cwd":"/tmp/proj","timestamp":"2026-01-02T03:04:05Z","message":{{"role":"user","content":"{user}"}}}}
+{{"type":"assistant","sessionId":"{id}","cwd":"/tmp/proj","timestamp":"2026-01-02T03:05:05Z","message":{{"role":"assistant","content":[{{"type":"text","text":"{assistant}"}}]}}}}
+"#
+    );
+    fs::write(dir.join(format!("{id}.jsonl")), lines).unwrap();
+}
+
+#[test]
+fn session_search_json_is_single_document_when_empty() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["--format", "json", "session", "search", "anything"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["matched"], 0);
+    assert!(v["results"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn session_search_role_filter_excludes_assistant_matches() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    write_claude_session(
+        home,
+        "-tmp-proj",
+        "sess-user",
+        "please add rate limiting",
+        "sure thing",
+    );
+    write_claude_session(
+        home,
+        "-tmp-proj",
+        "sess-asst",
+        "unrelated question",
+        "adding rate limiting now",
+    );
+
+    // Both sessions mention the phrase somewhere.
+    let all = agentspec(home)
+        .args(["--format", "json", "session", "search", "rate limiting"])
+        .output()
+        .unwrap();
+    let v = stdout_json(&all.stdout);
+    assert_eq!(v["matched"], 2, "{}", String::from_utf8_lossy(&all.stdout));
+
+    // Only one has it in a user message.
+    let user_only = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "search",
+            "rate limiting",
+            "--role",
+            "user",
+        ])
+        .output()
+        .unwrap();
+    let v = stdout_json(&user_only.stdout);
+    assert_eq!(v["matched"], 1);
+    assert_eq!(v["results"][0]["id"], "sess-user");
+    assert_eq!(v["results"][0]["matches"][0]["role"], "user");
+    assert_eq!(
+        v["results"][0]["export_command"],
+        "agentspec session export claude sess-user"
+    );
+}
+
+#[test]
+fn session_search_limit_and_project_filters_apply() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    for i in 0..5 {
+        write_claude_session(home, "-tmp-proj", &format!("s{i}"), "shared token", "ok");
+    }
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "search",
+            "shared token",
+            "--limit",
+            "2",
+        ])
+        .output()
+        .unwrap();
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["results"].as_array().unwrap().len(), 2);
+    assert_eq!(v["truncated"], true);
+
+    let miss = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "session",
+            "search",
+            "shared token",
+            "--project",
+            "no-such-project",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(stdout_json(&miss.stdout)["matched"], 0);
+}
+
+#[test]
+fn session_search_rejects_an_unknown_role() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["session", "search", "x", "--role", "wizard"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("unknown role"));
+}
+
+#[test]
+fn session_list_without_a_source_merges_every_tool() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    write_claude_session(home, "-tmp-proj", "abc-123", "hello agentspec", "hi");
+
+    let out = agentspec(home)
+        .args(["--format", "json", "session", "list"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    let sessions = v.as_array().unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0]["id"], "abc-123");
+    assert_eq!(sessions[0]["tool_slug"], "claude-code");
+}
+
+#[test]
+fn session_search_role_requires_a_query() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = agentspec(tmp.path())
+        .args(["session", "search", "--role", "user"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    // Without a query there is nothing for --role to narrow, so every message
+    // of that role would match; clap rejects the combination up front.
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--role"), "got: {stderr}");
+}
+
+#[test]
+fn session_search_without_a_query_reports_no_per_message_hits() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    write_claude_session(home, "-tmp-proj", "sess-1", "do a thing", "done");
+
+    // --project alone qualifies the session; it must not report every message
+    // as a match just because there is no text to match against.
+    let out = agentspec(home)
+        .args(["--format", "json", "session", "search", "--project", "proj"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["matched"], 1);
+    assert_eq!(v["results"][0]["match_count"], 0);
+    assert!(v["results"][0]["matches"].is_null());
+}
+
+#[test]
+fn version_flag_and_subcommand_agree() {
+    let tmp = tempfile::tempdir().unwrap();
+    let flag = agentspec(tmp.path()).arg("--version").output().unwrap();
+    assert!(flag.status.success());
+    let sub = agentspec(tmp.path()).arg("version").output().unwrap();
+    assert!(sub.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&flag.stdout).trim(),
+        String::from_utf8_lossy(&sub.stdout).trim()
+    );
 }

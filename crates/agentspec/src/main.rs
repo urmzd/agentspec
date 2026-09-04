@@ -242,23 +242,117 @@ fn main() -> color_eyre::Result<()> {
                     }
                 }
             }
-            SessionAction::List { source } => {
-                let adapter = session::get_adapter(&source)?;
-                let sessions = adapter.list_sessions()?;
+            SessionAction::List {
+                source,
+                project,
+                since,
+                until,
+                limit,
+            } => {
+                // One named source keeps that adapter's ordering; omitting it
+                // merges every available source, newest first.
+                let mut sessions = match &source {
+                    Some(src) => session::get_adapter(src)?.list_sessions()?,
+                    None => session::discover::discover_all_sessions()?,
+                };
+                let since = since
+                    .as_deref()
+                    .map(session::search::parse_time)
+                    .transpose()?;
+                let until = until
+                    .as_deref()
+                    .map(session::search::parse_time)
+                    .transpose()?;
+                sessions.retain(|s| {
+                    let matches_project = project.as_deref().is_none_or(|p| {
+                        let p = p.to_lowercase();
+                        s.project
+                            .as_deref()
+                            .is_some_and(|v| v.to_lowercase().contains(&p))
+                            || s.cwd
+                                .as_deref()
+                                .is_some_and(|v| v.to_lowercase().contains(&p))
+                    });
+                    let after = since.is_none_or(|t| s.started_at.is_some_and(|st| st >= t));
+                    let before = until.is_none_or(|t| s.started_at.is_some_and(|st| st <= t));
+                    matches_project && after && before
+                });
+                sessions.truncate(limit);
+
                 if cli.format == OutputFormat::Json {
                     println!("{}", serde_json::to_string_pretty(&sessions)?);
                 } else if sessions.is_empty() {
-                    eprintln!("No sessions found for {source}");
+                    eprintln!(
+                        "No sessions found for {}",
+                        source.as_deref().unwrap_or("any source")
+                    );
                 } else {
                     for s in &sessions {
                         let date = s
                             .started_at
                             .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
                             .unwrap_or_else(|| "unknown".to_string());
-                        let prompt = s.first_prompt.as_deref().unwrap_or("(no prompt)");
-                        println!("{} | {} | {}", s.id, date, prompt);
+                        // A first prompt is often many lines; one session must
+                        // stay one row so the listing scans.
+                        let prompt = s
+                            .first_prompt
+                            .as_deref()
+                            .map(|p| session::search::one_line(p, 90))
+                            .filter(|p| !p.is_empty())
+                            .unwrap_or_else(|| "(no prompt)".to_string());
+                        if source.is_some() {
+                            println!("{} | {} | {}", s.id, date, prompt);
+                        } else {
+                            println!("[{}] {} | {} | {}", s.tool_slug, s.id, date, prompt);
+                        }
                     }
                 }
+            }
+            SessionAction::Search {
+                query,
+                roles,
+                sources,
+                project,
+                file,
+                tool_used,
+                since,
+                until,
+                limit,
+                hits,
+                context,
+                regex,
+                case_sensitive,
+                full,
+                scan,
+            } => {
+                let q = session::search::SearchQuery {
+                    text: query,
+                    regex,
+                    case_sensitive,
+                    sources,
+                    roles: roles
+                        .iter()
+                        .map(|r| session::search::parse_role(r))
+                        .collect::<error::Result<Vec<_>>>()?,
+                    project,
+                    file,
+                    tool_used,
+                    since: since
+                        .as_deref()
+                        .map(session::search::parse_time)
+                        .transpose()?,
+                    until: until
+                        .as_deref()
+                        .map(session::search::parse_time)
+                        .transpose()?,
+                    limit,
+                    hits_per_session: hits,
+                    context,
+                    full,
+                    scan,
+                };
+                let report = session::search::search(&q)?;
+                session::search::print_report(&report, cli.format == OutputFormat::Json)?;
             }
             SessionAction::Export {
                 source,
@@ -810,6 +904,28 @@ fn main() -> color_eyre::Result<()> {
             McpAction::Sync => {
                 mcp::sync_all_servers(cli.format == OutputFormat::Json)?;
             }
+            McpAction::Adopt => {
+                let adopted = mcp::adopt_from_tools()?;
+                if cli.format == OutputFormat::Json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "adopted": adopted,
+                            "count": adopted.len(),
+                        }))?
+                    );
+                } else if adopted.is_empty() {
+                    println!("  no new servers found in tool configs");
+                } else {
+                    println!(
+                        "  adopted {} server(s) into the canonical store",
+                        adopted.len()
+                    );
+                }
+            }
+            McpAction::Doctor => {
+                mcp::doctor(cli.format == OutputFormat::Json)?;
+            }
         },
         Some(Command::Plans { action }) => {
             let mut cfg = inventory::load_config()?;
@@ -997,6 +1113,27 @@ fn main() -> color_eyre::Result<()> {
                     ops::fleet::kill(backend, &fleet, cli.format == OutputFormat::Json)?;
                 }
             }
+        }
+        Some(Command::Bootstrap {
+            tools,
+            force,
+            symlink,
+        }) => {
+            let mut cfg = inventory::load_config()?;
+            ops::bootstrap::bootstrap(
+                &mut cfg,
+                tools.as_deref(),
+                force,
+                !symlink,
+                cli.format == OutputFormat::Json,
+            )?;
+        }
+        Some(Command::Tools) => {
+            ops::introspect::list_tools(cli.format == OutputFormat::Json)?;
+        }
+        Some(Command::Commands) => {
+            use clap::CommandFactory;
+            ops::introspect::print_commands(&Cli::command(), cli.format == OutputFormat::Json)?;
         }
         Some(Command::Worktree { action }) => match action {
             WorktreeAction::List { repo } => {

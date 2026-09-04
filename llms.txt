@@ -13,12 +13,15 @@
 
 - [cli.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/cli.rs): clap definitions for the full CLI surface
 - [ir.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/ir.rs): Canonical Resource IR all vendor adapters target
-- [tools/mod.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/tools/mod.rs): CodingTool trait and the 11 supported tools
+- [tools/mod.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/tools/mod.rs): CodingTool trait, McpDialect, and the 11 supported tools
+- [mcp/dialect.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/mcp/dialect.rs): Translation between the canonical MCP shape and each tool's native format
+- [session/search.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/session/search.rs): Structured search across every AI coding session on the machine
 - [adapters/mod.rs](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/src/adapters/mod.rs): Adapter trait for vendor formats
 - [Justfile](https://github.com/urmzd/agentspec/blob/main/Justfile): Build, lint, and test commands
 
 ## Skills
 
+- [agentspec-usage](https://github.com/urmzd/agentspec/blob/main/skills/agentspec-usage/SKILL.md): When and how to drive the CLI; installed everywhere by `agentspec bootstrap`
 - [resource-conventions](https://github.com/urmzd/agentspec/blob/main/skills/resource-conventions/SKILL.md): Where each resource kind lives and how it is discovered
 
 ## Optional

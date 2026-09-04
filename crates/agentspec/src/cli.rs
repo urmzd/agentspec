@@ -19,10 +19,44 @@ pub enum SessionContextMode {
     Full,
 }
 
+const LONG_ABOUT: &str = "\
+agentspec keeps one canonical copy of your agent resources in ~/.agents/ and
+mirrors them into every AI coding tool on the machine. Define a skill, sub-agent,
+MCP server, hook, or permission rule once; Claude Code, Codex, GitHub Copilot,
+Gemini CLI, Cursor, Cline, Windsurf, Amp, OpenCode, OpenHands, and Kimi CLI all
+see it.
+
+Three ideas cover the whole tool:
+
+  store      ~/.agents/ holds the canonical copy of every managed resource.
+  link       tools get a real copy of the store version (--symlink for symlinks).
+  adopt      resources found on disk are pulled into the store, originals intact.
+
+Start with `agentspec bootstrap` so the agents on this machine learn to drive
+agentspec themselves, then `agentspec sync --adopt` to bring existing resources
+under management. Run bare `agentspec` for the interactive TUI.";
+
+const AFTER_HELP: &str = "\
+Examples:
+  agentspec bootstrap                      install agentspec's own usage skills into every tool
+  agentspec sync --adopt                   discover, adopt, link, and verify everything
+  agentspec status                         what is managed and what is not
+  agentspec manage add owner/repo --all-tools
+  agentspec mcp add sr --command sr --args \"mcp serve\"
+  agentspec mcp doctor                     every MCP-capable tool, its config path and dialect
+  agentspec session search \"rate limit\" --role user --since 7d
+  agentspec commands --format json         the full command tree, machine-readable
+
+Every command accepts the global --format json flag for machine-readable output.";
+
 #[derive(Parser)]
 #[command(
     name = "agentspec",
-    about = "Universal agent skill & sub-agent manager"
+    version,
+    about = "Universal agent skill, sub-agent, and MCP manager across AI coding tools",
+    long_about = LONG_ABOUT,
+    after_help = AFTER_HELP,
+    after_long_help = AFTER_HELP,
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -121,6 +155,29 @@ pub enum Command {
         #[command(subcommand)]
         action: WorktreeAction,
     },
+    /// Install agentspec's own usage skills so AI tools know how to drive it
+    #[command(long_about = "\
+Write the skills bundled in this binary (agentspec-usage, resource-conventions)
+into ~/.agents/skills/ and link them into every installed AI tool, so the agents
+on this machine can discover and drive agentspec without being told how.
+
+Idempotent: re-running refreshes bundled content agentspec owns. A same-named
+skill you brought yourself is kept untouched unless you pass --force.")]
+    Bootstrap {
+        /// Link into specific tools (comma-separated slugs) instead of all
+        #[arg(long, value_delimiter = ',')]
+        tools: Option<Vec<String>>,
+        /// Replace a same-named skill that agentspec does not own, and relink everywhere
+        #[arg(long)]
+        force: bool,
+        /// Symlink into tool dirs instead of copying (default is copy)
+        #[arg(long)]
+        symlink: bool,
+    },
+    /// List every supported AI tool, whether it is installed, and where it stores things
+    Tools,
+    /// Print the full command tree (use --format json for machine-readable output)
+    Commands,
     /// Update agentspec to the latest release
     Update,
     /// Print version
@@ -311,6 +368,15 @@ pub enum McpAction {
     },
     /// Link all canonical servers to all installed MCP-capable tools
     Sync,
+    /// Pull servers registered directly in tool configs into the canonical store
+    #[command(long_about = "\
+Read every installed tool's native MCP config and copy any server agentspec does
+not already know about into ~/.agents/mcp/. Non-destructive in both directions:
+tool configs are never modified, and a name already in the store keeps its
+stored definition.")]
+    Adopt,
+    /// Show every MCP-capable tool, its config path, dialect, and server count
+    Doctor,
 }
 
 #[derive(Subcommand)]
@@ -560,10 +626,86 @@ pub enum PlansAction {
 pub enum SessionAction {
     /// Show the policy for routing or syncing context between sessions and fleet panes
     Policy,
-    /// List sessions for a source
+    /// List recent sessions, newest first, across one source or all of them
     List {
-        /// Source to list (claude, codex, copilot, gemini)
-        source: String,
+        /// Source to list (claude, codex, copilot, gemini); omit for every source
+        source: Option<String>,
+        /// Only sessions whose project or cwd contains this text
+        #[arg(long)]
+        project: Option<String>,
+        /// Only sessions started at or after this time (YYYY-MM-DD, RFC 3339, or 7d/24h)
+        #[arg(long)]
+        since: Option<String>,
+        /// Only sessions started at or before this time
+        #[arg(long)]
+        until: Option<String>,
+        /// Maximum sessions to return
+        #[arg(long, default_value = "20")]
+        limit: usize,
+    },
+    /// Search session transcripts by text, role, project, files, or date
+    #[command(long_about = "\
+Search every AI coding session on the machine — Claude Code, Codex, GitHub
+Copilot, Gemini CLI — and report which ones match and where.
+
+Metadata filters (--source, --project, --since, --until) are applied before any
+transcript is opened, so narrowing by date or project is cheap. Text, role,
+file, and tool filters then scan the surviving transcripts message by message.
+
+--role user is the flag for \"find what I actually asked\", as opposed to the
+assistant restating it. Each JSON result carries an export_command that prints
+the full session.
+
+Examples:
+  agentspec session search \"rate limit\" --role user
+  agentspec session search --source copilot --project agentspec --since 7d --format json
+  agentspec session search \"cargo\\s+build\" --regex --hits 10 --context 400
+  agentspec session search --tool-used Bash --limit 50")]
+    Search {
+        /// Text to look for; omit to list sessions matching the metadata filters
+        query: Option<String>,
+        /// Narrow which messages the query may match (user, assistant, system, tool)
+        #[arg(long = "role", value_delimiter = ',', requires = "query")]
+        roles: Vec<String>,
+        /// Restrict to these sources (claude, codex, copilot, gemini)
+        #[arg(long = "source", value_delimiter = ',')]
+        sources: Vec<String>,
+        /// Only sessions whose project or cwd contains this text
+        #[arg(long)]
+        project: Option<String>,
+        /// Only sessions that touched a file path containing this text
+        #[arg(long)]
+        file: Option<String>,
+        /// Only sessions that called this tool
+        #[arg(long = "tool-used")]
+        tool_used: Option<String>,
+        /// Only sessions started at or after this time (YYYY-MM-DD, RFC 3339, or 7d/24h)
+        #[arg(long)]
+        since: Option<String>,
+        /// Only sessions started at or before this time
+        #[arg(long)]
+        until: Option<String>,
+        /// Maximum sessions to return
+        #[arg(long, default_value = "20")]
+        limit: usize,
+        /// Maximum matches reported per session
+        #[arg(long, default_value = "3")]
+        hits: usize,
+        /// Excerpt width in characters around each match
+        #[arg(long, default_value = "160")]
+        context: usize,
+        /// Treat the query as a regular expression
+        #[arg(long)]
+        regex: bool,
+        /// Match case exactly
+        #[arg(long)]
+        case_sensitive: bool,
+        /// Return whole matched messages instead of excerpts
+        #[arg(long)]
+        full: bool,
+        /// Ceiling on how many transcripts are opened
+        #[arg(long, default_value = "500")]
+        scan: usize,
     },
     /// Fuzzy-find a session across all sources
     Find,

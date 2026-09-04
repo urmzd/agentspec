@@ -34,6 +34,7 @@ dependencies = [
  "pathdiff",
  "proptest",
  "ratatui",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
@@ -42,6 +43,7 @@ dependencies = [
  "skim",
  "tempfile",
  "thiserror 2.0.18",
+ "toml_edit",
  "ureq",
  "walkdir",
 ]
