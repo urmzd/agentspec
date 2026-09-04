@@ -1,8 +1,10 @@
+pub mod bootstrap;
 pub mod create;
 pub mod dedup;
 pub mod discover;
 pub mod fleet;
 pub mod hooks;
+pub mod introspect;
 pub mod link;
 pub mod list;
 pub mod manage;

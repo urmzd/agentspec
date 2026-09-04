@@ -6,6 +6,7 @@ pub mod find;
 pub mod ir;
 pub mod render;
 pub mod route;
+pub mod search;
 pub mod sync;
 
 use crate::error::{AppError, Result};

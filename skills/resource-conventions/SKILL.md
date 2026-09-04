@@ -10,8 +10,8 @@ resources into an intermediate representation (IR) with **8 ResourceKinds** (`Sk
 `Agent`, `ProjectConfig`, `InstructionFile`, `LlmsTxt`, `Memory`, `Session`, `Plan`)
 and supports **11 tools**: Claude Code, Cline, Windsurf, OpenHands, Gemini CLI,
 GitHub Copilot, Amp, Cursor, Codex, OpenCode, Kimi CLI. All 11 support skills + agents
-dirs; only **3** expose an MCP config path: Claude Code (`.claude/settings.json`),
-Gemini CLI (`.gemini/settings.json`), Cursor (`.cursor/mcp.json`).
+dirs; **9** also host MCP servers (see the MCP section). Run `agentspec tools` for the
+live table of what is installed on the current machine.
 
 ## Canonical store (`~/.agents/`)
 
@@ -112,19 +112,43 @@ Per-tool config files each tool reads natively (mirrors `PROJECT_FILES` in
   branch, Files Touched, Checkpoints, and References (missing DB = graceful no-op).
 - **Staging**: `session sync <source> <target> [<id>] [--last]` and
   `session import <target> <file>` stage handoffs at `~/.agents/sessions/<target>/<id>.md`.
+- **Query**: `session list [source]` lists newest-first metadata across one source or all
+  of them (`--project`, `--since`, `--until`, `--limit`). `session search [query]` scans
+  transcripts: metadata filters (`--source`, `--project`, `--since`, `--until`) run before
+  any transcript is opened, then `--role`, `--file`, `--tool-used`, and the query text scan
+  the survivors message by message. `--role user` restricts hits to what the human typed.
+  Every JSON result carries an `export_command` for the follow-up.
 
 ## MCP (Model Context Protocol)
 
-- **Canonical store**: `~/.agents/mcp/<name>.json`. Tool configs: Claude Code
-  `.claude/settings.json`, Gemini CLI `.gemini/settings.json`, Cursor `.cursor/mcp.json`
-  (each under a `mcpServers` key). Projects may also declare servers in a root `.mcp.json`.
+- **Canonical store**: `~/.agents/mcp/<name>.json`, always in the `mcpServers` shape.
+  Projects may also declare servers in a root `.mcp.json`.
 - **Server types**: `stdio` (`command`/`args`/`env`), `http`/`sse` (`url`). stdio XOR remote.
+- **Dialects**: agentspec stores one definition and translates it into whatever the
+  target tool speaks.
+
+  | Tool | Config path | Dialect | Key |
+  | --- | --- | --- | --- |
+  | Claude Code | `.claude/settings.json` | json | `mcpServers` |
+  | Gemini CLI | `.gemini/settings.json` | json | `mcpServers` |
+  | Cursor | `.cursor/mcp.json` | json | `mcpServers` |
+  | GitHub Copilot | `.copilot/mcp-config.json` | json | `mcpServers` |
+  | Windsurf | `.codeium/windsurf/mcp_config.json` | json | `mcpServers` |
+  | Cline | `.cline/mcp_settings.json` | json | `mcpServers` |
+  | Amp | `.config/amp/settings.json` | json | `amp.mcpServers` (one literal key) |
+  | Codex | `.codex/config.toml` | toml | `[mcp_servers.<name>]` |
+  | OpenCode | `.config/opencode/opencode.json` | opencode-json | `mcp`, argv array |
+
+  Codex writes go through `toml_edit`, so surrounding comments and formatting survive.
+  OpenHands and Kimi CLI have no MCP target.
 - **Commands**: `mcp add <name> [--command|--url] [--args] [--env] [--type] [--tool]`,
   `mcp remove <name>` (everywhere), `mcp list`, `mcp link <name> [--tool|--all-tools]`,
-  `mcp unlink <name> [--tool]` (tool configs only, store kept), `mcp sync`.
-- **Discovery**: `agentspec sync` adopts project `.mcp.json` servers into the canonical store
-  (originals untouched, store wins) and links every canonical server into all MCP-capable
-  installed tools.
+  `mcp unlink <name> [--tool]` (tool configs only, store kept), `mcp sync`,
+  `mcp adopt` (pull tool-native servers into the store), `mcp doctor` (every target,
+  path, dialect, and install state).
+- **Discovery**: `agentspec sync` adopts servers from both project `.mcp.json` files and
+  each tool's own config into the canonical store (originals untouched, store wins), then
+  links every canonical server into all MCP-capable installed tools.
 
 ## Permissions
 

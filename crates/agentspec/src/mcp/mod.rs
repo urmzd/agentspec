@@ -5,16 +5,21 @@
 //! use under their `mcpServers` key). Servers can be defined once and injected
 //! ("linked") into each tool's native settings:
 //!
-//! - Claude Code: `mcpServers` in `~/.claude/settings.json`
-//! - Gemini CLI: `mcpServers` in `~/.gemini/settings.json`
-//! - Cursor: `mcpServers` in `~/.cursor/mcp.json`
+//! Every tool that can host MCP servers is a target, whatever dialect it
+//! speaks: `mcpServers` JSON (Claude Code, Gemini CLI, Cursor, GitHub Copilot,
+//! Windsurf, Cline), Amp's `amp.mcpServers` key, Codex's `[mcp_servers.<name>]`
+//! TOML tables, and OpenCode's `mcp` key. `dialect` handles the translation, so
+//! `mcp add` writes one definition and every tool sees it natively.
 //!
-//! `sync` also auto-discovers project `.mcp.json` files, adopts their servers
-//! into the canonical store (originals untouched), and links every stored
-//! server into all MCP-capable tools — the store is always authoritative.
+//! `sync` also auto-discovers project `.mcp.json` files and servers already
+//! registered in tool configs, adopts them into the canonical store (originals
+//! untouched), and links every stored server into all MCP-capable tools — the
+//! store is always authoritative.
+
+pub mod dialect;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use console::style;
 use serde::{Deserialize, Serialize};
@@ -22,8 +27,9 @@ use serde_json::Value;
 
 use crate::config;
 use crate::error::{AppError, Result};
-use crate::jsonfile::{read_json, write_json};
+use crate::jsonfile::write_json;
 use crate::tools;
+use crate::tools::McpTarget;
 
 /// Canonical MCP server definition. Serialized verbatim into each tool's
 /// `mcpServers.<name>` entry.
@@ -60,14 +66,11 @@ impl McpServer {
     }
 }
 
-/// Get installed tools that have MCP config support, as (slug, config path).
-fn mcp_targets() -> Vec<(String, PathBuf)> {
+/// Installed tools that can host MCP servers.
+fn mcp_targets() -> Vec<McpTarget> {
     tools::installed_tools()
-        .into_iter()
-        .filter_map(|t| {
-            let path = t.mcp_config_path()?;
-            Some((t.slug().to_string(), path))
-        })
+        .iter()
+        .filter_map(|t| t.mcp_target())
         .collect()
 }
 
@@ -75,48 +78,46 @@ fn store_path(name: &str) -> PathBuf {
     config::shared_mcp_dir().join(format!("{name}.json"))
 }
 
-/// Inject a server definition into one tool's `mcpServers` map.
-/// Returns whether the config actually changed (already-in-sync is a no-op).
-fn inject(path: &Path, name: &str, server: &Value) -> Result<bool> {
-    let mut root = read_json(path);
-    if !root.is_object() {
-        root = serde_json::json!({});
-    }
-    let servers = root
-        .as_object_mut()
-        .unwrap()
-        .entry("mcpServers")
-        .or_insert_with(|| serde_json::json!({}));
-    // A hand-edited config may have a non-object `mcpServers`; normalize it.
-    if !servers.is_object() {
-        *servers = serde_json::json!({});
-    }
-    let servers = servers.as_object_mut().unwrap();
-    if servers.get(name) == Some(server) {
-        return Ok(false);
-    }
-    servers.insert(name.to_string(), server.clone());
-    write_json(path, &root)?;
-    Ok(true)
+/// Inject a server definition into one tool's config, translated into that
+/// tool's dialect. Returns whether the config actually changed (already-in-sync
+/// is a no-op, so `sync` stays quiet).
+fn inject(target: &McpTarget, name: &str, server: &Value) -> Result<bool> {
+    dialect::write_server(target, name, server)
 }
 
 /// Resolve the fan-out targets given an optional tool filter.
-fn resolve_targets(tool: Option<&str>) -> Result<Vec<(String, PathBuf)>> {
+fn resolve_targets(tool: Option<&str>) -> Result<Vec<McpTarget>> {
     match tool {
         Some(t) => {
-            let filtered: Vec<_> = mcp_targets()
+            // Fall back to the full tool list so `--tool` works for a tool that
+            // supports MCP but has not been used on this machine yet; the write
+            // creates the config file.
+            let filtered: Vec<_> = mcp_targets().into_iter().filter(|m| m.slug == t).collect();
+            if !filtered.is_empty() {
+                return Ok(filtered);
+            }
+            let uninstalled: Vec<_> = tools::all_mcp_targets()
                 .into_iter()
-                .filter(|(slug, _)| slug == t)
+                .filter(|m| m.slug == t)
                 .collect();
-            if filtered.is_empty() {
+            if uninstalled.is_empty() {
                 return Err(AppError::Other(format!(
-                    "tool '{t}' not found or has no MCP config support (try claude-code, gemini-cli, cursor)"
+                    "tool '{t}' has no MCP support (try: {})",
+                    mcp_capable_slugs().join(", ")
                 )));
             }
-            Ok(filtered)
+            Ok(uninstalled)
         }
         None => Ok(mcp_targets()),
     }
+}
+
+/// Slugs of every MCP-capable tool, installed or not.
+pub fn mcp_capable_slugs() -> Vec<String> {
+    tools::all_mcp_targets()
+        .into_iter()
+        .map(|m| m.slug)
+        .collect()
 }
 
 /// Register a server: write to the canonical store, then inject into tools.
@@ -140,9 +141,13 @@ pub fn add_server(tool: Option<&str>, name: &str, server: &McpServer) -> Result<
         );
         return Ok(());
     }
-    for (slug, path) in &targets {
-        inject(path, name, &json)?;
-        eprintln!("  registered {name} in {slug}");
+    for target in &targets {
+        inject(target, name, &json)?;
+        eprintln!(
+            "  registered {name} in {} ({})",
+            target.slug,
+            target.dialect.label()
+        );
     }
     Ok(())
 }
@@ -156,16 +161,16 @@ pub fn link_server(tool: Option<&str>, name: &str) -> Result<()> {
             config::shared_mcp_dir().display()
         )));
     }
-    let json = read_json(&path);
+    let json = crate::jsonfile::read_json(&path);
     let targets = resolve_targets(tool)?;
     if targets.is_empty() {
         return Err(AppError::Other(
             "no installed tools with MCP config support found".into(),
         ));
     }
-    for (slug, config_path) in &targets {
-        inject(config_path, name, &json)?;
-        eprintln!("  linked {name} → {slug}");
+    for target in &targets {
+        inject(target, name, &json)?;
+        eprintln!("  linked {name} → {}", target.slug);
     }
     Ok(())
 }
@@ -176,9 +181,9 @@ pub fn link_all_stored() -> Result<(usize, usize)> {
     let stored = list_stored();
     let targets = mcp_targets();
     for (name, config) in &stored {
-        for (slug, path) in &targets {
-            if inject(path, name, config)? {
-                eprintln!("  {name} → {slug}");
+        for target in &targets {
+            if inject(target, name, config)? {
+                eprintln!("  {name} → {}", target.slug);
             }
         }
     }
@@ -213,18 +218,11 @@ pub fn sync_all_servers(json: bool) -> Result<()> {
 
 /// Remove a server's entry from each of the given tool configs.
 /// Returns how many configs actually contained it.
-fn unlink_from_targets(targets: &[(String, PathBuf)], name: &str) -> Result<usize> {
+fn unlink_from_targets(targets: &[McpTarget], name: &str) -> Result<usize> {
     let mut removed = 0;
-    for (slug, path) in targets {
-        if !path.exists() {
-            continue;
-        }
-        let mut root = read_json(path);
-        if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut())
-            && servers.remove(name).is_some()
-        {
-            write_json(path, &root)?;
-            eprintln!("  unlinked {name} from {slug}");
+    for target in targets {
+        if dialect::remove_server(target, name)? {
+            eprintln!("  unlinked {name} from {}", target.slug);
             removed += 1;
         }
     }
@@ -298,26 +296,31 @@ pub struct McpInventoryEntry {
 
 /// Slugs of installed tools with MCP config support.
 pub fn tool_slugs() -> Vec<String> {
-    mcp_targets().into_iter().map(|(slug, _)| slug).collect()
+    mcp_targets().into_iter().map(|m| m.slug).collect()
+}
+
+/// Every installed MCP-capable tool with the servers it currently carries,
+/// read back through that tool's own dialect.
+pub fn tool_registrations() -> Vec<(McpTarget, Vec<(String, Value)>)> {
+    mcp_targets()
+        .into_iter()
+        .map(|target| {
+            let servers = dialect::read_servers(&target);
+            (target, servers)
+        })
+        .collect()
 }
 
 /// Canonical store servers joined with their per-tool link state.
 pub fn inventory() -> Vec<McpInventoryEntry> {
-    let tool_roots: Vec<(String, Value)> = mcp_targets()
-        .into_iter()
-        .map(|(slug, path)| (slug, read_json(&path)))
-        .collect();
+    let registrations = tool_registrations();
     list_stored()
         .into_iter()
         .map(|(name, config)| {
-            let linked_tools = tool_roots
+            let linked_tools = registrations
                 .iter()
-                .filter(|(_, root)| {
-                    root.get("mcpServers")
-                        .and_then(|servers| servers.get(&name))
-                        .is_some()
-                })
-                .map(|(slug, _)| slug.clone())
+                .filter(|(_, servers)| servers.iter().any(|(n, _)| n == &name))
+                .map(|(target, _)| target.slug.clone())
                 .collect();
             McpInventoryEntry {
                 name,
@@ -352,25 +355,35 @@ pub fn server_summary(config: &Value) -> String {
 /// List the canonical store and each tool's registered MCP servers.
 pub fn list_servers(json: bool) -> Result<()> {
     let stored = list_stored();
+    let registrations = tool_registrations();
 
     if json {
         let store: serde_json::Map<String, Value> = stored.iter().cloned().collect();
-        let mut tools = serde_json::Map::new();
-        for (slug, path) in mcp_targets() {
-            if !path.exists() {
-                continue;
-            }
-            let root = read_json(&path);
-            if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object())
-                && !servers.is_empty()
-            {
-                tools.insert(slug, Value::Object(servers.clone()));
-            }
-        }
+        let stored_names: std::collections::HashSet<&str> =
+            stored.iter().map(|(n, _)| n.as_str()).collect();
+        let tools: Vec<Value> = registrations
+            .iter()
+            .map(|(target, servers)| {
+                serde_json::json!({
+                    "tool": target.slug,
+                    "name": target.name,
+                    "path": target.path.to_string_lossy(),
+                    "dialect": target.dialect.label(),
+                    "key": target.dialect.key(),
+                    "servers": servers.iter().cloned().collect::<serde_json::Map<_, _>>(),
+                    "unadopted": servers
+                        .iter()
+                        .map(|(n, _)| n.as_str())
+                        .filter(|n| !stored_names.contains(n))
+                        .collect::<Vec<_>>(),
+                })
+            })
+            .collect();
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
                 "store": store,
+                "store_dir": config::shared_mcp_dir().to_string_lossy(),
                 "tools": tools,
             }))?
         );
@@ -386,19 +399,110 @@ pub fn list_servers(json: bool) -> Result<()> {
         }
     }
 
-    for (slug, path) in mcp_targets() {
-        if !path.exists() {
+    let stored_names: std::collections::HashSet<&str> =
+        stored.iter().map(|(n, _)| n.as_str()).collect();
+    for (target, servers) in &registrations {
+        if servers.is_empty() {
             continue;
         }
-        let root = read_json(&path);
-        if let Some(servers) = root.get("mcpServers").and_then(|v| v.as_object())
-            && !servers.is_empty()
-        {
-            println!("{slug}:");
-            for (name, config) in servers {
-                println!("  {name}: {}", server_summary(config));
-            }
+        println!(
+            "{} {}",
+            style(&target.slug).bold(),
+            style(format!("({})", target.dialect.label())).dim()
+        );
+        for (name, config) in servers {
+            let mark = if stored_names.contains(name.as_str()) {
+                ""
+            } else {
+                " (not in store — run `agentspec mcp adopt`)"
+            };
+            println!(
+                "  {name}: {}{}",
+                server_summary(config),
+                style(mark).yellow()
+            );
         }
+    }
+    Ok(())
+}
+
+/// Pull servers registered directly in tool configs into the canonical store.
+///
+/// Non-destructive in both directions: tool configs are never modified, and a
+/// name already in the store keeps its stored definition. Returns the names
+/// newly adopted.
+pub fn adopt_from_tools() -> Result<Vec<String>> {
+    let mut adopted = Vec::new();
+    for (target, servers) in tool_registrations() {
+        for (name, config) in servers {
+            let sp = store_path(&name);
+            if sp.exists() || adopted.contains(&name) {
+                continue;
+            }
+            std::fs::create_dir_all(config::shared_mcp_dir())?;
+            write_json(&sp, &config)?;
+            eprintln!("  adopted {name} from {}", target.slug);
+            adopted.push(name);
+        }
+    }
+    Ok(adopted)
+}
+
+/// Report every MCP-capable tool, whether it is installed, and where its
+/// config lives. The discovery entry point for "why isn't my server showing up".
+pub fn doctor(json: bool) -> Result<()> {
+    let installed: std::collections::HashSet<String> =
+        mcp_targets().into_iter().map(|m| m.slug).collect();
+    let rows: Vec<Value> = tools::all_mcp_targets()
+        .into_iter()
+        .map(|t| {
+            let is_installed = installed.contains(&t.slug);
+            serde_json::json!({
+                "tool": t.slug,
+                "name": t.name,
+                "installed": is_installed,
+                "path": t.path.to_string_lossy(),
+                "exists": t.path.exists(),
+                "dialect": t.dialect.label(),
+                "key": t.dialect.key(),
+                "servers": if is_installed { dialect::read_servers(&t).len() } else { 0 },
+            })
+        })
+        .collect();
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "store_dir": config::shared_mcp_dir().to_string_lossy(),
+                "stored": list_stored().len(),
+                "tools": rows,
+            }))?
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} {} server(s) in {}",
+        style("store:").bold(),
+        list_stored().len(),
+        config::shared_mcp_dir().display()
+    );
+    for row in &rows {
+        let installed = row["installed"].as_bool().unwrap_or(false);
+        let mark = if installed {
+            style("✓").green()
+        } else {
+            style("-").dim()
+        };
+        println!(
+            "  {} {:<16} {:<14} {} ({} server(s))",
+            mark,
+            row["tool"].as_str().unwrap_or(""),
+            row["dialect"].as_str().unwrap_or(""),
+            row["path"].as_str().unwrap_or(""),
+            row["servers"].as_u64().unwrap_or(0),
+        );
     }
     Ok(())
 }

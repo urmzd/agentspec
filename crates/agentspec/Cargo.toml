@@ -31,6 +31,8 @@ skim = { workspace = true }
 fuzzy-matcher = { workspace = true }
 ureq = { workspace = true }
 rusqlite = { workspace = true }
+toml_edit = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

@@ -40,16 +40,18 @@
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
 - **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
 - **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
-- **Sessions.** List, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
+- **Sessions.** List, search, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. `session search` filters by text, role (`--role user` finds what you actually asked), project, files touched, tool used, and date, in human or JSON output. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
 - **Fleets.** Manage multi-agent fleets through a backend interface: a no-tmux store backend for portable orchestration state, and a native tmux backend compatible with the `orchestrate-agents` fleet helper.
 - **Worktrees.** Create, list, and remove per-repo git worktrees under `<repo>/.worktrees/` without switching the primary checkout.
-- **MCP server management.** Register, link, remove, and sync MCP servers across MCP-capable tools (Claude Code, Gemini CLI, Cursor) with a canonical store.
+- **MCP server management.** Register a server once and have it appear natively in all 9 MCP-capable tools, whatever dialect each speaks: `mcpServers` JSON (Claude Code, Gemini CLI, Cursor, GitHub Copilot, Windsurf, Cline), Amp's `amp.mcpServers` key, Codex's `[mcp_servers.<name>]` TOML tables, and OpenCode's `mcp` key. `mcp adopt` pulls tool-native servers into the canonical store; `mcp doctor` shows every target, path, and dialect.
 - **Permission profile sync.** Maintain one portable allowlist and translate it into Claude and Gemini native permission settings.
 - **Hook management.** Store lifecycle hook scripts once and link them into tool hook directories.
 - **Plugin tracking.** Inventory installed Claude Code plugins and export a portable manifest.
 - **Planning artifacts.** Import Gemini CLI antigravity plans into the canonical store and list them.
 - **Memory browser.** Browse Claude Code memories across projects, filter by type, and pull/push between tools and the shared store.
 - **Project sync.** Sync project-level instruction files (AGENTS.md, CLAUDE.md, llms.txt) into a shared store.
+- **Bootstrap.** `agentspec bootstrap` installs agentspec's own usage skills into every detected tool, so the agents on the machine can discover and drive it without being told how.
+- **Introspection.** `agentspec tools` reports every supported tool and where it stores things; `agentspec commands --format json` dumps the whole command tree for agents.
 - **Prune.** Remove broken resources and stale symlinks in one pass.
 - **Deduplication.** Find duplicate resources by content hash or name.
 - **TUI.** Interactive terminal UI with tabbed views for skills, agents, tools, sessions, fleets, memories, and configs. The Fleets tab includes backend-selected agent creation with `a` including optional managed worktree creation, a scrollable selected-agent message panel for store-backed transcripts and tmux captures, direct message sending with `s`, guardian event ingestion with `e`, state marking with `m`, attach command preview with `t`, route policy review with `i`, brief/full context toggling with `c`, matched-session route preview/routing with `p`/`r`, and fleet-wide preview/routing with `P`/`R`. It inherits your terminal theme.
@@ -84,20 +86,30 @@ cargo build --release
 ## Quick Start
 
 ```sh
-# Launch the interactive TUI
-agentspec
+# Teach every installed AI tool how to use agentspec
+agentspec bootstrap
 
 # Discover all resources and link to every detected tool
 agentspec sync --adopt
 
+# Launch the interactive TUI
+agentspec
+
 # Add a skill from GitHub and link to all tools
 agentspec manage add owner/repo --all-tools
+
+# Find the session where you asked about rate limiting
+agentspec session search "rate limit" --role user --since 7d
 ```
 
 ## Usage
 
 ```
 agentspec                                    # Launch interactive TUI
+agentspec --help                             # What agentspec is, and how to use it
+agentspec bootstrap                          # Install agentspec's usage skills into every tool
+agentspec tools                              # Every supported tool, installed state, and paths
+agentspec commands --format json             # Full command tree, machine-readable
 
 # Status & sync
 agentspec status                             # Show managed and unmanaged resources
@@ -133,7 +145,12 @@ agentspec project remove <project>           # Delete the synced copy (originals
 
 # Sessions
 agentspec session find                       # Fuzzy-find a session across sources
-agentspec session list claude                # List sessions for a source (claude, codex, copilot, gemini)
+agentspec session list                       # Newest sessions across every source
+agentspec session list claude --limit 50     # List sessions for one source (claude, codex, copilot, gemini)
+agentspec session search "rate limit" --role user      # Find what you actually asked, not the restatement
+agentspec session search --source copilot --project agentspec --since 7d --format json
+agentspec session search "cargo\s+build" --regex --hits 10 --context 400
+agentspec session search --tool-used Bash --file src/mcp/mod.rs
 agentspec session export copilot --last      # Export most recent session (Copilot is enriched)
 agentspec session export claude <id>         # Export a specific session
 agentspec session export claude --last -o f.md  # Write export to file
@@ -166,8 +183,10 @@ agentspec worktree remove api                # Remove .worktrees/api and worktre
 # MCP servers
 agentspec mcp add sr --command sr --args "mcp serve"  # Register a stdio server in store + tool configs
 agentspec mcp add docs --url https://example.com/mcp --type http  # Register a remote server
-agentspec mcp add sr --command sr --tool claude-code  # Register only in one tool
+agentspec mcp add sr --command sr --tool github-copilot  # Register only in one tool
 agentspec mcp list                           # Show canonical store + per-tool registrations
+agentspec mcp doctor                         # Every MCP-capable tool: installed, path, dialect
+agentspec mcp adopt                          # Pull tool-native servers into the canonical store
 agentspec mcp link sr --all-tools            # Inject a stored server into all MCP-capable tools
 agentspec mcp unlink sr --tool claude-code   # Remove from one tool config, keep the store
 agentspec mcp remove sr                      # Remove everywhere: tool configs + canonical store
@@ -251,7 +270,21 @@ Cross-tool session sync, memory sync, MCP server management, permission profile 
 
 ## Agent Skill
 
-This repo's conventions are available as portable agent skills in [`skills/`](skills/).
+agentspec ships its own usage skills, compiled into the binary and sourced from
+[`skills/`](skills/):
+
+| Skill | Teaches |
+| --- | --- |
+| [`agentspec-usage`](skills/agentspec-usage/SKILL.md) | when and how to drive the CLI |
+| [`resource-conventions`](skills/resource-conventions/SKILL.md) | where every resource lives and what format it uses |
+
+```sh
+agentspec bootstrap              # write both into ~/.agents/skills and link them everywhere
+agentspec bootstrap --tools claude-code,codex
+```
+
+Bootstrap is idempotent and never overwrites a same-named skill you brought
+yourself unless you pass `--force`.
 
 ## License
 

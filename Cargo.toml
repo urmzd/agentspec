@@ -23,6 +23,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10"
 toml = "0.8"
+toml_edit = "0.22"
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
@@ -59,6 +60,7 @@ walkdir = "2"
 pathdiff = "0.2"
 skim = "0.10"
 fuzzy-matcher = "0.3.7"
+regex = "1"
 
 # Embedded SQLite (Copilot session-store.db reader)
 rusqlite = { version = "0.32", features = ["bundled"] }
