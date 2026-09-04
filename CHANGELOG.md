@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0 (2026-09-04)
+
+### Features
+
+- MCP dialect parity, session search, and a discoverable CLI (#17) ([f083e2d](https://github.com/urmzd/agentspec/commit/f083e2d1bbc79c60d0511b3be89a0a909a720cd2))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.13.0...v0.14.0)
+
+
 ## 0.13.0 (2026-07-20)
 
 ### Features
