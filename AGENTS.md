@@ -35,7 +35,7 @@ cargo build    # debug build
 
 Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `fleet`, `worktree`, `bootstrap`, `tools`, `commands`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
 
-`bootstrap`, `tools`, and `commands` are the discovery surface: `bootstrap` writes the skills bundled via `include_str!` from `skills/` into the store and links them into every tool, `tools` reports what agentspec sees installed, and `commands` dumps the clap tree (JSON for agents, an indented list for people). Keep `Cli`'s `long_about` in `cli.rs` accurate when the concepts change — it is the first thing both humans and agents read.
+`bootstrap`, `tools`, and `commands` are the discovery surface: `bootstrap` writes the skills bundled via `include_str!` from `crates/agentspec/skills/` into the store and links them into every tool, `tools` reports what agentspec sees installed, and `commands` dumps the clap tree (JSON for agents, an indented list for people). Keep `Cli`'s `long_about` in `cli.rs` accurate when the concepts change — it is the first thing both humans and agents read.
 
 ## Code Style
 
@@ -60,6 +60,14 @@ Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune
    when the format matches; a genuinely new format needs a new variant plus read/write/remove
    arms in `mcp/dialect.rs` and a round-trip test there. Never invent a config path — leave
    `mcp` unset rather than guessing.
+
+## Bundled Skills
+
+The skills `bootstrap` ships live in `crates/agentspec/skills/`, **inside the published
+package**, not at the workspace root. `cargo publish` builds from a tarball containing only
+the crate directory, so an `include_str!` reaching above it compiles locally and then fails
+at release time. The `Package` CI job runs `cargo publish --dry-run` on every PR to catch
+that class of break before a tag is cut.
 
 ## MCP Dialects
 

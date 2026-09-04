@@ -21,14 +21,19 @@ use crate::tools;
 pub const BUNDLED_SOURCE: &str = "bundled:agentspec";
 
 /// Skills compiled into the binary, as (name, SKILL.md contents).
+///
+/// These live under `crates/agentspec/skills/`, inside the published package,
+/// not at the workspace root: `cargo publish` builds from a tarball containing
+/// only this crate's directory, so an `include_str!` reaching above it compiles
+/// locally and then fails at publish time.
 const BUNDLED_SKILLS: &[(&str, &str)] = &[
     (
         "agentspec-usage",
-        include_str!("../../../../skills/agentspec-usage/SKILL.md"),
+        include_str!("../../skills/agentspec-usage/SKILL.md"),
     ),
     (
         "resource-conventions",
-        include_str!("../../../../skills/resource-conventions/SKILL.md"),
+        include_str!("../../skills/resource-conventions/SKILL.md"),
     ),
 ];
 

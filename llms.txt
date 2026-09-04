@@ -21,8 +21,8 @@
 
 ## Skills
 
-- [agentspec-usage](https://github.com/urmzd/agentspec/blob/main/skills/agentspec-usage/SKILL.md): When and how to drive the CLI; installed everywhere by `agentspec bootstrap`
-- [resource-conventions](https://github.com/urmzd/agentspec/blob/main/skills/resource-conventions/SKILL.md): Where each resource kind lives and how it is discovered
+- [agentspec-usage](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/skills/agentspec-usage/SKILL.md): When and how to drive the CLI; installed everywhere by `agentspec bootstrap`
+- [resource-conventions](https://github.com/urmzd/agentspec/blob/main/crates/agentspec/skills/resource-conventions/SKILL.md): Where each resource kind lives and how it is discovered
 
 ## Optional
 
