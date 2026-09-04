@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.1 (2026-09-04)
+
+### Bug Fixes
+
+- bundle skills inside the published crate so cargo publish succeeds (#18) ([d0d10c8](https://github.com/urmzd/agentspec/commit/d0d10c820d4b7f5b9553fdc921618c8cda66a0c2))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.14.0...v0.14.1)
+
+
 ## 0.14.0 (2026-09-04)
 
 ### Features
