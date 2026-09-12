@@ -16,12 +16,14 @@ pub fn list_tools(json: bool) -> Result<()> {
     let rows: Vec<Value> = tools::all_tools()
         .iter()
         .map(|t| {
-            let installed = t.is_installed();
+            let excluded = tools::is_excluded(t.slug());
+            let installed = t.is_installed() && !excluded;
             let mcp = t.mcp_target();
             json!({
                 "slug": t.slug(),
                 "name": t.name(),
                 "installed": installed,
+                "excluded": excluded,
                 "skills_dir": t.skills_dir().map(|p| p.to_string_lossy().to_string()),
                 "agents_dir": t.agents_dir().map(|p| p.to_string_lossy().to_string()),
                 "settings_path": t.settings_path().map(|p| p.to_string_lossy().to_string()),
@@ -51,7 +53,9 @@ pub fn list_tools(json: bool) -> Result<()> {
     println!("    {:<16} {:<18} {:<14} SKILLS DIR", "SLUG", "NAME", "MCP");
     for r in &rows {
         let installed = r["installed"].as_bool().unwrap_or(false);
-        let mark = if installed {
+        let mark = if r["excluded"].as_bool().unwrap_or(false) {
+            style("⊘").yellow()
+        } else if installed {
             style("✓").green()
         } else {
             style("-").dim()
@@ -67,7 +71,17 @@ pub fn list_tools(json: bool) -> Result<()> {
         );
     }
     let installed = rows.iter().filter(|r| r["installed"] == true).count();
+    let excluded = rows.iter().filter(|r| r["excluded"] == true).count();
     println!("\n{installed} of {} tool(s) installed", rows.len());
+    if excluded > 0 {
+        println!(
+            "{}",
+            style(format!(
+                "⊘ {excluded} excluded via excluded_tools in config; sync and --all-tools skip them"
+            ))
+            .dim()
+        );
+    }
     Ok(())
 }
 
