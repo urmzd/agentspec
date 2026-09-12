@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.1 (2026-09-12)
+
+### Bug Fixes
+
+- **agents**: render OpenCode metadata and preserve selected links (#20) ([b670e07](https://github.com/urmzd/agentspec/commit/b670e07ffceb16852f6443921c9a60eebf38d826))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.0...v0.15.1)
+
+
 ## 0.15.0 (2026-09-12)
 
 ### Features
