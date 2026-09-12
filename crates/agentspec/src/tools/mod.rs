@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use crate::config;
 
@@ -174,10 +175,31 @@ pub fn all_tools() -> Vec<Box<dyn CodingTool>> {
     ]
 }
 
+/// Slugs the user has excluded via `excluded_tools` in the agentspec config.
+///
+/// Read once per process: every `installed_tools()` caller would otherwise
+/// re-read the config file, and some call it inside a loop.
+fn excluded_slugs() -> &'static [String] {
+    static EXCLUDED: OnceLock<Vec<String>> = OnceLock::new();
+    EXCLUDED.get_or_init(|| {
+        crate::inventory::load_config()
+            .map(|c| c.excluded_tools)
+            .unwrap_or_default()
+    })
+}
+
+/// Whether the user has excluded this slug via `excluded_tools` in the config.
+pub fn is_excluded(slug: &str) -> bool {
+    excluded_slugs().iter().any(|s| s == slug)
+}
+
+/// Every tool that looks installed and the user has not excluded.
 pub fn installed_tools() -> Vec<Box<dyn CodingTool>> {
+    let excluded = excluded_slugs();
     all_tools()
         .into_iter()
         .filter(|t| t.is_installed())
+        .filter(|t| !excluded.iter().any(|s| s == t.slug()))
         .collect()
 }
 
@@ -188,4 +210,34 @@ pub fn find_tool(slug: &str) -> Option<Box<dyn CodingTool>> {
 /// Every tool that can host MCP servers, whether or not it is installed.
 pub fn all_mcp_targets() -> Vec<McpTarget> {
     all_tools().iter().filter_map(|t| t.mcp_target()).collect()
+}
+
+#[cfg(test)]
+mod exclusion_tests {
+    use super::*;
+
+    #[test]
+    fn excluded_slug_is_filtered_from_a_tool_list() {
+        let excluded = ["gemini-cli".to_string()];
+        let tools = all_tools();
+        let kept: Vec<String> = tools
+            .iter()
+            .filter(|t| !excluded.iter().any(|s| s == t.slug()))
+            .map(|t| t.slug().to_string())
+            .collect();
+        assert!(!kept.iter().any(|s| s == "gemini-cli"));
+        assert!(kept.iter().any(|s| s == "claude-code"));
+        assert!(kept.iter().any(|s| s == "codex"));
+    }
+
+    #[test]
+    fn empty_exclusion_list_keeps_every_tool() {
+        let excluded: [String; 0] = [];
+        let tools = all_tools();
+        let kept = tools
+            .iter()
+            .filter(|t| !excluded.iter().any(|s| s == t.slug()))
+            .count();
+        assert_eq!(kept, tools.len());
+    }
 }

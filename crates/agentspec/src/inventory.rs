@@ -29,6 +29,14 @@ pub struct Config {
     pub discovered: Vec<DiscoveredResource>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<TrackedProject>,
+    /// Tool slugs to treat as not installed even when their directory exists.
+    ///
+    /// `CodingTool::is_installed` only checks that a tool's config directory is
+    /// present, so a directory another program owns (`~/.gemini`, kept live by
+    /// Antigravity) makes a tool the user never runs look installed and pulls
+    /// links back in on every `sync`. Listing the slug here suppresses that.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_tools: Vec<String>,
 }
 
 /// A project tracked by agentspec with synced-in resources.
@@ -196,6 +204,7 @@ impl Config {
             resources: Vec::new(),
             discovered: Vec::new(),
             projects: Vec::new(),
+            excluded_tools: Vec::new(),
         }
     }
 
@@ -394,6 +403,7 @@ pub fn load_config() -> Result<Config> {
             resources: old.resources,
             discovered: Vec::new(),
             projects: Vec::new(),
+            excluded_tools: Vec::new(),
         };
         cfg.save(&cfg_path)?;
         let _ = std::fs::remove_file(&old_inv);
