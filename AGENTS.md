@@ -19,7 +19,7 @@ Resources live in the shared store (`~/.agents/skills/`, `~/.agents/agents/`). T
 **`sync`** pipeline:
 1. **Reconcile** -- adopts existing links on disk that aren't tracked in config (handles links created by older versions or external tools)
 2. **Refresh** -- re-copies `local`-sourced resources from their origins into the store
-3. **Link** -- creates missing tool copies for managed resources not yet present in tool directories
+3. **Link** -- repairs missing tool copies only for explicitly tracked destinations; does not expand to new tools
 4. **Verify** -- checks SHA-256 hashes against stored values to detect external modifications
 
 **Relative symlinks** (the `--symlink` strategy) are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.

@@ -63,7 +63,7 @@ pub fn sync(
         );
     }
 
-    // 4. Ensure all managed resources are linked to all installed tools
+    // 4. Reconcile existing links and repair explicitly tracked destinations
     if !json {
         println!("  {} Ensuring links...", style("→").cyan());
     }

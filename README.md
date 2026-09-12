@@ -38,7 +38,7 @@
 ## Features
 
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
-- **Discovery & sync.** Auto-discover resources across your filesystem, adopt them, and link to all tools in one command.
+- **Discovery & sync.** Discover and adopt resources, then refresh explicitly selected tool links.
 - **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
 - **Sessions.** List, search, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. `session search` filters by text, role (`--role user` finds what you actually asked), project, files touched, tool used, and date, in human or JSON output. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
 - **Fleets.** Manage multi-agent fleets through a backend interface: a no-tmux store backend for portable orchestration state, and a native tmux backend compatible with the `orchestrate-agents` fleet helper.
@@ -289,3 +289,31 @@ yourself unless you pass `--force`.
 ## License
 
 [Apache-2.0](LICENSE)
+
+### Portable agent models and context
+
+Agent links are rendered copies so tool-specific metadata never changes the shared source.
+Claude aliases remain valid in Claude Code. OpenCode uses `provider/model` IDs;
+`inherit`, `sonnet`, `haiku`, and `opus` omit the OpenCode model to inherit the caller.
+Use exact overrides for gateways instead of guessing provider prefixes:
+
+```yaml
+model: inherit
+models:
+  claude-code: anthropic/claude-sonnet-5
+  opencode: my-gateway/anthropic/claude-sonnet-5
+```
+
+These IDs illustrate routing syntax, not model availability. Use IDs advertised by your
+provider. OpenCode agents deploy to `~/.config/opencode/agents/`; Claude tool allowlists
+are translated to OpenCode permissions. Unsupported vendor fields such as model fallback
+arrays or tool lists require explicit translation and are rejected before writing.
+Agent files are rendered even with `--symlink`; skills retain the requested strategy.
+
+`sync` reconciles existing copies and repairs tracked links. It no longer links every
+resource to every installed tool. Use `manage add --tools ...` or `manage link` to opt in;
+`manage unlink` remains effective across syncs. Existing links are preserved. Keep agent
+and skill descriptions short because tools include discovery metadata in their context.
+
+For existing agent symlinks, unlink and re-link them to activate rendering. Back up legacy
+`~/.opencode/agents` files before moving them out of discovery; OpenCode scans them too.

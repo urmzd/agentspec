@@ -171,7 +171,10 @@ impl Adapter for ClaudeAdapter {
         }
         if let Some(model) = &resource.model {
             let valid = ["sonnet", "opus", "haiku", "inherit"];
-            if !valid.contains(&model.as_str()) && !model.starts_with("claude-") {
+            if !valid.contains(&model.as_str())
+                && !model.starts_with("claude-")
+                && !model.contains('/')
+            {
                 issues.push(format!("unrecognized model '{model}'"));
             }
         }

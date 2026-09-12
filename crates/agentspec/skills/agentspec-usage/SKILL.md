@@ -6,8 +6,8 @@ description: How and when to use the agentspec CLI to manage skills, agents, MCP
 # agentspec
 
 `agentspec` keeps one canonical copy of your agent resources in `~/.agents/` and
-mirrors them into every AI coding tool installed on the machine. Register a skill,
-MCP server, hook, or permission rule once; every tool sees it.
+renders them into explicitly selected AI coding tools. Register a resource once,
+then choose its destinations with `manage link` or `manage add --tools`.
 
 Run `agentspec --help` for the command map, or `agentspec commands --format json`
 for the full tree as machine-readable JSON.
@@ -37,18 +37,18 @@ document to stdout, so it is always safe to pipe into `jq`.
 | `~/.agents/permissions.yml` | portable permission profile |
 
 Tools get real copies of the store version by default; `--symlink` opts into
-relative symlinks. Adoption never modifies or deletes the original.
+relative symlinks for skills. Agents are always rendered copies. Adoption never modifies or deletes the original.
 
 ## Start here
 
 ```sh
-agentspec sync --adopt      # discover → adopt → link → verify, across every tool
+agentspec sync --adopt      # discover → adopt → repair selected links → verify
 agentspec status            # what is managed, what is not
 agentspec                   # interactive TUI
 ```
 
 `sync` is the default entry point. It adopts untracked resources, re-copies
-`local`-sourced ones from their origin, links everything into installed tools,
+`local`-sourced ones from their origin, repairs tracked links without enabling resources in additional tools,
 adopts MCP servers found in project `.mcp.json` files and tool configs, and
 verifies SHA-256 hashes.
 

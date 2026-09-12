@@ -156,7 +156,7 @@ define_tool!(Copilot,   "GitHub Copilot",  "github-copilot",  skills: Some(".cop
 define_tool!(Amp,       "Amp",             "amp",             skills: Some(".amp/skills"),              agents: Some(".amp/agents"),              mcp: Some((".config/amp/settings.json", McpDialect::JsonMap("amp.mcpServers"))));
 define_tool!(Cursor,    "Cursor",          "cursor",          skills: Some(".cursor/skills"),           agents: Some(".cursor/agents"),           mcp: Some((".cursor/mcp.json", JSON_MCP)));
 define_tool!(Codex,     "Codex",           "codex",           skills: Some(".codex/skills"),            agents: Some(".codex/agents"),            mcp: Some((".codex/config.toml", McpDialect::TomlTable("mcp_servers"))));
-define_tool!(OpenCode,  "OpenCode",        "opencode",        skills: Some(".opencode/skills"),         agents: Some(".opencode/agents"),         mcp: Some((".config/opencode/opencode.json", McpDialect::OpenCodeJson("mcp"))));
+define_tool!(OpenCode,  "OpenCode",        "opencode",        skills: Some(".config/opencode/skills"),         agents: Some(".config/opencode/agents"),         mcp: Some((".config/opencode/opencode.json", McpDialect::OpenCodeJson("mcp"))));
 define_tool!(Kimi,      "Kimi CLI",        "kimi-cli",        skills: Some(".kimi-cli/skills"),         agents: Some(".kimi-cli/agents"));
 
 pub fn all_tools() -> Vec<Box<dyn CodingTool>> {
