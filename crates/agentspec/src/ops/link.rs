@@ -59,11 +59,11 @@ pub fn link(
         )));
     }
 
-    let strategy = if copy {
+    let strategy = if copy || kind == ResourceKind::Agent {
         if shared_dir.is_dir() {
             crate::ops::manage::copy_dir(&shared_dir, &link_path)?;
         } else {
-            std::fs::copy(&shared_dir, &link_path)?;
+            super::agent_render::write(&shared_dir, &link_path, tool_slug)?;
         }
         eprintln!("  copied {} '{}' to {}", kind, name, tool.name());
         LinkStrategy::Copy
@@ -191,8 +191,7 @@ pub(crate) fn make_relative(from: &Path, to: &Path) -> std::path::PathBuf {
     pathdiff::diff_paths(to, from_dir).unwrap_or_else(|| to.to_path_buf())
 }
 
-/// Ensure all managed resources are linked to all installed tools (copied by
-/// default, symlinked when `copy` is false).
+/// Repair explicitly tracked destinations (agents are always rendered copies).
 /// Reconciles existing links into config tracking, then creates missing ones.
 /// Returns (reconciled, created) counts.
 pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> {
@@ -264,7 +263,7 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
         }
     }
 
-    // Phase 2: Create missing symlinks for resources not yet linked on disk.
+    // Phase 2: Repair missing links without opting resources into new tools.
     let link_ops: Vec<_> = cfg
         .resources
         .iter()
@@ -275,6 +274,7 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
             }
             installed
                 .iter()
+                .filter(|tool| resource.links.iter().any(|link| link.tool == tool.slug()))
                 .filter_map(|tool| {
                     let tool_dir = match kind {
                         ResourceKind::Skill => tool.skills_dir(),
@@ -320,11 +320,11 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
     for (name, tracked_kind, tool_slug, tool_dir, link_path, shared_path) in link_ops {
         std::fs::create_dir_all(&tool_dir)?;
 
-        let strategy = if copy {
+        let strategy = if copy || tracked_kind == TrackedKind::Agent {
             if shared_path.is_dir() {
                 crate::ops::manage::copy_dir(&shared_path, &link_path)?;
             } else {
-                std::fs::copy(&shared_path, &link_path)?;
+                super::agent_render::write(&shared_path, &link_path, &tool_slug)?;
             }
             LinkStrategy::Copy
         } else {
@@ -334,14 +334,18 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
         };
 
         // Record link in config
-        if let Some(resource) = cfg.find_mut(&name, tracked_kind)
-            && !resource.links.iter().any(|l| l.tool == tool_slug)
-        {
-            resource.links.push(ResourceLink {
-                tool: tool_slug.clone(),
-                strategy,
-                path: link_path.to_string_lossy().to_string(),
-            });
+        if let Some(resource) = cfg.find_mut(&name, tracked_kind) {
+            let path = link_path.to_string_lossy().to_string();
+            if let Some(existing) = resource.links.iter_mut().find(|l| l.tool == tool_slug) {
+                existing.path = path;
+                existing.strategy = strategy;
+            } else {
+                resource.links.push(ResourceLink {
+                    tool: tool_slug.clone(),
+                    strategy,
+                    path,
+                });
+            }
         }
 
         created += 1;

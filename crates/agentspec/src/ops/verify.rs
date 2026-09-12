@@ -63,11 +63,16 @@ fn check_lockfile(lockfile: &Config) -> Result<Vec<IntegrityIssue>> {
                 continue;
             }
             let copy_hash = hash_resource(resource.kind, link_path)?;
-            if copy_hash != resource.hash {
+            let expected = if resource.kind == TrackedKind::Agent {
+                super::agent_render::expected_hash(&abs_path, &link.tool)?
+            } else {
+                resource.hash.clone()
+            };
+            if copy_hash != expected {
                 issues.push(IntegrityIssue {
                     name: format!("{} (copy in {})", resource.name, link.tool),
                     kind: resource.kind,
-                    expected: resource.hash.clone(),
+                    expected,
                     actual: copy_hash,
                 });
             }

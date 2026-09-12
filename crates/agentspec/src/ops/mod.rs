@@ -1,3 +1,4 @@
+pub mod agent_render;
 pub mod bootstrap;
 pub mod create;
 pub mod dedup;

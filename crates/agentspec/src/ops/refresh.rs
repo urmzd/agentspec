@@ -277,7 +277,11 @@ fn propagate_copy_links(resource: &TrackedResource, dest: &Path) -> Result<()> {
             continue;
         }
         let link_path = PathBuf::from(&link.path);
-        copy_over(resource.kind, dest, &link_path)?;
+        if resource.kind == crate::inventory::TrackedKind::Agent {
+            super::agent_render::write(dest, &link_path, &link.tool)?;
+        } else {
+            copy_over(resource.kind, dest, &link_path)?;
+        }
     }
     Ok(())
 }

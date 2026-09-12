@@ -2055,3 +2055,43 @@ fn bundled_skills_live_inside_the_published_crate() {
         );
     }
 }
+
+#[test]
+fn portable_agents_render_and_selective_links_survive_sync() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::create_dir_all(home.join(".config/opencode")).unwrap();
+    let src = home.join("source");
+    fs::create_dir_all(&src).unwrap();
+    fs::write(src.join("portable.md"), "---\nname: portable\ndescription: Reviews code\nmodel: inherit\ntools: Read, Grep\n---\nReview carefully.\n").unwrap();
+    agentspec(home)
+        .args([
+            "manage",
+            "add",
+            src.to_str().unwrap(),
+            "--tools",
+            "opencode",
+        ])
+        .assert()
+        .success();
+    let target = home.join(".config/opencode/agents/portable.md");
+    let rendered = fs::read_to_string(&target).unwrap();
+    assert!(rendered.contains("mode: subagent"));
+    assert!(!rendered.contains("model: inherit"));
+    assert!(!home.join(".claude/agents/portable.md").exists());
+    agentspec(home)
+        .args(["manage", "verify"])
+        .assert()
+        .success();
+    fs::remove_file(&target).unwrap();
+    agentspec(home).args(["sync", "--fast"]).assert().success();
+    assert!(target.exists());
+    assert!(!home.join(".claude/agents/portable.md").exists());
+    agentspec(home)
+        .args(["manage", "unlink", "portable", "opencode"])
+        .assert()
+        .success();
+    agentspec(home).args(["sync", "--fast"]).assert().success();
+    assert!(!target.exists());
+}
