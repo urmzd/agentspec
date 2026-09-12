@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0 (2026-09-12)
+
+### Features
+
+- **tools**: add excluded_tools to stop linking into tools you never run (#19) ([f664b4c](https://github.com/urmzd/agentspec/commit/f664b4c3ff51c42d04a8943d053a28e30ce89c89))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.14.1...v0.15.0)
+
+
 ## 0.14.1 (2026-09-04)
 
 ### Bug Fixes
