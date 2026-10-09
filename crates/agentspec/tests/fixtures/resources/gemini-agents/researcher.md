@@ -4,7 +4,7 @@ description: Performs background research with citations.
 tools:
   - google_web_search
   - web_fetch
-model: gemini-2.5-pro
+model: gemini-3.1-flash-lite
 temperature: 0.4
 max_turns: 8
 timeout_mins: 15
