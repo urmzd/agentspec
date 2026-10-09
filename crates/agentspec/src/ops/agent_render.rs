@@ -154,10 +154,10 @@ mod tests {
     }
     #[test]
     fn exact_proxy_overrides_and_claude_aliases() {
-        let src = "---\nmodel: sonnet\nmodels:\n  opencode: proxy/anthropic/claude-sonnet-5\n  claude-code: anthropic/claude-sonnet-5\n---\nBody";
+        let src = "---\nmodel: sonnet\nmodels:\n  opencode: proxy/anthropic/claude-haiku-5-5\n  claude-code: anthropic/claude-haiku-5-5\n---\nBody";
         for (tool, model) in [
-            ("opencode", "proxy/anthropic/claude-sonnet-5"),
-            ("claude-code", "anthropic/claude-sonnet-5"),
+            ("opencode", "proxy/anthropic/claude-haiku-5-5"),
+            ("claude-code", "anthropic/claude-haiku-5-5"),
         ] {
             let out = render(src, tool).unwrap();
             let fm: Value =

@@ -7,7 +7,7 @@ tools:
   - Write
 disallowedTools:
   - WebSearch
-model: claude-sonnet-4-5
+model: claude-haiku-5-5
 maxTurns: 12
 color: purple
 permissionMode: acceptEdits

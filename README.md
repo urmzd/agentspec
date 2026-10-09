@@ -300,8 +300,8 @@ Use exact overrides for gateways instead of guessing provider prefixes:
 ```yaml
 model: inherit
 models:
-  claude-code: anthropic/claude-sonnet-5
-  opencode: my-gateway/anthropic/claude-sonnet-5
+  claude-code: anthropic/claude-haiku-5-5
+  opencode: my-gateway/anthropic/claude-haiku-5-5
 ```
 
 These IDs illustrate routing syntax, not model availability. Use IDs advertised by your
