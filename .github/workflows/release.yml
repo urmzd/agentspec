@@ -56,6 +56,7 @@ jobs:
           name: agentspec-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/agentspec
   release:
+    environment: release
     name: Release
     needs: build
     runs-on: ubuntu-latest
