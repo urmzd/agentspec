@@ -35,6 +35,18 @@
   </tr>
 </table>
 
+## Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Workspace crates](#workspace-crates)
+- [Roadmap](#roadmap)
+- [Agent Skill](#agent-skill)
+- [License](#license)
+
 ## Features
 
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
