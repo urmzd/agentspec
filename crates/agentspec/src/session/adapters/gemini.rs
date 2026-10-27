@@ -114,6 +114,7 @@ fn quick_parse_meta(path: &Path, project_name: &str) -> Result<SessionMetaIR> {
         first_prompt,
         summary: None,
         project: Some(project_name.to_string()),
+        source_path: Some(path.to_path_buf()),
     })
 }
 
@@ -272,5 +273,12 @@ impl SessionAdapter for GeminiSessionAdapter {
             }
         }
         Err(AppError::SessionNotFound(id.to_string()))
+    }
+
+    fn load_from_meta(&self, meta: &SessionMetaIR) -> Result<SessionIR> {
+        match (&meta.source_path, &meta.project) {
+            (Some(path), Some(project)) => parse_session(path, project),
+            _ => self.load_session(&meta.id),
+        }
     }
 }

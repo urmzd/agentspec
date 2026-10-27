@@ -27,6 +27,13 @@ pub trait SessionAdapter: Send + Sync {
     /// Load a full session by ID (including messages).
     fn load_session(&self, id: &str) -> Result<SessionIR>;
 
+    /// Load a session from its listing metadata. Adapters that record
+    /// `source_path` override this to parse that file directly instead of
+    /// walking storage again to find the ID.
+    fn load_from_meta(&self, meta: &SessionMetaIR) -> Result<SessionIR> {
+        self.load_session(&meta.id)
+    }
+
     /// Load the most recent session. Default: first from list_sessions().
     fn latest_session(&self) -> Result<SessionIR> {
         let sessions = self.list_sessions()?;

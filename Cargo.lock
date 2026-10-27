@@ -34,6 +34,7 @@ dependencies = [
  "pathdiff",
  "proptest",
  "ratatui",
+ "rayon",
  "regex",
  "rusqlite",
  "serde",

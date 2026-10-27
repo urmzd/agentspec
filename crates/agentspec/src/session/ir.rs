@@ -52,6 +52,10 @@ pub struct SessionMetaIR {
     pub first_prompt: Option<String>,
     pub summary: Option<String>,
     pub project: Option<String>,
+    /// File the session was listed from, so it can be read without a second
+    /// directory walk. Internal only; never serialized.
+    #[serde(skip)]
+    pub source_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

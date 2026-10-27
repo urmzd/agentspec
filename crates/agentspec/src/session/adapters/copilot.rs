@@ -205,6 +205,7 @@ fn quick_parse_meta(session_dir: &Path) -> Result<SessionMetaIR> {
         first_prompt,
         summary: None,
         project: None,
+        source_path: Some(events_file(session_dir)),
     })
 }
 
@@ -392,5 +393,12 @@ impl SessionAdapter for CopilotSessionAdapter {
             }
         }
         Err(AppError::SessionNotFound(id.to_string()))
+    }
+
+    fn load_from_meta(&self, meta: &SessionMetaIR) -> Result<SessionIR> {
+        match meta.source_path.as_deref().and_then(Path::parent) {
+            Some(dir) => parse_session(dir),
+            None => self.load_session(&meta.id),
+        }
     }
 }

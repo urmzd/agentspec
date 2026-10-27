@@ -61,6 +61,7 @@ pathdiff = "0.2"
 skim = "0.10"
 fuzzy-matcher = "0.3.7"
 regex = "1"
+rayon = "1.11"
 
 # Embedded SQLite (Copilot session-store.db reader)
 rusqlite = { version = "0.32", features = ["bundled"] }
