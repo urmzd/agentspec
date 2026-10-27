@@ -10,8 +10,39 @@ jobs:
   ci:
     if: github.actor != 'sr-releaser[bot]'
     uses: ./.github/workflows/ci.yml
-  build:
+  prepare:
+    name: Prepare release
     needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should-release: ${{ steps.prepare.outputs.bump != '' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      # Bump the manifests on disk before building, so the binaries report the
+      # version being released. Building the pushed commit as-is embeds the
+      # previous version, because sr only bumps it in the release job.
+      - name: Bump version files
+        id: prepare
+        uses: urmzd/sr@v9
+        with:
+          mode: prepare
+      - name: Upload prepared manifests
+        if: steps.prepare.outputs.bump != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: prepared-manifests
+          path: |
+            Cargo.toml
+            Cargo.lock
+            **/Cargo.toml
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.should-release == 'true'
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -31,6 +62,11 @@ jobs:
             cross: false
     steps:
       - uses: actions/checkout@v6
+      - name: Apply prepared manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: prepared-manifests
+          path: .
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
