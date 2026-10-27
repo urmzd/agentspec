@@ -172,6 +172,7 @@ mod tests {
             first_prompt: Some(format!("prompt {id}")),
             summary: None,
             project: None,
+            source_path: None,
         }
     }
 

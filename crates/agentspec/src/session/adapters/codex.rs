@@ -294,6 +294,7 @@ fn quick_parse_meta(path: &Path) -> Result<SessionMetaIR> {
         first_prompt,
         summary: None,
         project: None,
+        source_path: Some(path.to_path_buf()),
     })
 }
 
@@ -335,5 +336,12 @@ impl SessionAdapter for CodexSessionAdapter {
             }
         }
         Err(AppError::SessionNotFound(id.to_string()))
+    }
+
+    fn load_from_meta(&self, meta: &SessionMetaIR) -> Result<SessionIR> {
+        match &meta.source_path {
+            Some(path) => parse_session_file(path),
+            None => self.load_session(&meta.id),
+        }
     }
 }

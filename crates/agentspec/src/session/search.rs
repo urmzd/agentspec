@@ -6,7 +6,10 @@
 //! scanned message by message. Role filters make the common case — "find my own
 //! prompt, not the assistant's restatement of it" — a single flag.
 
+use std::path::Path;
+
 use chrono::{DateTime, Duration, NaiveDate, Utc};
+use rayon::prelude::*;
 use regex::RegexBuilder;
 use serde::Serialize;
 
@@ -119,6 +122,9 @@ pub struct SearchReport {
     pub candidates: usize,
     /// Sessions actually opened and scanned.
     pub scanned: usize,
+    /// Sessions ruled out by a raw-text check without being parsed. These do
+    /// not count toward `--scan`.
+    pub prefiltered: usize,
     /// Sessions with at least one hit.
     pub matched: usize,
     /// Whether the scan ceiling cut the candidate list short.
@@ -204,6 +210,115 @@ impl Matcher {
             None => Some(0),
         }
     }
+}
+
+/// Cheap check on a transcript's raw bytes before it is parsed.
+///
+/// Holds every ASCII word (letters, digits, `_`, at least 3 long) of a literal
+/// query. A transcript can only match if each word appears somewhere in its
+/// file, because JSON encoders write those characters unescaped. Words with
+/// other characters are left out, since JSON may escape them. Regex queries
+/// get no prefilter: their literals cannot be pulled out safely.
+struct Prefilter(Vec<regex::bytes::Regex>);
+
+impl Prefilter {
+    fn build(q: &SearchQuery) -> Self {
+        let Some(text) = q.text.as_deref().filter(|t| !t.is_empty() && !q.regex) else {
+            return Self(Vec::new());
+        };
+        let mut words: Vec<&str> = text
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .filter(|w| w.len() >= 3)
+            .collect();
+        words.sort_unstable();
+        words.dedup();
+        let res = words
+            .into_iter()
+            .filter_map(|w| {
+                regex::bytes::RegexBuilder::new(&regex::escape(w))
+                    .case_insensitive(!q.case_sensitive)
+                    .build()
+                    .ok()
+            })
+            .collect();
+        Self(res)
+    }
+
+    /// `false` only when the file is readable and provably lacks a word.
+    /// Anything uncertain (no path, read error) passes through to a full parse.
+    fn may_match(&self, path: Option<&Path>) -> bool {
+        if self.0.is_empty() {
+            return true;
+        }
+        let Some(bytes) = path.and_then(|p| std::fs::read(p).ok()) else {
+            return true;
+        };
+        self.0.iter().all(|re| re.is_match(&bytes))
+    }
+}
+
+/// What scanning one candidate session produced.
+enum Scan {
+    /// Ruled out from raw bytes, never parsed.
+    Prefiltered,
+    /// No adapter, or the transcript failed to parse.
+    Unreadable,
+    /// Parsed, but did not satisfy the query.
+    Miss,
+    Hit(Box<SearchResult>),
+}
+
+fn scan_one(meta: &SessionMetaIR, q: &SearchQuery, matcher: &Matcher, pre: &Prefilter) -> Scan {
+    if !pre.may_match(meta.source_path.as_deref()) {
+        return Scan::Prefiltered;
+    }
+    let Some(adapter) = adapters::adapter_for_tool(&meta.tool_slug) else {
+        return Scan::Unreadable;
+    };
+    // A transcript that fails to parse is skipped, not fatal — one corrupt
+    // file must not sink a search across every tool.
+    let Ok(session) = adapter.load_from_meta(meta) else {
+        return Scan::Unreadable;
+    };
+
+    if let Some(f) = &q.file
+        && !session
+            .files_touched
+            .iter()
+            .any(|p| contains_ci(Some(p), f))
+    {
+        return Scan::Miss;
+    }
+    if let Some(t) = &q.tool_used {
+        let used = if session.tools_used.is_empty() {
+            session.compute_tools_used()
+        } else {
+            session.tools_used.clone()
+        };
+        if !used.iter().any(|u| u.eq_ignore_ascii_case(t)) {
+            return Scan::Miss;
+        }
+    }
+
+    // Per-message hits are only meaningful for a text query; --file and
+    // --tool-used qualify the session as a whole.
+    let all: Vec<MessageMatch> = if matcher.is_noop() {
+        Vec::new()
+    } else {
+        session
+            .messages
+            .iter()
+            .enumerate()
+            .filter_map(|(i, m)| match_message(i, m, matcher, q))
+            .collect()
+    };
+    if all.is_empty() && !matcher.is_noop() {
+        return Scan::Miss;
+    }
+
+    let count = all.len();
+    let shown = all.into_iter().take(q.hits_per_session).collect();
+    Scan::Hit(Box::new(to_result(&session, shown, count)))
 }
 
 fn contains_ci(haystack: Option<&str>, needle: &str) -> bool {
@@ -384,15 +499,15 @@ pub fn search(q: &SearchQuery) -> Result<SearchReport> {
 
     let mut results = Vec::new();
     let mut scanned = 0usize;
+    let mut prefiltered = 0usize;
     let mut truncated = false;
 
-    for meta in &candidates {
-        if results.len() >= q.limit {
-            truncated = truncated || candidates.len() > scanned;
-            break;
-        }
-        if !needs_load {
-            results.push(SearchResult {
+    if !needs_load {
+        truncated = candidates.len() > q.limit;
+        results = candidates
+            .iter()
+            .take(q.limit)
+            .map(|meta| SearchResult {
                 tool: meta.tool_slug.clone(),
                 id: meta.id.clone(),
                 project: meta.project.clone(),
@@ -407,67 +522,44 @@ pub fn search(q: &SearchQuery) -> Result<SearchReport> {
                 tools_used: Vec::new(),
                 matches: Vec::new(),
                 export_command: export_command(&meta.tool_slug, &meta.id),
-            });
-            continue;
-        }
-        if scanned >= q.scan {
-            truncated = true;
-            break;
-        }
-        let Some(adapter) = adapters::adapter_for_tool(&meta.tool_slug) else {
-            continue;
-        };
-        // A transcript that fails to parse is skipped, not fatal — one corrupt
-        // file must not sink a search across every tool.
-        let Ok(session) = adapter.load_session(&meta.id) else {
-            continue;
-        };
-        scanned += 1;
-
-        if let Some(f) = &q.file
-            && !session
-                .files_touched
-                .iter()
-                .any(|p| contains_ci(Some(p), f))
-        {
-            continue;
-        }
-        if let Some(t) = &q.tool_used {
-            let used = if session.tools_used.is_empty() {
-                session.compute_tools_used()
-            } else {
-                session.tools_used.clone()
-            };
-            if !used.iter().any(|u| u.eq_ignore_ascii_case(t)) {
-                continue;
+            })
+            .collect();
+    } else {
+        let pre = Prefilter::build(q);
+        // Scan in parallel chunks, then fold each chunk in candidate order.
+        // Order keeps results newest first, and chunking lets --limit and
+        // --scan stop the search without reading everything. Work done past
+        // the stopping point inside the last chunk is discarded.
+        let chunk = (rayon::current_num_threads() * 4).max(16);
+        'outer: for (ci, group) in candidates.chunks(chunk).enumerate() {
+            let outcomes: Vec<Scan> = group
+                .par_iter()
+                .map(|meta| scan_one(meta, q, &matcher, &pre))
+                .collect();
+            for (i, outcome) in outcomes.into_iter().enumerate() {
+                match outcome {
+                    Scan::Prefiltered => prefiltered += 1,
+                    Scan::Unreadable => {}
+                    Scan::Miss => scanned += 1,
+                    Scan::Hit(r) => {
+                        scanned += 1;
+                        results.push(*r);
+                    }
+                }
+                if results.len() >= q.limit || scanned >= q.scan {
+                    // Stopped with candidates left over.
+                    truncated = ci * chunk + i + 1 < candidates.len();
+                    break 'outer;
+                }
             }
         }
-
-        // Per-message hits are only meaningful for a text query; --file and
-        // --tool-used qualify the session as a whole.
-        let all: Vec<MessageMatch> = if matcher.is_noop() {
-            Vec::new()
-        } else {
-            session
-                .messages
-                .iter()
-                .enumerate()
-                .filter_map(|(i, m)| match_message(i, m, &matcher, q))
-                .collect()
-        };
-        if all.is_empty() && !matcher.is_noop() {
-            continue;
-        }
-
-        let count = all.len();
-        let shown = all.into_iter().take(q.hits_per_session).collect();
-        results.push(to_result(&session, shown, count));
     }
 
     let matched = results.len();
     Ok(SearchReport {
         candidates: candidates.len(),
         scanned,
+        prefiltered,
         matched,
         truncated,
         sources,
@@ -703,5 +795,67 @@ mod tests {
             "match fell outside the window: {out}"
         );
         assert!(out.starts_with('…') && out.ends_with('…'));
+    }
+
+    fn tmp(name: &str, contents: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("agentspec-prefilter-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, contents).unwrap();
+        path
+    }
+
+    #[test]
+    fn prefilter_requires_every_ascii_word() {
+        let q = SearchQuery {
+            text: Some("Rate-Limit hit".into()),
+            ..Default::default()
+        };
+        let pre = Prefilter::build(&q);
+        let yes = tmp(
+            "yes.jsonl",
+            r#"{"text":"we hit the rate
+limit again"}"#,
+        );
+        let no = tmp("no.jsonl", r#"{"text":"we hit the quota"}"#);
+        assert!(
+            pre.may_match(Some(&yes)),
+            "words split by an escape still match"
+        );
+        assert!(
+            !pre.may_match(Some(&no)),
+            "missing word 'rate' must rule the file out"
+        );
+    }
+
+    #[test]
+    fn prefilter_passes_anything_it_cannot_judge() {
+        let regex = Prefilter::build(&SearchQuery {
+            text: Some(r"cargo\s+build".into()),
+            regex: true,
+            ..Default::default()
+        });
+        let missing = std::path::Path::new("/nonexistent/agentspec/session.jsonl");
+        assert!(
+            regex.may_match(Some(missing)),
+            "regex queries are never prefiltered"
+        );
+        let literal = Prefilter::build(&SearchQuery {
+            text: Some("deploy".into()),
+            ..Default::default()
+        });
+        assert!(literal.may_match(None), "no path means parse it");
+        assert!(
+            literal.may_match(Some(missing)),
+            "unreadable file means parse it"
+        );
+        let short = Prefilter::build(&SearchQuery {
+            text: Some("é a".into()),
+            ..Default::default()
+        });
+        assert!(
+            short.0.is_empty(),
+            "non-ASCII and short words are not prefiltered"
+        );
     }
 }
