@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.15.2 (2026-10-27)
+
+### Performance
+
+- **session**: prefilter and parallelize session search (#25) ([58f4146](https://github.com/urmzd/agentspec/commit/58f414676ca6ad3bdf68a3c50c3e5499161805ab))
+
+### Misc
+
+- **readme**: align with fleet standard (#24) ([c078bff](https://github.com/urmzd/agentspec/commit/c078bff76522ea96c06e0defd8815a44bf930092))
+- **release**: read the sr-releaser key from the release environment (#23) ([ae269cd](https://github.com/urmzd/agentspec/commit/ae269cdb9cd11e0f9d693cf81d34c8a819fade60))
+- update model examples to current models (#21) ([ea34f71](https://github.com/urmzd/agentspec/commit/ea34f714f8b886436810a4ba7a138e8ef2664636))
+- upgrade urmzd/sr action to v9 (#22) ([f90c5cd](https://github.com/urmzd/agentspec/commit/f90c5cd91b342219023374490990841fd8a6359c))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.1...v0.15.2)
+
+
 ## 0.15.1 (2026-09-12)
 
 ### Bug Fixes
