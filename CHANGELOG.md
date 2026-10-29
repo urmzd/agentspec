@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.3 (2026-10-29)
+
+### Bug Fixes
+
+- **release**: build binaries from the bumped version (#26) ([4cd04d5](https://github.com/urmzd/agentspec/commit/4cd04d5a64d0c6458b41707dcedc874d71a68a5e))
+
+### Misc
+
+- move docs into the scaffold-docs layout (#27) ([8fdcfd0](https://github.com/urmzd/agentspec/commit/8fdcfd0eb06f7ee3657ff25e10f7e6817d83a050))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.2...v0.15.3)
+
+
 ## 0.15.2 (2026-10-27)
 
 ### Performance
