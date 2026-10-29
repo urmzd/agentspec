@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.4 (2026-10-29)
+
+### Bug Fixes
+
+- **deps**: patch vulnerable dependencies (#28) ([fe17fff](https://github.com/urmzd/agentspec/commit/fe17fff600ff5fad850fcf612e4258b20a702e84))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.3...v0.15.4)
+
+
 ## 0.15.3 (2026-10-29)
 
 ### Bug Fixes
