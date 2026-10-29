@@ -30,15 +30,16 @@ clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 
 # Terminal UI
-crossterm = "0.28"
-ratatui = "0.29"
+crossterm = "0.29"
+ratatui = "0.30"
 console = "0.15"
 
 # HTTP
 ureq = { version = "3", features = ["json"] }
 
 # Hashing
-sha2 = "0.10"
+sha2 = "0.11"
+hex = "0.4"
 
 # Directories
 dirs = "6"
@@ -58,7 +59,7 @@ color-eyre = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 walkdir = "2"
 pathdiff = "0.2"
-skim = "0.10"
+skim = "5"
 fuzzy-matcher = "0.3.7"
 regex = "1"
 rayon = "1.11"

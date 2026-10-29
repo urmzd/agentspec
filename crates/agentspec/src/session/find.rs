@@ -32,17 +32,17 @@ pub fn run_find() -> Result<(String, String)> {
     let input = lines.join("\n");
 
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height("50%")
         .multi(false)
-        .prompt(Some("Select session> "))
+        .prompt("Select session> ")
         .build()
         .map_err(|e| AppError::Other(format!("Failed to build skim options: {e}")))?;
 
     let item_reader = SkimItemReader::default();
     let items = item_reader.of_bufread(Cursor::new(input));
 
-    let output = Skim::run_with(&options, Some(items))
-        .ok_or_else(|| AppError::Other("Skim was cancelled".into()))?;
+    let output = Skim::run_with(options, Some(items))
+        .map_err(|e| AppError::Other(format!("Skim failed: {e}")))?;
 
     if output.is_abort {
         return Err(AppError::Other("Selection cancelled".into()));

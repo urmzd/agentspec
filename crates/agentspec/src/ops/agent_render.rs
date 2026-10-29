@@ -124,7 +124,10 @@ pub fn write(source: &Path, target: &Path, tool: &str) -> Result<()> {
 
 pub fn expected_hash(source: &Path, tool: &str) -> Result<String> {
     let rendered = render(&std::fs::read_to_string(source)?, tool)?;
-    Ok(format!("sha256:{:x}", Sha256::digest(rendered.as_bytes())))
+    Ok(format!(
+        "sha256:{}",
+        hex::encode(Sha256::digest(rendered.as_bytes()))
+    ))
 }
 
 #[cfg(test)]

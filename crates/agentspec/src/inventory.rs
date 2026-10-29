@@ -314,7 +314,7 @@ impl TrackedResource {
 pub fn hash_file(path: &Path) -> Result<String> {
     let contents = std::fs::read(path)?;
     let digest = Sha256::digest(&contents);
-    Ok(format!("sha256:{:x}", digest))
+    Ok(format!("sha256:{}", hex::encode(digest)))
 }
 
 /// Compute SHA-256 hash of a directory (all files sorted by relative path).
@@ -338,7 +338,7 @@ pub fn hash_dir(dir: &Path) -> Result<String> {
         hasher.update(&contents);
     }
 
-    Ok(format!("sha256:{:x}", hasher.finalize()))
+    Ok(format!("sha256:{}", hex::encode(hasher.finalize())))
 }
 
 /// Compute hash for a tracked resource based on its kind.
