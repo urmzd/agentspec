@@ -278,7 +278,7 @@ Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --ad
 
 ## Roadmap
 
-Cross-tool session sync, memory sync, MCP server management, permission profile sync, hook management, plugin tracking, and planning-artifact import have all shipped. See [ROADMAP.md](ROADMAP.md) for remaining future ideas.
+Cross-tool session sync, memory sync, MCP server management, permission profile sync, hook management, plugin tracking, and planning-artifact import have all shipped. See [docs/plans/roadmap.md](docs/plans/roadmap.md) for remaining future ideas.
 
 ## Agent Skill
 
