@@ -6,8 +6,8 @@
 
 - [README](https://github.com/urmzd/agentspec/blob/main/README.md): Installation, quick start, full command reference
 - [AGENTS.md](https://github.com/urmzd/agentspec/blob/main/AGENTS.md): Architecture layers, commands, and extension guide for AI agents
-- [Resource Conventions](https://github.com/urmzd/agentspec/blob/main/docs/resources.md): File formats, locations, and discovery rules per resource kind
-- [ROADMAP](https://github.com/urmzd/agentspec/blob/main/ROADMAP.md): Shipped capabilities and future ideas
+- [Resource Conventions](https://github.com/urmzd/agentspec/blob/main/docs/reference/resources.md): File formats, locations, and discovery rules per resource kind
+- [ROADMAP](https://github.com/urmzd/agentspec/blob/main/docs/plans/roadmap.md): Shipped capabilities and future ideas
 
 ## Key Files
 

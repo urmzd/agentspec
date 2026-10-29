@@ -48,7 +48,7 @@ Config dir: `~/.config/agentspec/config.yml`.
 - **Discovery**: scan `.md` files inside `agents/` dirs; validate required frontmatter.
 - **Codex TOML**: Codex defines agents as `agents/{name}.toml`, but agentspec does not
   yet parse or emit them; discovery is `.md`-only. The TOML schema in
-  `docs/resources.md` is a spec reference for a future addition.
+  `docs/reference/resources.md` is a spec reference for a future addition.
 
 ## AGENTS.md (Project Config)
 

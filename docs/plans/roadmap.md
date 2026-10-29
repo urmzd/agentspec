@@ -11,6 +11,6 @@ Planned features and improvements for agentspec.
 
 ## Shipped
 
-Everything below landed in v0.10.0; see [CHANGELOG.md](CHANGELOG.md) for details:
+Everything below landed in v0.10.0; see [CHANGELOG.md](../../CHANGELOG.md) for details:
 
 resource update (`manage update`), MCP server management (`mcp` with a canonical store at `~/.agents/mcp/`), permission profile sync (`permissions`), cross-tool session sync and import (`session sync` / `session import`), memory sync (`manage memory --pull/--push`), hook management (`hooks`), plugin tracking (`plugins`), planning-artifact import (`plans`), and enriched Copilot session exports.
