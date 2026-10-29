@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.5 (2026-10-29)
+
+### Bug Fixes
+
+- **deps**: replace serde_yaml_ng with maintained serde_norway (#29) ([f046ee7](https://github.com/urmzd/agentspec/commit/f046ee7fc69e78a4f94e49510c1a3dcf0d1fb294))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.4...v0.15.5)
+
+
 ## 0.15.3 (2026-10-29)
 
 ### Bug Fixes
