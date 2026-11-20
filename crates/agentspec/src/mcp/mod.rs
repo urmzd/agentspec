@@ -448,6 +448,48 @@ pub fn adopt_from_tools() -> Result<Vec<String>> {
     Ok(adopted)
 }
 
+/// Promote servers from `<root>/.mcp.json` into the canonical store and link
+/// each one into every MCP-capable tool, making it global. Only `names` when
+/// given, else every server in the file. The project file is never modified
+/// and a name already in the store keeps its stored definition. This is the
+/// explicit replacement for the automatic adoption `sync` used to do.
+pub fn promote_from_project(root: &std::path::Path, names: &[String]) -> Result<Vec<String>> {
+    let mcp_path = root.join(".mcp.json");
+    let content = std::fs::read_to_string(&mcp_path)
+        .map_err(|e| AppError::Other(format!("cannot read {}: {e}", mcp_path.display())))?;
+    let parsed: Value = serde_json::from_str(&content)
+        .map_err(|e| AppError::Other(format!("invalid {}: {e}", mcp_path.display())))?;
+    let servers = parsed
+        .get("mcpServers")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| AppError::Other(format!("{} has no mcpServers", mcp_path.display())))?;
+    for want in names {
+        if !servers.contains_key(want) {
+            return Err(AppError::Other(format!(
+                "server '{want}' is not in {}",
+                mcp_path.display()
+            )));
+        }
+    }
+
+    let mut promoted = Vec::new();
+    for (name, server_config) in servers {
+        if !names.is_empty() && !names.contains(name) {
+            continue;
+        }
+        let sp = store_path(name);
+        if sp.exists() {
+            eprintln!("  {name} is already in the store; kept the stored definition");
+            continue;
+        }
+        std::fs::create_dir_all(config::shared_mcp_dir())?;
+        write_json(&sp, server_config)?;
+        link_server(None, name)?;
+        promoted.push(name.clone());
+    }
+    Ok(promoted)
+}
+
 /// Report every MCP-capable tool, whether it is installed, and where its
 /// config lives. The discovery entry point for "why isn't my server showing up".
 pub fn doctor(json: bool) -> Result<()> {

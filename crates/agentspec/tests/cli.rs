@@ -245,6 +245,39 @@ fn sync_leaves_project_mcp_json_project_scoped() {
 }
 
 #[test]
+fn mcp_adopt_project_promotes_only_named_servers() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".claude").join("skills")).unwrap();
+    let proj = home.join("proj");
+    fs::create_dir_all(&proj).unwrap();
+    fs::write(
+        proj.join(".mcp.json"),
+        r#"{"mcpServers":{"keep":{"command":"keep-server"},"skip":{"command":"skip-server"}}}"#,
+    )
+    .unwrap();
+
+    let out = agentspec(home)
+        .args(["mcp", "adopt", "--project"])
+        .arg(&proj)
+        .args(["--name", "keep"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let store = home.join(".agents").join("mcp");
+    assert!(store.join("keep.json").exists());
+    assert!(!store.join("skip.json").exists());
+    let settings = fs::read_to_string(home.join(".claude").join("settings.json")).unwrap();
+    assert!(settings.contains("keep-server"), "settings: {settings}");
+    assert!(!settings.contains("skip-server"), "settings: {settings}");
+}
+
+#[test]
 fn session_list_json_empty_is_empty_array() {
     let tmp = tempfile::tempdir().unwrap();
     fs::create_dir_all(tmp.path().join(".claude").join("projects")).unwrap();

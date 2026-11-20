@@ -208,6 +208,29 @@ pub enum ManageAction {
         /// Resource name
         name: String,
     },
+    /// Copy a skill or agent into a project (from the store or another project)
+    #[command(long_about = "\
+Copy a skill or agent into a project's own tool directories, for example
+<project>/.claude/skills/<name>. SOURCE is the name of a managed resource in the
+global store, or a path to a skill directory or agent .md file in another
+project. Nothing is overwritten and originals at a path are never deleted.
+
+Use --move to demote a managed resource: copy it into the project, then remove
+it from the global store. To promote a project resource to every project, use
+`manage add <path>` instead.")]
+    Transfer {
+        /// Managed resource name, or a path to a skill dir or agent .md file
+        source: String,
+        /// Target project directory
+        #[arg(long)]
+        to: std::path::PathBuf,
+        /// Tools to copy into (comma-separated slugs)
+        #[arg(long, value_delimiter = ',', default_value = "claude-code")]
+        tools: Vec<String>,
+        /// Remove the managed source from the global store after copying
+        #[arg(long = "move")]
+        move_source: bool,
+    },
     /// Manage all discovered resources at once
     All {
         /// Link to all detected tools
@@ -373,8 +396,19 @@ pub enum McpAction {
 Read every installed tool's native MCP config and copy any server agentspec does
 not already know about into ~/.agents/mcp/. Non-destructive in both directions:
 tool configs are never modified, and a name already in the store keeps its
-stored definition.")]
-    Adopt,
+stored definition.
+
+With --project, promote servers from that project's .mcp.json instead: they are
+copied into the canonical store and linked into every MCP-capable tool, so they
+become available in all projects. `sync` never does this on its own.")]
+    Adopt {
+        /// Promote servers from this project's .mcp.json instead of tool configs
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// Only these servers (repeatable; default: all in the file)
+        #[arg(long = "name")]
+        names: Vec<String>,
+    },
     /// Show every MCP-capable tool, its config path, dialect, and server count
     Doctor,
 }

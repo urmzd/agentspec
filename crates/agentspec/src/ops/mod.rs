@@ -18,6 +18,7 @@ pub mod prune;
 pub mod refresh;
 pub mod remove;
 pub mod sync;
+pub mod transfer;
 pub mod validate;
 pub mod verify;
 pub mod worktree;
