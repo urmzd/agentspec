@@ -60,6 +60,7 @@ agentspec manage add ./my-skill --all-tools        # from a local path
 agentspec manage add owner/repo#branch@subdir      # branch and subpath
 agentspec manage transfer <name|path> --to <project>  # copy into a project (store or another project)
 agentspec manage transfer <name> --to <project> --move  # demote from global to one project
+agentspec manage transfer <name> --to . --from claude-code --tools codex  # tool to tool, same project
 agentspec manage list                              # what is managed
 agentspec manage link <name> <tool-slug>           # link one resource to one tool
 agentspec manage verify                            # checksum integrity

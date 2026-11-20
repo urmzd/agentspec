@@ -215,9 +215,13 @@ Copy a skill or agent into a project's own tool directories, for example
 global store, or a path to a skill directory or agent .md file in another
 project. Nothing is overwritten and originals at a path are never deleted.
 
-Use --move to demote a managed resource: copy it into the project, then remove
-it from the global store. To promote a project resource to every project, use
-`manage add <path>` instead.")]
+With --from <tool>, SOURCE is a name in that tool's directory of the project
+(--from-project, default --to), so the same project can move a skill from one
+tool to another: `manage transfer deploy --to . --from claude-code --tools codex`.
+
+Use --move to remove the source afterwards: a managed resource leaves the global
+store (demotion), a --from source leaves that tool's directory. To promote a
+project resource to every project, use `manage add <path>` instead.")]
     Transfer {
         /// Managed resource name, or a path to a skill dir or agent .md file
         source: String,
@@ -227,7 +231,13 @@ it from the global store. To promote a project resource to every project, use
         /// Tools to copy into (comma-separated slugs)
         #[arg(long, value_delimiter = ',', default_value = "claude-code")]
         tools: Vec<String>,
-        /// Remove the managed source from the global store after copying
+        /// Read SOURCE as a name in this tool's project directory (tool slug)
+        #[arg(long)]
+        from: Option<String>,
+        /// Project holding the --from source (default: --to)
+        #[arg(long, requires = "from")]
+        from_project: Option<std::path::PathBuf>,
+        /// Remove the source after copying (managed or --from sources only)
         #[arg(long = "move")]
         move_source: bool,
     },

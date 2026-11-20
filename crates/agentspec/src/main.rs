@@ -763,10 +763,23 @@ fn main() -> color_eyre::Result<()> {
                     source,
                     to,
                     tools,
+                    from,
+                    from_project,
                     move_source,
                 } => {
-                    let dests =
-                        ops::transfer::transfer(&mut cfg, &source, &to, &tools, move_source)?;
+                    let from_root = from_project.unwrap_or_else(|| to.clone());
+                    let from_tool = from.as_deref().map(|slug| ops::transfer::FromTool {
+                        slug,
+                        project: &from_root,
+                    });
+                    let dests = ops::transfer::transfer(
+                        &mut cfg,
+                        &source,
+                        &to,
+                        &tools,
+                        from_tool,
+                        move_source,
+                    )?;
                     if cli.format == OutputFormat::Json {
                         let paths: Vec<String> = dests
                             .iter()
@@ -784,7 +797,7 @@ fn main() -> color_eyre::Result<()> {
                             println!("  copied {source} → {}", d.display());
                         }
                         if move_source {
-                            println!("  removed {source} from the global store");
+                            println!("  removed the source of {source}");
                         }
                     }
                 }
