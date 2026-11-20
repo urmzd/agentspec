@@ -237,6 +237,14 @@ fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) ->
             if e.file_type().is_dir() && known_dirs.iter().any(|k| e.path() == k) {
                 return false;
             }
+            // A git repository owns its skills and agents: they are project
+            // scoped. Adopting them would copy them into the global store and
+            // fan them out to every tool and every project, so the broad scan
+            // stops at repo roots. Install a repo resource on purpose with
+            // `manage add <path>` or scan it with `sync --path`.
+            if e.depth() > 0 && e.file_type().is_dir() && is_repo_root(e.path()) {
+                return false;
+            }
             true
         })
         .filter_map(|e| e.ok())
@@ -245,6 +253,11 @@ fn broad_scan(root: &Path, cfg: &Config, found: &mut Vec<DiscoveredResource>) ->
     }
 
     Ok(())
+}
+
+/// True when `dir` is the root of a git working tree (`.git` dir or worktree file).
+fn is_repo_root(dir: &Path) -> bool {
+    dir.join(".git").exists()
 }
 
 /// Targeted scan of user-specified paths. Same discovery logic as broad_scan but
@@ -846,6 +859,30 @@ mod tests {
         targeted_scan(&[root.join("node_modules")], &cfg, &mut found).unwrap();
         let names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, ["dep-skill"]);
+    }
+
+    #[test]
+    fn broad_scan_leaves_repo_scoped_skills_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let repo = root.join("github").join("saige");
+        std::fs::create_dir_all(repo.join(".git")).unwrap();
+        write_skill(&repo.join("skills"), "repo-skill");
+        write_skill(&repo.join(".claude").join("skills"), "repo-dev-skill");
+        write_skill(&root.join("loose"), "loose-skill");
+
+        let cfg = Config::empty();
+        let mut found = Vec::new();
+        broad_scan(root, &cfg, &mut found).unwrap();
+        let names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["loose-skill"]);
+
+        // An explicit scan of the repo still finds its skills.
+        let mut found = Vec::new();
+        targeted_scan(&[repo], &cfg, &mut found).unwrap();
+        let mut names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, ["repo-dev-skill", "repo-skill"]);
     }
 
     #[test]

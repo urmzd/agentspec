@@ -89,15 +89,14 @@ pub fn sync(
     }
     let (projects_resynced, files_updated) = project_sync::resync_all(cfg, json).unwrap_or((0, 0));
 
-    // 6. Adopt MCP servers into the canonical store from both directions —
-    // project .mcp.json files and each tool's own config — then link every
-    // stored server to all MCP-capable tools. Originals are never modified;
-    // this is the same store-first flow the resources above follow.
+    // 6. Adopt MCP servers from each tool's own (user-level) config into the
+    // canonical store, then link every stored server to all MCP-capable tools.
+    // A project's .mcp.json is project scoped: the tool already loads it inside
+    // that project, and adopting it here would install the server globally for
+    // every tool and every project. Add one globally on purpose with `mcp add`.
     if !json {
         println!("  {} Syncing MCP servers...", style("→").cyan());
     }
-    let project_roots = mcp::collect_project_roots();
-    let _ = mcp::discover_and_adopt(&project_roots);
     let _ = mcp::adopt_from_tools();
     let _ = mcp::link_all_stored();
 

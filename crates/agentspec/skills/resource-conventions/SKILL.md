@@ -146,9 +146,9 @@ Per-tool config files each tool reads natively (mirrors `PROJECT_FILES` in
   `mcp unlink <name> [--tool]` (tool configs only, store kept), `mcp sync`,
   `mcp adopt` (pull tool-native servers into the store), `mcp doctor` (every target,
   path, dialect, and install state).
-- **Discovery**: `agentspec sync` adopts servers from both project `.mcp.json` files and
-  each tool's own config into the canonical store (originals untouched, store wins), then
-  links every canonical server into all MCP-capable installed tools.
+- **Discovery**: `agentspec sync` adopts servers from each tool's own config into the
+  canonical store (originals untouched, store wins), then links every canonical server into
+  all MCP-capable installed tools. A project `.mcp.json` stays project scoped.
 
 ## Permissions
 

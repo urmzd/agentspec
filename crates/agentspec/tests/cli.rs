@@ -218,7 +218,7 @@ fn mcp_add_unlink_link_remove_round_trip() {
 }
 
 #[test]
-fn sync_adopts_project_mcp_json_into_store_and_links_tools() {
+fn sync_leaves_project_mcp_json_project_scoped() {
     let tmp = tempfile::tempdir().unwrap();
     let home = tmp.path();
     fs::create_dir_all(home.join(".claude").join("skills")).unwrap();
@@ -232,21 +232,16 @@ fn sync_adopts_project_mcp_json_into_store_and_links_tools() {
     assert!(out.status.success());
     stdout_json(&out.stdout);
 
-    // The server is adopted into the canonical store, the original .mcp.json
-    // is untouched, and the store copy is linked into tool configs.
-    let store = home.join(".agents").join("mcp").join("demo.json");
-    let stored: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&store).unwrap()).unwrap();
-    assert_eq!(stored["command"], "demo-server");
+    // A project's .mcp.json belongs to that project: sync neither copies it
+    // into the global store nor fans it out to user-level tool configs.
+    assert!(!home.join(".agents").join("mcp").join("demo.json").exists());
     assert_eq!(
         fs::read_to_string(home.join(".mcp.json")).unwrap(),
         mcp_json
     );
-    let settings: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(home.join(".claude").join("settings.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(settings["mcpServers"]["demo"]["command"], "demo-server");
+    let settings =
+        fs::read_to_string(home.join(".claude").join("settings.json")).unwrap_or_default();
+    assert!(!settings.contains("demo-server"), "settings: {settings}");
 }
 
 #[test]

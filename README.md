@@ -261,7 +261,7 @@ agentspec manage list --by-name              # Show only name duplicates (same n
 `agentspec status` and `agentspec sync` scan two places:
 
 - **Tool directories.** Known paths for each detected tool (e.g. `~/.claude/skills/`, `~/.gemini/agents/`).
-- **Broad filesystem walk.** Walks from `$HOME` up to 6 levels deep, looking for `SKILL.md`, agent markdown files, `AGENTS.md`, `CLAUDE.md`, and `llms.txt`. Skipped with `--fast`.
+- **Broad filesystem walk.** Walks from `$HOME` up to 6 levels deep, looking for `SKILL.md`, agent markdown files, `AGENTS.md`, `CLAUDE.md`, and `llms.txt`. It does not enter git repositories: a repo's skills and agents are project scoped, so install one on purpose with `agentspec manage add <path>`. Skipped with `--fast`.
 
 Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --adopt` or `manage add <name>` to adopt them into the shared store.
 

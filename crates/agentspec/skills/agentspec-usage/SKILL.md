@@ -49,7 +49,7 @@ agentspec                   # interactive TUI
 
 `sync` is the default entry point. It adopts untracked resources, re-copies
 `local`-sourced ones from their origin, repairs tracked links without enabling resources in additional tools,
-adopts MCP servers found in project `.mcp.json` files and tool configs, and
+adopts MCP servers found in tool configs (a project `.mcp.json` stays project scoped), and
 verifies SHA-256 hashes.
 
 ## Skills and agents
