@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0 (2026-11-20)
+
+### Features
+
+- **transfer**: move skills and agents between tools within a project (#32) ([9d279a7](https://github.com/urmzd/agentspec/commit/9d279a7f87b96c7c213136c834c3aec5bd0db124))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.6...v0.16.0)
+
+
 ## 0.15.6 (2026-11-20)
 
 ### Bug Fixes
