@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.6 (2026-11-20)
+
+### Bug Fixes
+
+- **sync**: keep project resources project scoped; add explicit promote and transfer (#31) ([6f2cf74](https://github.com/urmzd/agentspec/commit/6f2cf746f8e4bfe6fc107f9e9036989b6ada743e))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.5...v0.15.6)
+
+
 ## 0.15.5 (2026-10-29)
 
 ### Bug Fixes
