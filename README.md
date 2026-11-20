@@ -136,6 +136,7 @@ agentspec manage add <source> --kind agent   # Override auto-detected kind
 agentspec manage remove <name>               # Remove a managed resource
 agentspec manage transfer <name|path> --to <project>          # Copy into a project's .claude/skills
 agentspec manage transfer <name> --to <project> --move        # Demote: copy into the project, drop from the store
+agentspec manage transfer <name> --to . --from claude-code --tools codex  # Tool to tool in the same project
 agentspec manage all --all-tools             # Adopt all discovered resources
 agentspec manage list                        # List managed resources
 agentspec manage list --dedup                # Show duplicate resources

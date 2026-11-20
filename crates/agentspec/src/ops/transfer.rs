@@ -5,9 +5,12 @@
 //! project to another, is always a deliberate step:
 //!
 //! - promote: project -> global is `manage add <path>`.
-//! - transfer: store or project -> project is `manage transfer`, which copies
-//!   the resource into the target project's own tool directories. With
-//!   `--move`, a managed source leaves the global store afterwards (demotion).
+//! - transfer: store, project or tool -> project is `manage transfer`, which
+//!   copies the resource into the target project's own tool directories. With
+//!   `--from <tool>` the source is a resource in one tool's project directory,
+//!   so a project can move a skill from Claude Code to Codex in place. With
+//!   `--move`, the source is removed afterwards: a managed source leaves the
+//!   global store (demotion), a `--from` source leaves that tool's directory.
 
 use std::path::{Path, PathBuf};
 
@@ -24,6 +27,8 @@ struct Source {
     kind: TrackedKind,
     path: PathBuf,
     managed: bool,
+    /// Resolved from a tool's project directory via `--from`.
+    from_tool: bool,
 }
 
 /// Resolve `source` as a path to a skill dir or agent `.md`, else as the name
@@ -42,6 +47,7 @@ fn resolve_source(cfg: &Config, source: &str) -> Result<Source> {
                 kind: TrackedKind::Skill,
                 path,
                 managed: false,
+                from_tool: false,
             });
         }
         if path.is_file() && file_name.ends_with(".md") && file_name != "SKILL.md" {
@@ -50,6 +56,7 @@ fn resolve_source(cfg: &Config, source: &str) -> Result<Source> {
                 kind: TrackedKind::Agent,
                 path,
                 managed: false,
+                from_tool: false,
             });
         }
         return Err(AppError::Other(format!(
@@ -64,6 +71,7 @@ fn resolve_source(cfg: &Config, source: &str) -> Result<Source> {
             kind: TrackedKind::Skill,
             path: config::shared_skills_dir().join(source),
             managed: true,
+            from_tool: false,
         });
     }
     if cfg.find(source, TrackedKind::Agent).is_some() {
@@ -72,11 +80,52 @@ fn resolve_source(cfg: &Config, source: &str) -> Result<Source> {
             kind: TrackedKind::Agent,
             path: config::shared_agents_dir().join(format!("{source}.md")),
             managed: true,
+            from_tool: false,
         });
     }
     Err(AppError::Other(format!(
         "'{source}' is not a path or a managed skill or agent"
     )))
+}
+
+/// Resolve `name` inside one tool's directory of `project`: a skill dir with
+/// SKILL.md first, then an agent `.md` file.
+fn resolve_in_tool(slug: &str, project: &Path, name: &str) -> Result<Source> {
+    if let Ok(dir) = project_dir_for(slug, TrackedKind::Skill, project) {
+        let path = dir.join(name);
+        if path.join("SKILL.md").is_file() {
+            return Ok(Source {
+                name: name.to_string(),
+                kind: TrackedKind::Skill,
+                path,
+                managed: false,
+                from_tool: true,
+            });
+        }
+    }
+    if let Ok(dir) = project_dir_for(slug, TrackedKind::Agent, project) {
+        let path = dir.join(format!("{name}.md"));
+        if path.is_file() {
+            return Ok(Source {
+                name: name.to_string(),
+                kind: TrackedKind::Agent,
+                path,
+                managed: false,
+                from_tool: true,
+            });
+        }
+    }
+    Err(AppError::Other(format!(
+        "no skill or agent named '{name}' in {slug}'s directory of {}",
+        project.display()
+    )))
+}
+
+/// Where a transfer reads from when `--from <tool>` is given: the tool, and
+/// the project whose tool directory holds the source.
+pub struct FromTool<'a> {
+    pub slug: &'a str,
+    pub project: &'a Path,
 }
 
 /// The directory a tool reads `kind` resources from inside `project`: the
@@ -109,13 +158,16 @@ fn project_dir_for(slug: &str, kind: TrackedKind, project: &Path) -> Result<Path
 }
 
 /// Copy `source` into `project` for each tool in `tool_slugs`. Refuses to
-/// overwrite. With `move_source`, a managed source is removed from the global
-/// store afterwards. Returns the destination paths written.
+/// overwrite. `from` reads `source` as a name in one tool's project directory
+/// (the same project is allowed, e.g. Claude Code -> Codex). With
+/// `move_source`, a managed or `--from` source is removed afterwards. Returns
+/// the destination paths written.
 pub fn transfer(
     cfg: &mut Config,
     source: &str,
     project: &Path,
     tool_slugs: &[String],
+    from: Option<FromTool<'_>>,
     move_source: bool,
 ) -> Result<Vec<PathBuf>> {
     if !project.is_dir() {
@@ -124,10 +176,13 @@ pub fn transfer(
             project.display()
         )));
     }
-    let src = resolve_source(cfg, source)?;
-    if move_source && !src.managed {
+    let src = match from {
+        Some(f) => resolve_in_tool(f.slug, f.project, source)?,
+        None => resolve_source(cfg, source)?,
+    };
+    if move_source && !src.managed && !src.from_tool {
         return Err(AppError::Other(
-            "--move only applies to a managed resource; originals at a path are never deleted"
+            "--move applies to a managed resource or a --from source; originals at a path are never deleted"
                 .into(),
         ));
     }
@@ -139,6 +194,12 @@ pub fn transfer(
             TrackedKind::Skill => dir.join(&src.name),
             _ => dir.join(format!("{}.md", src.name)),
         };
+        if dest == src.path {
+            return Err(AppError::Other(format!(
+                "{slug} already reads {}; pick a different tool with --tools",
+                dest.display()
+            )));
+        }
         if dest.exists() {
             return Err(AppError::Other(format!(
                 "{} already exists; remove it first",
@@ -161,9 +222,15 @@ pub fn transfer(
     }
 
     if move_source {
-        match src.kind {
-            TrackedKind::Skill => remove::remove_skill(cfg, &src.name)?,
-            _ => remove::remove_agent(cfg, &src.name)?,
+        if src.managed {
+            match src.kind {
+                TrackedKind::Skill => remove::remove_skill(cfg, &src.name)?,
+                _ => remove::remove_agent(cfg, &src.name)?,
+            }
+        } else if src.kind == TrackedKind::Skill {
+            std::fs::remove_dir_all(&src.path)?;
+        } else {
+            std::fs::remove_file(&src.path)?;
         }
     }
     Ok(dests)
@@ -198,6 +265,7 @@ mod tests {
             from.to_str().unwrap(),
             &to,
             &[DEFAULT_TOOL.to_string()],
+            None,
             false,
         )
         .unwrap();
@@ -213,9 +281,50 @@ mod tests {
             from.to_str().unwrap(),
             &to,
             &[DEFAULT_TOOL.to_string()],
+            None,
             false,
         );
         assert!(again.is_err());
+    }
+
+    #[test]
+    fn moves_a_skill_between_tools_in_the_same_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proj = tmp.path();
+        let claude = proj.join(".claude").join("skills").join("deploy");
+        write_skill(&claude);
+
+        let mut cfg = Config::empty();
+        let from = || {
+            Some(FromTool {
+                slug: DEFAULT_TOOL,
+                project: proj,
+            })
+        };
+
+        // Same tool on both sides is refused, not silently a no-op.
+        let same = transfer(
+            &mut cfg,
+            "deploy",
+            proj,
+            &[DEFAULT_TOOL.to_string()],
+            from(),
+            false,
+        );
+        assert!(same.is_err());
+
+        let dests = transfer(
+            &mut cfg,
+            "deploy",
+            proj,
+            &["codex".to_string()],
+            from(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(dests, [proj.join(".codex").join("skills").join("deploy")]);
+        assert!(dests[0].join("SKILL.md").is_file());
+        assert!(!claude.exists(), "--move removes the --from source");
     }
 
     #[test]
@@ -229,6 +338,7 @@ mod tests {
             from.to_str().unwrap(),
             tmp.path(),
             &[DEFAULT_TOOL.to_string()],
+            None,
             true,
         );
         assert!(err.is_err());
@@ -245,7 +355,8 @@ mod tests {
                 "no-such-skill",
                 tmp.path(),
                 &[DEFAULT_TOOL.to_string()],
-                false
+                None,
+                false,
             )
             .is_err()
         );
