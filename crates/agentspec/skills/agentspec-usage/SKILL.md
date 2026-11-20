@@ -49,7 +49,7 @@ agentspec                   # interactive TUI
 
 `sync` is the default entry point. It adopts untracked resources, re-copies
 `local`-sourced ones from their origin, repairs tracked links without enabling resources in additional tools,
-adopts MCP servers found in project `.mcp.json` files and tool configs, and
+adopts MCP servers found in tool configs (a project `.mcp.json` stays project scoped), and
 verifies SHA-256 hashes.
 
 ## Skills and agents
@@ -58,6 +58,8 @@ verifies SHA-256 hashes.
 agentspec manage add owner/repo --all-tools        # from GitHub
 agentspec manage add ./my-skill --all-tools        # from a local path
 agentspec manage add owner/repo#branch@subdir      # branch and subpath
+agentspec manage transfer <name|path> --to <project>  # copy into a project (store or another project)
+agentspec manage transfer <name> --to <project> --move  # demote from global to one project
 agentspec manage list                              # what is managed
 agentspec manage link <name> <tool-slug>           # link one resource to one tool
 agentspec manage verify                            # checksum integrity
@@ -80,6 +82,7 @@ agentspec mcp add sr --command sr --tool github-copilot   # one tool only
 agentspec mcp list                                         # store + per-tool state
 agentspec mcp doctor                                       # every target, path, dialect
 agentspec mcp adopt                                        # pull tool-native servers into the store
+agentspec mcp adopt --project <dir> --name <server>        # promote a project server to every tool
 agentspec mcp sync                                         # push the store to every tool
 agentspec mcp unlink sr --tool cursor                      # remove from one tool
 agentspec mcp remove sr                                    # remove everywhere

@@ -448,6 +448,48 @@ pub fn adopt_from_tools() -> Result<Vec<String>> {
     Ok(adopted)
 }
 
+/// Promote servers from `<root>/.mcp.json` into the canonical store and link
+/// each one into every MCP-capable tool, making it global. Only `names` when
+/// given, else every server in the file. The project file is never modified
+/// and a name already in the store keeps its stored definition. This is the
+/// explicit replacement for the automatic adoption `sync` used to do.
+pub fn promote_from_project(root: &std::path::Path, names: &[String]) -> Result<Vec<String>> {
+    let mcp_path = root.join(".mcp.json");
+    let content = std::fs::read_to_string(&mcp_path)
+        .map_err(|e| AppError::Other(format!("cannot read {}: {e}", mcp_path.display())))?;
+    let parsed: Value = serde_json::from_str(&content)
+        .map_err(|e| AppError::Other(format!("invalid {}: {e}", mcp_path.display())))?;
+    let servers = parsed
+        .get("mcpServers")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| AppError::Other(format!("{} has no mcpServers", mcp_path.display())))?;
+    for want in names {
+        if !servers.contains_key(want) {
+            return Err(AppError::Other(format!(
+                "server '{want}' is not in {}",
+                mcp_path.display()
+            )));
+        }
+    }
+
+    let mut promoted = Vec::new();
+    for (name, server_config) in servers {
+        if !names.is_empty() && !names.contains(name) {
+            continue;
+        }
+        let sp = store_path(name);
+        if sp.exists() {
+            eprintln!("  {name} is already in the store; kept the stored definition");
+            continue;
+        }
+        std::fs::create_dir_all(config::shared_mcp_dir())?;
+        write_json(&sp, server_config)?;
+        link_server(None, name)?;
+        promoted.push(name.clone());
+    }
+    Ok(promoted)
+}
+
 /// Report every MCP-capable tool, whether it is installed, and where its
 /// config lives. The discovery entry point for "why isn't my server showing up".
 pub fn doctor(json: bool) -> Result<()> {
@@ -505,90 +547,6 @@ pub fn doctor(json: bool) -> Result<()> {
         );
     }
     Ok(())
-}
-
-/// Discover `.mcp.json` files in project roots and adopt their servers into
-/// the canonical store. Originals are never modified, and a server already in
-/// the store wins over a project definition — the store is authoritative,
-/// mirroring how resource adoption treats local sources. Called during
-/// `agentspec sync`. Returns the number of newly adopted servers.
-pub fn discover_and_adopt(project_roots: &[PathBuf]) -> Result<usize> {
-    let mut adopted = 0;
-
-    for root in project_roots {
-        let mcp_path = root.join(".mcp.json");
-        if !mcp_path.exists() {
-            continue;
-        }
-
-        let content = match std::fs::read_to_string(&mcp_path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        let parsed: Value = match serde_json::from_str(&content) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("  warning: invalid .mcp.json in {}: {e}", root.display());
-                continue;
-            }
-        };
-
-        let servers = match parsed.get("mcpServers").and_then(|v| v.as_object()) {
-            Some(s) => s,
-            None => continue,
-        };
-
-        for (name, server_config) in servers {
-            let sp = store_path(name);
-            if sp.exists() {
-                continue;
-            }
-            std::fs::create_dir_all(config::shared_mcp_dir())?;
-            write_json(&sp, server_config)?;
-            eprintln!("  adopted {name} from {}", mcp_path.display());
-            adopted += 1;
-        }
-    }
-
-    if adopted > 0 {
-        eprintln!("  adopted {adopted} MCP server(s) from .mcp.json into the store");
-    }
-
-    Ok(adopted)
-}
-
-/// Collect project roots for MCP discovery.
-/// Sources: Claude Code project memory + current working directory.
-pub fn collect_project_roots() -> Vec<PathBuf> {
-    let mut roots = vec![];
-
-    // Claude Code project memory. Decoding the encoded dir name is lossy
-    // (hyphens and path separators share a character), so reuse the
-    // filesystem-aware greedy decoder rather than a naive replace.
-    if let Some(home) = dirs::home_dir() {
-        let projects_dir = home.join(".claude").join("projects");
-        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let encoded = entry.file_name().to_string_lossy().to_string();
-                if let Some(path) = crate::ops::memory::decode_project_path(&encoded)
-                    && path.join(".git").exists()
-                {
-                    roots.push(path);
-                }
-            }
-        }
-    }
-
-    // Current directory
-    if let Ok(cwd) = std::env::current_dir()
-        && cwd.join(".mcp.json").exists()
-        && !roots.contains(&cwd)
-    {
-        roots.push(cwd);
-    }
-
-    roots
 }
 
 #[cfg(test)]

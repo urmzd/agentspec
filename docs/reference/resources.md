@@ -426,13 +426,13 @@ Only three tools expose an `mcp_config_path()` and are therefore **agentspec wri
 | Claude Code | `.claude/settings.json` | User/global (`mcpServers` key) | **Yes** | https://code.claude.com/docs/en/mcp |
 | Gemini CLI | `.gemini/settings.json` | User/global + project (`mcpServers` key) | **Yes** | https://geminicli.com/docs/tools/mcp-server/ |
 | Cursor | `.cursor/mcp.json` | User/global + project (`mcpServers` key) | **Yes** | |
-| Claude Code | `.mcp.json` | Project root (shared, commit to git) | reference (discovered by `sync`) | https://code.claude.com/docs/en/mcp |
+| Claude Code | `.mcp.json` | Project root (shared, commit to git) | project scoped (not adopted by `sync`) | https://code.claude.com/docs/en/mcp |
 | Claude Code | `~/.claude.json` | User/local scope (`mcpServers` key) | reference only | https://code.claude.com/docs/en/mcp |
 | VS Code | `.vscode/mcp.json` | Workspace | reference only | |
 
 ### .mcp.json Format (Project Declaration)
 
-Projects declare their MCP servers in `.mcp.json` at the project root. agentspec discovers this during `sync` and registers servers in each tool's native config.
+Projects declare their MCP servers in `.mcp.json` at the project root. The tool loads it inside that project; `agentspec sync` leaves it alone so a project's servers never become global. Use `agentspec mcp add` to install a server for every project on purpose.
 
 ```json
 {
@@ -471,7 +471,7 @@ agentspec keeps a **canonical store** of MCP servers at `~/.agents/mcp/<name>.js
 Layers:
 
 1. **Canonical store**: `~/.agents/mcp/<name>.json`, the portable source of truth.
-2. **`.mcp.json`** at a project root: a project's own declaration; `agentspec sync` still auto-discovers these.
+2. **`.mcp.json`** at a project root: a project's own declaration; `agentspec sync` does not adopt these.
 3. **`CodingTool::mcp_config_path()`**: each MCP-capable provider defines where its native config lives.
 
 Commands:
@@ -482,7 +482,7 @@ Commands:
 - `agentspec mcp link <name> [--tool <slug>] [--all-tools]`: inject a stored server into tool config(s).
 - `agentspec mcp unlink <name> [--tool <slug>]`: remove a server from tool config(s), keeping the canonical store.
 - `agentspec mcp sync`: link every canonical server into all MCP-capable installed tools.
-- `agentspec sync`: additionally adopts `.mcp.json` servers from known project roots into the canonical store (originals untouched; an existing store entry wins), then links every stored server into all MCP-capable tools.
+- `agentspec sync`: adopts servers from each tool's own config into the canonical store (originals untouched; an existing store entry wins), then links every stored server into all MCP-capable tools. Project `.mcp.json` files are not adopted.
 
 ---
 

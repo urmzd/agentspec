@@ -759,6 +759,35 @@ fn main() -> color_eyre::Result<()> {
                         }
                     }
                 }
+                ManageAction::Transfer {
+                    source,
+                    to,
+                    tools,
+                    move_source,
+                } => {
+                    let dests =
+                        ops::transfer::transfer(&mut cfg, &source, &to, &tools, move_source)?;
+                    if cli.format == OutputFormat::Json {
+                        let paths: Vec<String> = dests
+                            .iter()
+                            .map(|d| d.to_string_lossy().to_string())
+                            .collect();
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::json!({
+                                "copied_to": paths,
+                                "moved": move_source,
+                            }))?
+                        );
+                    } else {
+                        for d in &dests {
+                            println!("  copied {source} → {}", d.display());
+                        }
+                        if move_source {
+                            println!("  removed {source} from the global store");
+                        }
+                    }
+                }
                 ManageAction::All { all_tools, symlink } => {
                     ops::discover::adopt_all(&mut cfg, all_tools, !symlink)?;
                 }
@@ -904,8 +933,12 @@ fn main() -> color_eyre::Result<()> {
             McpAction::Sync => {
                 mcp::sync_all_servers(cli.format == OutputFormat::Json)?;
             }
-            McpAction::Adopt => {
-                let adopted = mcp::adopt_from_tools()?;
+            McpAction::Adopt { project, names } => {
+                let from_project = project.is_some();
+                let adopted = match project {
+                    Some(root) => mcp::promote_from_project(&root, &names)?,
+                    None => mcp::adopt_from_tools()?,
+                };
                 if cli.format == OutputFormat::Json {
                     println!(
                         "{}",
@@ -915,7 +948,11 @@ fn main() -> color_eyre::Result<()> {
                         }))?
                     );
                 } else if adopted.is_empty() {
-                    println!("  no new servers found in tool configs");
+                    if from_project {
+                        println!("  no new servers to promote from that project");
+                    } else {
+                        println!("  no new servers found in tool configs");
+                    }
                 } else {
                     println!(
                         "  adopted {} server(s) into the canonical store",
