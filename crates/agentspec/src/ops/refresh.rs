@@ -275,7 +275,7 @@ fn propagate_copy_links(resource: &mut TrackedResource, dest: &Path) -> Result<(
     let kind = resource.kind;
     let source = resource.source.clone();
     for link in &mut resource.links {
-        if link.strategy != LinkStrategy::Copy {
+        if link.strategy != LinkStrategy::Copy || link.suspended {
             continue;
         }
         // The origin of a local resource is also recorded as a link when it

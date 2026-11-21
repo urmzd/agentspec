@@ -1,6 +1,6 @@
 ---
 name: agentspec-usage
-description: How and when to use the agentspec CLI to manage skills, agents, MCP servers, sessions, memories, and project config across AI coding tools. Use when asked to install or share a skill, register an MCP server everywhere, find a past AI session, or sync agent resources between Claude Code, Codex, Copilot, Gemini, Cursor, and friends.
+description: How and when to use the agentspec CLI to manage skills, agents, MCP servers, sessions, memories, and project config across AI coding tools. Use when asked to install or share a skill, register an MCP server everywhere, find a past AI session, sync agent resources between Claude Code, Codex, Copilot, Gemini, Cursor, and friends, group skills into profiles and turn them on or off, find out why a skill is missing from a tool, or resolve an integrity warning.
 ---
 
 # agentspec
@@ -35,6 +35,7 @@ document to stdout, so it is always safe to pipe into `jq`.
 | `~/.agents/hooks/` | lifecycle hook scripts |
 | `~/.agents/memories/`, `projects/`, `plans/`, `sessions/` | synced-in copies |
 | `~/.agents/permissions.yml` | portable permission profile |
+| `~/.agents/profiles.yml` | profiles: named groups of skills and agents |
 
 Tools get real copies of the store version by default; `--symlink` opts into
 relative symlinks for skills. Agents are always rendered copies. Adoption never modifies or deletes the original.
@@ -81,6 +82,32 @@ agentspec prune -y                                 # drop broken links
 ```
 
 Kind is auto-detected; pass `--kind` only to override.
+
+## Profiles: unload skills you are not using
+
+A tool lists every linked skill at the start of every session, so each one costs
+context whether or not it is used. A profile groups skills and agents by the
+kind of work they serve. Turning it off removes their links from every tool. The
+store keeps them, and turning it on restores the same links.
+
+```sh
+agentspec profile list                              # state and member counts
+agentspec profile show <name>                       # members and where each is linked
+agentspec profile create web style-brand ai-elements --description "Websites and UI"
+agentspec profile off web                           # unload from every tool
+agentspec profile on web                            # load again, same links as before
+agentspec profile add web <name>                    # skill:<name> or agent:<name> when a name is both
+```
+
+- A resource in no profile is always linked. One in several profiles stays linked
+  while any of them is on.
+- **A skill you need is not available?** Run `agentspec profile list`. If its profile
+  is off, `agentspec profile on <name>` brings it back. Turn it off again when the
+  work is done if it was off before.
+- Do not turn a profile off to work around a problem with one skill. Ask first: the
+  user chose what loads.
+- `enabled: false` in `~/.agents/profiles.yml` is the default for every machine;
+  `profile on` and `profile off` record this machine's own choice.
 
 ## MCP servers
 
@@ -174,3 +201,11 @@ agentspec fleet doctor                 # multi-agent fleet backend check
   `agentspec mcp doctor` to see what agentspec thinks is present.
 - Adoption is non-destructive: originals are never edited or deleted, and a
   definition already in the store wins over a tool-native or project one.
+- The inventory is `config.yml` in the OS config directory:
+  `~/Library/Application Support/agentspec/` on macOS, `~/.config/agentspec/` on Linux.
+  Read state with `agentspec status --format json` instead of parsing that file.
+- When a dotfile manager deploys `~/.agents/`, register resources from the deployed
+  tree (`manage add ~/.agents/skills/<name>`), never from the manager's source
+  directory, and edit the skill in that source. `sync` then follows the change.
+- Before scripting against `--format json`, print one document and read its keys.
+  Do not guess field names.

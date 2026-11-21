@@ -27,6 +27,12 @@ Each copy link records the hash of what agentspec wrote there (`ResourceLink::ha
 
 **Relative symlinks** (the `--symlink` strategy) are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.
 
+## Profiles
+
+A profile is a named group of skills and agents (`profiles.rs` holds the model, `ops/profile.rs` the commands). Definitions live in `~/.agents/profiles.yml`; which profiles are on for this machine lives in `Config::profile_state`, falling back to each profile's `enabled` default. A resource is active when it is in no profile or in one that is on.
+
+`ops::profile::apply` is the only code that acts on that state. For an inactive resource it removes each tool link and marks the record `ResourceLink::suspended`; for an active one it recreates suspended links with the recorded strategy. It runs after every `profile` command and inside `sync`. Everything else that walks links must treat a suspended link as absent on purpose: `ensure_all_links` does not repair it, `refresh` does not write to it, and `link` records a new link as suspended instead of creating it when the resource is off.
+
 ## Commands
 
 ```sh
@@ -36,7 +42,7 @@ just run       # cargo run
 cargo build    # debug build
 ```
 
-Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `fleet`, `worktree`, `bootstrap`, `tools`, `commands`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
+Top-level CLI commands: `manage`, `status`, `sync`, `session`, `project`, `prune`, `profile`, `mcp`, `plans`, `permissions`, `plugins`, `hooks`, `fleet`, `worktree`, `bootstrap`, `tools`, `commands`, `update`, `version`. The only output-format flag is the global `--format human|json` (default `human`).
 
 `bootstrap`, `tools`, and `commands` are the discovery surface: `bootstrap` writes the skills bundled via `include_str!` from `crates/agentspec/skills/` into the store and links them into every tool, `tools` reports what agentspec sees installed, and `commands` dumps the clap tree (JSON for agents, an indented list for people). Keep `Cli`'s `long_about` in `cli.rs` accurate when the concepts change — it is the first thing both humans and agents read.
 

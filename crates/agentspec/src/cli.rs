@@ -31,6 +31,8 @@ Three ideas cover the whole tool:
   store      ~/.agents/ holds the canonical copy of every managed resource.
   link       tools get a real copy of the store version (--symlink for symlinks).
   adopt      resources found on disk are pulled into the store, originals intact.
+  profile    a named group of skills and agents. Turn it off and tools stop
+             loading it; the store keeps it and turning it on brings it back.
 
 Start with `agentspec bootstrap` so the agents on this machine learn to drive
 agentspec themselves, then `agentspec sync --adopt` to bring existing resources
@@ -42,6 +44,7 @@ Examples:
   agentspec sync --adopt                   discover, adopt, link, and verify everything
   agentspec status                         what is managed and what is not
   agentspec manage add owner/repo --all-tools
+  agentspec profile create web style-brand hallmark   group skills, then `profile off web`
   agentspec mcp add sr --command sr --args \"mcp serve\"
   agentspec mcp doctor                     every MCP-capable tool, its config path and dialect
   agentspec session search \"rate limit\" --role user --since 7d
@@ -136,6 +139,28 @@ pub enum Command {
     Plugins {
         #[command(subcommand)]
         action: PluginsAction,
+    },
+    /// Group skills and agents into profiles and turn the groups on or off
+    #[command(
+        visible_alias = "profiles",
+        long_about = "\
+A tool lists every linked skill at the start of every session, so each one costs
+context whether or not it is used. A profile groups skills and agents that belong
+to one kind of work. Turn the profile off and their links leave every tool
+directory. The store keeps the resources, and turning the profile on restores
+exactly the links that were there.
+
+A resource in no profile is always linked. A resource in several profiles stays
+linked while any one of them is on.
+
+Definitions live in ~/.agents/profiles.yml and travel with the store. A profile
+with `enabled: false` there starts off on every machine. `profile on` and
+`profile off` record this machine's own choice, which wins over that default.
+`sync` applies the current state, so an edited file takes effect on the next sync."
+    )]
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
     },
     /// Manage portable lifecycle hooks (~/.agents/hooks/)
     Hooks {
@@ -434,6 +459,68 @@ become available in all projects. `sync` never does this on its own.")]
     },
     /// Show every MCP-capable tool, its config path, dialect, and server count
     Doctor,
+}
+
+#[derive(Subcommand)]
+pub enum ProfileAction {
+    /// List profiles with their state and member counts
+    List,
+    /// Show one profile: members, where each is linked, shared membership
+    Show {
+        /// Profile name
+        name: String,
+    },
+    /// Create a profile from managed skills and agents
+    Create {
+        /// Profile name (lowercase letters, digits, '-' and '_')
+        name: String,
+        /// Skills or agents to put in it (skill:<name> or agent:<name> when a name is both)
+        members: Vec<String>,
+        /// What this group is for
+        #[arg(long)]
+        description: Option<String>,
+        /// Start turned off on every machine (writes `enabled: false`)
+        #[arg(long)]
+        off: bool,
+    },
+    /// Add skills or agents to a profile
+    Add {
+        /// Profile name
+        name: String,
+        /// Skills or agents to add
+        #[arg(required = true)]
+        members: Vec<String>,
+    },
+    /// Take skills or agents out of a profile
+    #[command(visible_alias = "rm")]
+    Remove {
+        /// Profile name
+        name: String,
+        /// Skills or agents to take out
+        #[arg(required = true)]
+        members: Vec<String>,
+    },
+    /// Delete a profile. Its resources become always linked again
+    Delete {
+        /// Profile name
+        name: String,
+    },
+    /// Turn profiles on for this machine and restore their links
+    #[command(visible_alias = "enable")]
+    On {
+        /// Profile names
+        #[arg(required = true)]
+        names: Vec<String>,
+    },
+    /// Turn profiles off for this machine and remove their links from every tool
+    #[command(visible_alias = "disable")]
+    Off {
+        /// Profile names
+        #[arg(required = true)]
+        names: Vec<String>,
+    },
+    /// Make tool directories match the current profile state
+    Apply,
 }
 
 #[derive(Subcommand)]

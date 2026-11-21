@@ -2258,3 +2258,180 @@ fn sync_never_overwrites_a_copy_edited_in_place_and_repair_backs_it_up() {
     assert!(out.status.success());
     assert_eq!(stdout_json(&out.stdout), serde_json::json!([]));
 }
+
+#[test]
+fn profile_off_unloads_a_skill_from_tools_and_on_brings_it_back() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let (_store, copy) = store_skill_with_copy(home, "grouped");
+    let (_, loose) = store_skill_with_copy(home, "loose");
+
+    let out = agentspec(home)
+        .args([
+            "--format",
+            "json",
+            "profile",
+            "create",
+            "web",
+            "grouped",
+            "--description",
+            "Website work",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = stdout_json(&out.stdout);
+    // Creating a profile groups resources. It does not unload anything.
+    assert_eq!(v["links_suspended"], 0);
+    assert!(copy.exists());
+    assert!(home.join(".agents").join("profiles.yml").exists());
+
+    let out = agentspec(home)
+        .args(["--format", "json", "profile", "off", "web"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["links_suspended"], 1);
+    assert_eq!(v["profiles"][0]["name"], "web");
+    assert_eq!(v["profiles"][0]["on"], false);
+    assert!(!copy.exists(), "the tool copy must be gone");
+    assert!(loose.exists(), "a skill in no profile stays linked");
+    assert!(
+        home.join(".agents/skills/grouped/SKILL.md").exists(),
+        "the store keeps the skill"
+    );
+
+    // sync must not bring the link back, and must not call its absence an issue.
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["links_created"], 0);
+    assert_eq!(v["integrity_issues"], 0);
+    assert!(!copy.exists());
+
+    // status still reports the link, marked suspended, so nothing mistakes
+    // the skill for one that was never linked.
+    let out = agentspec(home)
+        .args(["--format", "json", "status"])
+        .output()
+        .unwrap();
+    let v = stdout_json(&out.stdout);
+    let grouped = v["managed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "grouped")
+        .unwrap();
+    assert_eq!(grouped["links"][0]["tool"], "claude-code");
+    assert_eq!(grouped["links"][0]["suspended"], true);
+
+    let out = agentspec(home)
+        .args(["--format", "json", "profile", "show", "web"])
+        .output()
+        .unwrap();
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["members"][0]["name"], "grouped");
+    assert_eq!(v["members"][0]["active"], false);
+
+    let out = agentspec(home)
+        .args(["--format", "json", "profile", "on", "web"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["links_restored"], 1);
+    assert!(copy.exists(), "turning the profile on restores the copy");
+}
+
+#[test]
+fn linking_a_skill_whose_profile_is_off_is_recorded_and_applied_later() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let store = home.join(".agents").join("skills").join("later");
+    fs::create_dir_all(&store).unwrap();
+    fs::write(
+        store.join("SKILL.md"),
+        "---\nname: later\ndescription: Linked while its profile is off\n---\n",
+    )
+    .unwrap();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    assert!(
+        agentspec(home)
+            .args(["--format", "json", "sync", "--fast", "--adopt"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    // A profile that starts off, as a dotfiles repo would ship it.
+    assert!(
+        agentspec(home)
+            .args(["profile", "create", "heavy", "later", "--off"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+
+    let link = home.join(".claude").join("skills").join("later");
+    let out = agentspec(home)
+        .args(["manage", "link", "later", "claude-code"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(
+        !link.exists(),
+        "an off profile keeps the skill out of the tool"
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("off in profile heavy"),
+        "the reason must be stated"
+    );
+
+    assert!(
+        agentspec(home)
+            .args(["profile", "on", "heavy"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(
+        link.join("SKILL.md").exists(),
+        "the recorded link is created"
+    );
+}
+
+#[test]
+fn profile_commands_reject_unknown_names() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let out = agentspec(home)
+        .args(["profile", "off", "nope"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let out = agentspec(home)
+        .args(["profile", "create", "web", "not-a-skill"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        !home.join(".agents").join("profiles.yml").exists(),
+        "a failed create must not write the file"
+    );
+    let out = agentspec(home)
+        .args(["--format", "json", "profile", "list"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(stdout_json(&out.stdout), serde_json::json!([]));
+}

@@ -52,6 +52,7 @@
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
 - **Discovery & sync.** Discover and adopt resources, then refresh explicitly selected tool links.
 - **Integrity verification.** Checksums tell ordinary change from real drift. `sync` follows edits to files you own and store updates, and refreshes tool copies that are only out of date. Only a missing resource, a changed git or local resource, or a tool copy edited in place is reported.
+- **Profiles.** Group skills and agents by the kind of work they serve and turn a group off. Its links leave every tool, so the tool stops listing those skills in every session. The store keeps them, and turning the profile on restores the same links.
 - **Sessions.** List, search, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. `session search` filters by text, role (`--role user` finds what you actually asked), project, files touched, tool used, and date, in human or JSON output. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
 - **Fleets.** Manage multi-agent fleets through a backend interface: a no-tmux store backend for portable orchestration state, and a native tmux backend compatible with the `orchestrate-agents` fleet helper.
 - **Worktrees.** Create, list, and remove per-repo git worktrees under `<repo>/.worktrees/` without switching the primary checkout.
@@ -152,6 +153,17 @@ agentspec manage memory                      # Browse Claude Code memories
 agentspec manage memory --type feedback      # Filter memories by type
 agentspec manage memory --pull               # Pull tool memories into the shared store
 agentspec manage memory --push               # Push shared memories back into tools
+
+# Profiles: groups of skills and agents you can unload
+agentspec profile create web style-brand ai-elements --description "Websites and UI"
+agentspec profile list                       # Profiles, state and member counts
+agentspec profile show web                   # Members and where each is linked
+agentspec profile off web                    # Remove its links from every tool (store keeps the skills)
+agentspec profile on web                     # Restore exactly the links that were there
+agentspec profile add web <name>...          # Add members (skill:<name> / agent:<name> when a name is both)
+agentspec profile remove web <name>...       # Take members out
+agentspec profile delete web                 # Delete the profile; members are always linked again
+agentspec profile apply                      # Make tool directories match the current state
 
 # Project config sync
 agentspec project sync                       # Sync project instruction files to shared store
@@ -257,9 +269,35 @@ agentspec manage list --by-name              # Show only name duplicates (same n
 ~/.agents/mcp/<name>.json           Canonical MCP server store
 ~/.agents/hooks/                    Lifecycle hook scripts
 ~/.agents/permissions.yml           Portable permission profile (on demand)
+~/.agents/profiles.yml              Profiles: named groups of skills and agents (on demand)
 ~/.agents/plugins.yml               Exported plugin manifest (on demand)
 ~/.config/agentspec/config.yml      Inventory and discovery cache
 ```
+
+### Profiles
+
+Every linked skill is listed by each tool at the start of every session, used or not. A profile groups resources so the ones you are not using can be unloaded together.
+
+```yaml
+# ~/.agents/profiles.yml
+version: 1
+profiles:
+  web:
+    description: Websites and product UI
+    skills: [style-brand, ai-elements]
+  release:
+    description: Cutting releases
+    enabled: false          # starts off on every machine
+    skills: [sync-release]
+    agents: [releaser]
+```
+
+- A resource in no profile is always linked.
+- A resource in several profiles stays linked while any one of them is on.
+- `enabled` is the default for a machine that has not chosen. `profile on` and `profile off` record this machine's choice in the agentspec config, and that choice wins.
+- Turning a profile off removes links and keeps their records. Turning it on recreates them with the same tool and strategy. A tool copy that was edited in place is left alone and reported by `manage verify`.
+- `manage link` on a resource that is off records the link without creating it. The link appears when a profile turns on.
+- `sync` applies the current state, so a `profiles.yml` deployed by a dotfile manager takes effect on the next sync.
 
 ### Discovery
 

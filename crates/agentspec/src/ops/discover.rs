@@ -632,7 +632,11 @@ pub fn status(cfg: &Config, json: bool) -> Result<()> {
                     "source_type": r.source_type,
                     "hash": r.hash,
                     "links": r.links.iter().map(|l| {
-                        serde_json::json!({ "tool": l.tool, "strategy": l.strategy })
+                        serde_json::json!({
+                            "tool": l.tool,
+                            "strategy": l.strategy,
+                            "suspended": l.suspended,
+                        })
                     }).collect::<Vec<_>>(),
                 })
             })
@@ -664,7 +668,17 @@ pub fn status(cfg: &Config, json: bool) -> Result<()> {
         println!("  (none)");
     } else {
         for r in &cfg.resources {
-            let tools: Vec<&str> = r.links.iter().map(|l| l.tool.as_str()).collect();
+            let tools: Vec<String> = r
+                .links
+                .iter()
+                .map(|l| {
+                    if l.suspended {
+                        format!("{} (off)", l.tool)
+                    } else {
+                        l.tool.clone()
+                    }
+                })
+                .collect();
             println!(
                 "  {} {:<35} {:<15} {}",
                 style("●").green(),

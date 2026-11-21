@@ -401,6 +401,7 @@ mod tests {
             strategy: LinkStrategy::Copy,
             path: dir.to_string_lossy().to_string(),
             hash,
+            suspended: false,
         }
     }
 

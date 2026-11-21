@@ -9,6 +9,7 @@ mod jsonfile;
 mod lockfile;
 mod mcp;
 mod ops;
+mod profiles;
 mod project_files;
 mod session;
 mod tools;
@@ -18,7 +19,7 @@ mod update;
 use clap::Parser;
 use cli::{
     Cli, Command, FleetAction, FleetBackend, HooksAction, ManageAction, McpAction, OutputFormat,
-    PermissionsAction, PlansAction, PluginsAction, ProjectAction, SessionAction,
+    PermissionsAction, PlansAction, PluginsAction, ProfileAction, ProjectAction, SessionAction,
     SessionContextMode, WorktreeAction,
 };
 use inventory::{Config, TrackedKind};
@@ -1017,6 +1018,31 @@ fn main() -> color_eyre::Result<()> {
                 ops::plugins::export_plugins(output.as_deref(), cli.format == OutputFormat::Json)?
             }
         },
+        Some(Command::Profile { action }) => {
+            let json = cli.format == OutputFormat::Json;
+            let mut cfg = inventory::load_config()?;
+            match action {
+                ProfileAction::List => ops::profile::list(&cfg, json)?,
+                ProfileAction::Show { name } => ops::profile::show(&cfg, &name, json)?,
+                ProfileAction::Create {
+                    name,
+                    members,
+                    description,
+                    off,
+                } => ops::profile::create(&mut cfg, &name, description, off, &members, json)?,
+                ProfileAction::Add { name, members } => {
+                    ops::profile::add(&mut cfg, &name, &members, json)?
+                }
+                ProfileAction::Remove { name, members } => {
+                    ops::profile::remove(&mut cfg, &name, &members, json)?
+                }
+                ProfileAction::Delete { name } => ops::profile::delete(&mut cfg, &name, json)?,
+                ProfileAction::On { names } => ops::profile::set(&mut cfg, &names, true, json)?,
+                ProfileAction::Off { names } => ops::profile::set(&mut cfg, &names, false, json)?,
+                ProfileAction::Apply => ops::profile::apply_command(&mut cfg, json)?,
+            }
+            inventory::save_config(&cfg)?;
+        }
         Some(Command::Hooks { action }) => match action {
             HooksAction::Add { path } => ops::hooks::add_hook(&path)?,
             HooksAction::List => ops::hooks::list_hooks(cli.format == OutputFormat::Json)?,

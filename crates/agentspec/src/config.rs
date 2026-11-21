@@ -66,6 +66,11 @@ pub fn permissions_file() -> PathBuf {
     agents_base_dir().join("permissions.yml")
 }
 
+/// Named groups of skills and agents that can be turned on and off.
+pub fn profiles_file() -> PathBuf {
+    agents_base_dir().join("profiles.yml")
+}
+
 pub fn plugins_manifest() -> PathBuf {
     agents_base_dir().join("plugins.yml")
 }
