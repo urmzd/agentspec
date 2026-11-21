@@ -52,7 +52,7 @@ fn safe_stem(id: &str) -> String {
             }
         })
         .collect();
-    let stem = cleaned.trim_matches(['.', '/'].as_ref());
+    let stem = cleaned.trim_matches(['.', '/']);
     if stem.is_empty() {
         "session".to_string()
     } else {

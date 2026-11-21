@@ -208,6 +208,39 @@ pub enum ManageAction {
         /// Resource name
         name: String,
     },
+    /// Copy a skill or agent into a project (from the store or another project)
+    #[command(long_about = "\
+Copy a skill or agent into a project's own tool directories, for example
+<project>/.claude/skills/<name>. SOURCE is the name of a managed resource in the
+global store, or a path to a skill directory or agent .md file in another
+project. Nothing is overwritten and originals at a path are never deleted.
+
+With --from <tool>, SOURCE is a name in that tool's directory of the project
+(--from-project, default --to), so the same project can move a skill from one
+tool to another: `manage transfer deploy --to . --from claude-code --tools codex`.
+
+Use --move to remove the source afterwards: a managed resource leaves the global
+store (demotion), a --from source leaves that tool's directory. To promote a
+project resource to every project, use `manage add <path>` instead.")]
+    Transfer {
+        /// Managed resource name, or a path to a skill dir or agent .md file
+        source: String,
+        /// Target project directory
+        #[arg(long)]
+        to: std::path::PathBuf,
+        /// Tools to copy into (comma-separated slugs)
+        #[arg(long, value_delimiter = ',', default_value = "claude-code")]
+        tools: Vec<String>,
+        /// Read SOURCE as a name in this tool's project directory (tool slug)
+        #[arg(long)]
+        from: Option<String>,
+        /// Project holding the --from source (default: --to)
+        #[arg(long, requires = "from")]
+        from_project: Option<std::path::PathBuf>,
+        /// Remove the source after copying (managed or --from sources only)
+        #[arg(long = "move")]
+        move_source: bool,
+    },
     /// Manage all discovered resources at once
     All {
         /// Link to all detected tools
@@ -373,8 +406,19 @@ pub enum McpAction {
 Read every installed tool's native MCP config and copy any server agentspec does
 not already know about into ~/.agents/mcp/. Non-destructive in both directions:
 tool configs are never modified, and a name already in the store keeps its
-stored definition.")]
-    Adopt,
+stored definition.
+
+With --project, promote servers from that project's .mcp.json instead: they are
+copied into the canonical store and linked into every MCP-capable tool, so they
+become available in all projects. `sync` never does this on its own.")]
+    Adopt {
+        /// Promote servers from this project's .mcp.json instead of tool configs
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// Only these servers (repeatable; default: all in the file)
+        #[arg(long = "name")]
+        names: Vec<String>,
+    },
     /// Show every MCP-capable tool, its config path, dialect, and server count
     Doctor,
 }

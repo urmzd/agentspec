@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.16.0 (2026-11-20)
+
+### Features
+
+- **transfer**: move skills and agents between tools within a project (#32) ([9d279a7](https://github.com/urmzd/agentspec/commit/9d279a7f87b96c7c213136c834c3aec5bd0db124))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.6...v0.16.0)
+
+
+## 0.15.6 (2026-11-20)
+
+### Bug Fixes
+
+- **sync**: keep project resources project scoped; add explicit promote and transfer (#31) ([6f2cf74](https://github.com/urmzd/agentspec/commit/6f2cf746f8e4bfe6fc107f9e9036989b6ada743e))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.5...v0.15.6)
+
+
+## 0.15.5 (2026-10-29)
+
+### Bug Fixes
+
+- **deps**: replace serde_yaml_ng with maintained serde_norway (#29) ([f046ee7](https://github.com/urmzd/agentspec/commit/f046ee7fc69e78a4f94e49510c1a3dcf0d1fb294))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.4...v0.15.5)
+
+
+## 0.15.3 (2026-10-29)
+
+### Bug Fixes
+
+- **release**: build binaries from the bumped version (#26) ([4cd04d5](https://github.com/urmzd/agentspec/commit/4cd04d5a64d0c6458b41707dcedc874d71a68a5e))
+
+### Misc
+
+- move docs into the scaffold-docs layout (#27) ([8fdcfd0](https://github.com/urmzd/agentspec/commit/8fdcfd0eb06f7ee3657ff25e10f7e6817d83a050))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.15.2...v0.15.3)
+
+
 ## 0.15.2 (2026-10-27)
 
 ### Performance

@@ -134,6 +134,9 @@ agentspec manage add <source>                # Add resource (path, git URL, owne
 agentspec manage add <source> --all-tools    # Add and link to all detected tools
 agentspec manage add <source> --kind agent   # Override auto-detected kind
 agentspec manage remove <name>               # Remove a managed resource
+agentspec manage transfer <name|path> --to <project>          # Copy into a project's .claude/skills
+agentspec manage transfer <name> --to <project> --move        # Demote: copy into the project, drop from the store
+agentspec manage transfer <name> --to . --from claude-code --tools codex  # Tool to tool in the same project
 agentspec manage all --all-tools             # Adopt all discovered resources
 agentspec manage list                        # List managed resources
 agentspec manage list --dedup                # Show duplicate resources
@@ -199,6 +202,7 @@ agentspec mcp add sr --command sr --tool github-copilot  # Register only in one 
 agentspec mcp list                           # Show canonical store + per-tool registrations
 agentspec mcp doctor                         # Every MCP-capable tool: installed, path, dialect
 agentspec mcp adopt                          # Pull tool-native servers into the canonical store
+agentspec mcp adopt --project <dir> [--name <server>]  # Promote a project's .mcp.json servers to every tool
 agentspec mcp link sr --all-tools            # Inject a stored server into all MCP-capable tools
 agentspec mcp unlink sr --tool claude-code   # Remove from one tool config, keep the store
 agentspec mcp remove sr                      # Remove everywhere: tool configs + canonical store
@@ -261,7 +265,7 @@ agentspec manage list --by-name              # Show only name duplicates (same n
 `agentspec status` and `agentspec sync` scan two places:
 
 - **Tool directories.** Known paths for each detected tool (e.g. `~/.claude/skills/`, `~/.gemini/agents/`).
-- **Broad filesystem walk.** Walks from `$HOME` up to 6 levels deep, looking for `SKILL.md`, agent markdown files, `AGENTS.md`, `CLAUDE.md`, and `llms.txt`. Skipped with `--fast`.
+- **Broad filesystem walk.** Walks from `$HOME` up to 6 levels deep, looking for `SKILL.md`, agent markdown files, `AGENTS.md`, `CLAUDE.md`, and `llms.txt`. It does not enter git repositories: a repo's skills and agents are project scoped, so moving one between scopes is explicit: `manage add <path>` promotes it to the global store, and `manage transfer` copies a resource into another project. Skipped with `--fast`.
 
 Discovered resources appear as "unmanaged" in `agentspec status`. Use `sync --adopt` or `manage add <name>` to adopt them into the shared store.
 
