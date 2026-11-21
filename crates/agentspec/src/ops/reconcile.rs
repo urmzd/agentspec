@@ -188,6 +188,7 @@ mod tests {
             strategy: LinkStrategy::Copy,
             path: copy.to_string_lossy().to_string(),
             hash: recorded.then_some(hash),
+            suspended: false,
         });
         let mut cfg = Config::empty();
         cfg.add(resource);

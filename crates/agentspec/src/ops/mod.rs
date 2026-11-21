@@ -13,6 +13,7 @@ pub mod memory;
 pub mod permissions;
 pub mod plans;
 pub mod plugins;
+pub mod profile;
 pub mod project_sync;
 pub mod prune;
 pub mod reconcile;

@@ -5,7 +5,7 @@ use console::style;
 use crate::error::Result;
 use crate::inventory::Config;
 use crate::mcp;
-use crate::ops::{discover, link, project_sync, reconcile, refresh, verify};
+use crate::ops::{discover, link, profile, project_sync, reconcile, refresh, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
 pub fn sync(
@@ -83,6 +83,25 @@ pub fn sync(
         );
     }
 
+    // Profiles: take the links of turned-off resources out of tool
+    // directories and put back the ones that were turned on, so an edit to
+    // ~/.agents/profiles.yml takes effect on the next sync.
+    let profiles_applied = match profile::apply(cfg) {
+        Ok(applied) => applied,
+        Err(e) => {
+            eprintln!("  {} profiles not applied: {e}", style("⚠").yellow().bold());
+            profile::Applied::default()
+        }
+    };
+    if !json && profiles_applied.suspended + profiles_applied.restored > 0 {
+        println!(
+            "  {} Profiles: removed {} link(s), restored {}",
+            style("~").yellow(),
+            profiles_applied.suspended,
+            profiles_applied.restored
+        );
+    }
+
     // 5. Resync tracked projects
     if !json {
         println!("  {} Resyncing tracked projects...", style("→").cyan());
@@ -146,6 +165,8 @@ pub fn sync(
             "records_updated": reconciled_content.records_updated,
             "records_dropped": reconciled_content.records_dropped,
             "copies_refreshed": reconciled_content.copies_refreshed,
+            "profile_links_suspended": profiles_applied.suspended,
+            "profile_links_restored": profiles_applied.restored,
             "integrity_issues": issues.len(),
         });
         println!("{}", serde_json::to_string_pretty(&report)?);

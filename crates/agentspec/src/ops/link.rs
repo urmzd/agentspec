@@ -59,6 +59,33 @@ pub fn link(
         )));
     }
 
+    // A resource whose profiles are all off is not put into a tool directory.
+    // Record where the link belongs so turning a profile on creates it.
+    let tracked_kind: TrackedKind = kind.into();
+    let blocking = super::profile::blocking_profiles(cfg, tracked_kind, name);
+    if !blocking.is_empty() {
+        let strategy = if copy || kind == ResourceKind::Agent {
+            LinkStrategy::Copy
+        } else {
+            LinkStrategy::Symlink
+        };
+        if let Some(resource) = cfg.find_mut(name, tracked_kind) {
+            resource.links.retain(|l| l.tool != tool_slug);
+            resource
+                .links
+                .push(ResourceLink::suspended(tool_slug, strategy, &link_path));
+        }
+        eprintln!(
+            "  recorded {} '{}' for {}, not linked: it is off in profile {} (`agentspec profile on {}` links it)",
+            kind,
+            name,
+            tool.name(),
+            blocking.join(", "),
+            blocking[0]
+        );
+        return Ok(());
+    }
+
     let strategy = if copy || kind == ResourceKind::Agent {
         if shared_dir.is_dir() {
             crate::ops::manage::copy_dir(&shared_dir, &link_path)?;
@@ -74,11 +101,9 @@ pub fn link(
         LinkStrategy::Symlink
     };
 
-    // Record the link in config
-    let tracked_kind: TrackedKind = kind.into();
-    if let Some(resource) = cfg.find_mut(name, tracked_kind)
-        && !resource.links.iter().any(|l| l.tool == tool_slug)
-    {
+    // Record the link in config, replacing any stale record for this tool.
+    if let Some(resource) = cfg.find_mut(name, tracked_kind) {
+        resource.links.retain(|l| l.tool != tool_slug);
         resource.links.push(ResourceLink::written(
             tracked_kind,
             tool_slug,
@@ -115,6 +140,10 @@ pub fn unlink(cfg: &mut Config, kind: ResourceKind, name: &str, tool_slug: &str)
     let is_tracked_link = cfg
         .find(name, tracked_kind)
         .is_some_and(|r| r.links.iter().any(|l| l.tool == tool_slug));
+    // A suspended link (its profile is off) has a record and nothing on disk.
+    let is_suspended = cfg
+        .find(name, tracked_kind)
+        .is_some_and(|r| r.links.iter().any(|l| l.tool == tool_slug && l.suspended));
 
     if link_path.is_symlink() {
         std::fs::remove_file(&link_path)?;
@@ -125,7 +154,7 @@ pub fn unlink(cfg: &mut Config, kind: ResourceKind, name: &str, tool_slug: &str)
         } else {
             std::fs::remove_file(&link_path)?;
         }
-    } else {
+    } else if !is_suspended {
         return Err(AppError::Other(format!(
             "{name} is not linked to {}",
             tool.slug()
@@ -262,6 +291,7 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
                 strategy,
                 path: link_path.to_string_lossy().to_string(),
                 hash: None,
+                suspended: false,
             });
             reconciled += 1;
         }
@@ -278,7 +308,13 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
             }
             installed
                 .iter()
-                .filter(|tool| resource.links.iter().any(|link| link.tool == tool.slug()))
+                // A suspended link is absent on purpose: its profile is off.
+                .filter(|tool| {
+                    resource
+                        .links
+                        .iter()
+                        .any(|link| link.tool == tool.slug() && !link.suspended)
+                })
                 .filter_map(|tool| {
                     let tool_dir = match kind {
                         ResourceKind::Skill => tool.skills_dir(),

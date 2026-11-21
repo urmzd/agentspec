@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,10 @@ pub struct Config {
     /// links back in on every `sync`. Listing the slug here suppresses that.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub excluded_tools: Vec<String>,
+    /// Profiles this machine turned on or off itself, by name. A profile not
+    /// listed here uses the `enabled` default from `~/.agents/profiles.yml`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub profile_state: BTreeMap<String, bool>,
 }
 
 /// A project tracked by agentspec with synced-in resources.
@@ -152,6 +156,15 @@ pub struct ResourceLink {
     /// by older versions and on symlinks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
+    /// The link is recorded but absent from the tool directory because every
+    /// profile the resource belongs to is off. Turning a profile back on
+    /// recreates it with the recorded strategy.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub suspended: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl ResourceLink {
@@ -166,6 +179,19 @@ impl ResourceLink {
             strategy,
             path: path.to_string_lossy().to_string(),
             hash,
+            suspended: false,
+        }
+    }
+
+    /// Record where a link belongs without creating it, for a resource whose
+    /// profiles are all off.
+    pub fn suspended(tool: &str, strategy: LinkStrategy, path: &Path) -> Self {
+        Self {
+            tool: tool.to_string(),
+            strategy,
+            path: path.to_string_lossy().to_string(),
+            hash: None,
+            suspended: true,
         }
     }
 }
@@ -229,6 +255,7 @@ impl Config {
             discovered: Vec::new(),
             projects: Vec::new(),
             excluded_tools: Vec::new(),
+            profile_state: BTreeMap::new(),
         }
     }
 
@@ -428,6 +455,7 @@ pub fn load_config() -> Result<Config> {
             discovered: Vec::new(),
             projects: Vec::new(),
             excluded_tools: Vec::new(),
+            profile_state: BTreeMap::new(),
         };
         cfg.save(&cfg_path)?;
         let _ = std::fs::remove_file(&old_inv);
