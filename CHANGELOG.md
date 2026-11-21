@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0 (2026-11-21)
+
+### Features
+
+- **profile**: group skills and agents into profiles that can be turned off (#34) ([1ae34ed](https://github.com/urmzd/agentspec/commit/1ae34eda573dbd879100d51588f740ad3419a0fc))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.16.1...v0.17.0)
+
+
 ## 0.16.0 (2026-11-20)
 
 ### Features
