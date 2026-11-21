@@ -15,6 +15,7 @@ pub mod plans;
 pub mod plugins;
 pub mod project_sync;
 pub mod prune;
+pub mod reconcile;
 pub mod refresh;
 pub mod remove;
 pub mod sync;

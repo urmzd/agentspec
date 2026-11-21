@@ -51,7 +51,7 @@
 
 - **Unified resource management.** Add, remove, link, validate, and create skills, agents, memories, project configs, instruction files, and llms-txt across tools.
 - **Discovery & sync.** Discover and adopt resources, then refresh explicitly selected tool links.
-- **Integrity verification.** Checksum-based verification to detect modified or corrupted resources.
+- **Integrity verification.** Checksums tell ordinary change from real drift. `sync` follows edits to files you own and store updates, and refreshes tool copies that are only out of date. Only a missing resource, a changed git or local resource, or a tool copy edited in place is reported.
 - **Sessions.** List, search, fuzzy-find, and export AI coding sessions (Claude, Codex, Copilot, Gemini) as markdown, plus cross-tool sync/import of portable handoffs. `session search` filters by text, role (`--role user` finds what you actually asked), project, files touched, tool used, and date, in human or JSON output. Copilot exports are enriched with summary, repo, branch, files touched, checkpoints, and references.
 - **Fleets.** Manage multi-agent fleets through a backend interface: a no-tmux store backend for portable orchestration state, and a native tmux backend compatible with the `orchestrate-agents` fleet helper.
 - **Worktrees.** Create, list, and remove per-repo git worktrees under `<repo>/.worktrees/` without switching the primary checkout.
@@ -145,8 +145,9 @@ agentspec manage unlink <name> <tool>        # Unlink a resource from a tool
 agentspec manage validate [path]             # Validate a SKILL.md or AGENT.md
 agentspec manage create <name> --kind skill  # Scaffold a new resource
 agentspec manage update [name]               # Re-pull and refresh a resource (or all)
-agentspec manage verify                      # Verify resource integrity (checksums)
-agentspec manage verify --accept             # Accept current state and update hashes
+agentspec manage verify                      # Report what needs a person (missing, changed, edited copies)
+agentspec manage verify --accept             # Accept current store state and update hashes
+agentspec manage verify --repair             # Rewrite edited tool copies from the store (backed up first)
 agentspec manage memory                      # Browse Claude Code memories
 agentspec manage memory --type feedback      # Filter memories by type
 agentspec manage memory --pull               # Pull tool memories into the shared store

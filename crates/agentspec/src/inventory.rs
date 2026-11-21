@@ -144,6 +144,30 @@ pub struct ResourceLink {
     pub tool: String,
     pub strategy: LinkStrategy,
     pub path: String,
+    /// `sha256:<hex>` of what agentspec last wrote at `path` (copy links only).
+    ///
+    /// The baseline that tells a stale copy from an edited one: a copy that
+    /// still matches this hash was not touched since agentspec wrote it, so
+    /// `sync` may replace it when the store moves on. Absent on links recorded
+    /// by older versions and on symlinks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+impl ResourceLink {
+    /// Record a link agentspec just created, hashing the copy it wrote.
+    pub fn written(kind: TrackedKind, tool: &str, strategy: LinkStrategy, path: &Path) -> Self {
+        let hash = match strategy {
+            LinkStrategy::Copy => hash_resource(kind, path).ok(),
+            LinkStrategy::Symlink => None,
+        };
+        Self {
+            tool: tool.to_string(),
+            strategy,
+            path: path.to_string_lossy().to_string(),
+            hash,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -242,7 +242,7 @@ fn apply_update(resource: &mut TrackedResource, src_root: &Path) -> UpdateOutcom
 /// For skill directories the copy is staged into a sibling temp dir and then
 /// renamed into place, so a mid-copy failure never destroys the existing
 /// canonical copy (rename is atomic on a single filesystem).
-fn copy_over(kind: TrackedKind, src: &Path, dest: &Path) -> Result<()> {
+pub(crate) fn copy_over(kind: TrackedKind, src: &Path, dest: &Path) -> Result<()> {
     match kind {
         TrackedKind::Skill => {
             let fname = dest
@@ -271,18 +271,37 @@ fn copy_over(kind: TrackedKind, src: &Path, dest: &Path) -> Result<()> {
 
 /// Re-copy the refreshed resource to every copy-strategy link. Symlinks point
 /// into the shared store and need no update.
-fn propagate_copy_links(resource: &TrackedResource, dest: &Path) -> Result<()> {
-    for link in &resource.links {
+fn propagate_copy_links(resource: &mut TrackedResource, dest: &Path) -> Result<()> {
+    let kind = resource.kind;
+    let source = resource.source.clone();
+    for link in &mut resource.links {
         if link.strategy != LinkStrategy::Copy {
             continue;
         }
-        let link_path = PathBuf::from(&link.path);
-        if resource.kind == crate::inventory::TrackedKind::Agent {
-            super::agent_render::write(dest, &link_path, &link.tool)?;
-        } else {
-            copy_over(resource.kind, dest, &link_path)?;
+        // The origin of a local resource is also recorded as a link when it
+        // lives in a tool directory. It was just read; never write it back.
+        if link.path == source {
+            continue;
         }
+        write_copy(kind, dest, link)?;
     }
+    Ok(())
+}
+
+/// Write the store version of a resource over one copy link and record the
+/// hash of what was written.
+pub(crate) fn write_copy(
+    kind: TrackedKind,
+    store_path: &Path,
+    link: &mut crate::inventory::ResourceLink,
+) -> Result<()> {
+    let link_path = PathBuf::from(&link.path);
+    if kind == TrackedKind::Agent {
+        super::agent_render::write(store_path, &link_path, &link.tool)?;
+    } else {
+        copy_over(kind, store_path, &link_path)?;
+    }
+    link.hash = Some(hash_resource(kind, &link_path)?);
     Ok(())
 }
 

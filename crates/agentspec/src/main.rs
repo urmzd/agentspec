@@ -852,10 +852,15 @@ fn main() -> color_eyre::Result<()> {
                         ops::refresh::update_all(&mut cfg, cli.format == OutputFormat::Json)?;
                     }
                 }
-                ManageAction::Verify { accept, name } => {
+                ManageAction::Verify {
+                    accept,
+                    repair,
+                    name,
+                } => {
                     integrity_issues = ops::verify::verify(
                         &mut cfg,
                         accept,
+                        repair,
                         name.as_deref(),
                         cli.format == OutputFormat::Json,
                     )?;

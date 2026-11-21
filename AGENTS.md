@@ -20,7 +20,10 @@ Resources live in the shared store (`~/.agents/skills/`, `~/.agents/agents/`). T
 1. **Reconcile** -- adopts existing links on disk that aren't tracked in config (handles links created by older versions or external tools)
 2. **Refresh** -- re-copies `local`-sourced resources from their origins into the store
 3. **Link** -- repairs missing tool copies only for explicitly tracked destinations; does not expand to new tools
-4. **Verify** -- checks SHA-256 hashes against stored values to detect external modifications
+4. **Reconcile** -- applies ordinary change so it never reads as an integrity issue (`ops/reconcile.rs`): recorded hashes follow observed files (project configs, `llms.txt`, memories, plans) and store updates to `discovered` resources, records for observed files that are gone are dropped, and tool copies that still match what agentspec last wrote are rewritten when the store moves on
+5. **Verify** -- reports only what needs a person (`ops/verify.rs`): a resource missing from the store, a `git` or `local` resource whose store copy changed, or a tool copy edited in place
+
+Each copy link records the hash of what agentspec wrote there (`ResourceLink::hash`). That baseline is what separates a stale copy (safe to rewrite) from an edited one (never overwritten by `sync`; `manage verify --repair` backs it up, then rewrites it).
 
 **Relative symlinks** (the `--symlink` strategy) are computed via `pathdiff::diff_paths()` so they survive home directory moves. Example: `~/.claude/skills/my-skill` -> `../../.agents/skills/my-skill`.
 

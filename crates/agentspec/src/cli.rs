@@ -298,11 +298,24 @@ project resource to every project, use `manage add <path>` instead.")]
         name: Option<String>,
     },
     /// Verify integrity of managed resources (checksum validation)
+    #[command(long_about = "\
+Report resources that need a person: a store resource that is missing, a git or
+local resource whose store copy was changed, or a tool copy that was edited in
+place. Ordinary change is not an issue. `sync` follows edits to observed files
+(project configs, llms.txt, memories), accepts store updates to resources with
+no upstream, and rewrites tool copies that are merely behind the store.
+
+--repair rewrites edited tool copies from the store. Each replaced copy is kept
+first under <config dir>/backups/<timestamp>/<tool>/.")]
     Verify {
-        /// Accept current state and update hashes
-        #[arg(long)]
+        /// Accept the current store state and update recorded hashes
+        #[arg(long, conflicts_with = "repair")]
         accept: bool,
-        /// Accept only this specific resource
+        /// Rewrite tool copies that were edited in place from the store (the
+        /// replaced copies are backed up first)
+        #[arg(long)]
+        repair: bool,
+        /// Limit --accept or --repair to this resource
         #[arg(long)]
         name: Option<String>,
     },
