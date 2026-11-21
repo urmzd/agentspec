@@ -79,11 +79,12 @@ pub fn link(
     if let Some(resource) = cfg.find_mut(name, tracked_kind)
         && !resource.links.iter().any(|l| l.tool == tool_slug)
     {
-        resource.links.push(ResourceLink {
-            tool: tool_slug.to_string(),
+        resource.links.push(ResourceLink::written(
+            tracked_kind,
+            tool_slug,
             strategy,
-            path: link_path.to_string_lossy().to_string(),
-        });
+            &link_path,
+        ));
     }
 
     Ok(())
@@ -254,10 +255,13 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
 
     for (name, tracked_kind, tool_slug, link_path, strategy) in reconcile_ops {
         if let Some(resource) = cfg.find_mut(&name, tracked_kind) {
+            // Found on disk, not written by this run: no baseline hash. `sync`
+            // records one once the copy is seen to match the store.
             resource.links.push(ResourceLink {
                 tool: tool_slug,
                 strategy,
                 path: link_path.to_string_lossy().to_string(),
+                hash: None,
             });
             reconciled += 1;
         }
@@ -335,16 +339,11 @@ pub fn ensure_all_links(cfg: &mut Config, copy: bool) -> Result<(usize, usize)> 
 
         // Record link in config
         if let Some(resource) = cfg.find_mut(&name, tracked_kind) {
-            let path = link_path.to_string_lossy().to_string();
+            let written = ResourceLink::written(tracked_kind, &tool_slug, strategy, &link_path);
             if let Some(existing) = resource.links.iter_mut().find(|l| l.tool == tool_slug) {
-                existing.path = path;
-                existing.strategy = strategy;
+                *existing = written;
             } else {
-                resource.links.push(ResourceLink {
-                    tool: tool_slug.clone(),
-                    strategy,
-                    path,
-                });
+                resource.links.push(written);
             }
         }
 

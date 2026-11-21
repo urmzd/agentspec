@@ -49,8 +49,20 @@ agentspec                   # interactive TUI
 
 `sync` is the default entry point. It adopts untracked resources, re-copies
 `local`-sourced ones from their origin, repairs tracked links without enabling resources in additional tools,
-adopts MCP servers found in tool configs (a project `.mcp.json` stays project scoped), and
-verifies SHA-256 hashes.
+adopts MCP servers found in tool configs (a project `.mcp.json` stays project scoped),
+refreshes tool copies that are behind the store, and reports integrity issues.
+
+An integrity issue always needs a decision. Ordinary change does not raise one: `sync`
+follows edits to project files and memories and updates made to the store by a dotfile
+manager. What is left is one of three things:
+
+| Issue | Fix |
+|---|---|
+| `is missing from the store` | `agentspec prune -y` drops the record and its dangling links |
+| `has been modified outside agentspec` (a git or local resource) | `manage update <name>` to restore it, or `manage verify --accept --name <name>` to keep it |
+| `(copy in <tool>) differs from the store` (edited in the tool directory) | move the edit into the store, or `manage verify --repair --name <name>` to rewrite the copy (the old copy is backed up) |
+
+Edit a skill in the store or its origin, never in a tool directory.
 
 ## Skills and agents
 
@@ -63,7 +75,7 @@ agentspec manage transfer <name> --to <project> --move  # demote from global to 
 agentspec manage transfer <name> --to . --from claude-code --tools codex  # tool to tool, same project
 agentspec manage list                              # what is managed
 agentspec manage link <name> <tool-slug>           # link one resource to one tool
-agentspec manage verify                            # checksum integrity
+agentspec manage verify                            # what needs a person; --repair rewrites edited copies
 agentspec manage create <name> --kind skill        # scaffold from template
 agentspec prune -y                                 # drop broken links
 ```

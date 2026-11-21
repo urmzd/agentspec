@@ -2123,3 +2123,138 @@ fn portable_agents_render_and_selective_links_survive_sync() {
     agentspec(home).args(["sync", "--fast"]).assert().success();
     assert!(!target.exists());
 }
+
+/// A store skill with a real copy in Claude Code's directory, tracked and in
+/// sync. Returns (store SKILL.md, copy SKILL.md).
+fn store_skill_with_copy(home: &Path, name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+    let store = home.join(".agents").join("skills").join(name);
+    fs::create_dir_all(&store).unwrap();
+    fs::write(
+        store.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: Reconcile test skill\n---\n\nv1\n"),
+    )
+    .unwrap();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast", "--adopt"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let out = agentspec(home)
+        .args(["manage", "link", name, "claude-code"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let copy = home.join(".claude").join("skills").join(name);
+    assert!(fs::symlink_metadata(&copy).unwrap().file_type().is_dir());
+    (store.join("SKILL.md"), copy.join("SKILL.md"))
+}
+
+#[test]
+fn sync_follows_a_store_update_and_refreshes_the_stale_copy() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let (store, copy) = store_skill_with_copy(home, "follow-me");
+
+    // Something other than agentspec updates the store, as a dotfile manager
+    // does on every apply.
+    let updated = fs::read_to_string(&store).unwrap().replace("v1", "v2");
+    fs::write(&store, &updated).unwrap();
+
+    // Before sync: the change is pending, not an integrity issue.
+    let out = agentspec(home)
+        .args(["--format", "json", "manage", "verify"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "a pending change must not fail verify"
+    );
+    assert_eq!(stdout_json(&out.stdout), serde_json::json!([]));
+
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["integrity_issues"], 0);
+    assert_eq!(v["records_updated"], 1);
+    assert_eq!(v["copies_refreshed"], 1);
+    assert_eq!(fs::read_to_string(&copy).unwrap(), updated);
+
+    // Nothing is left over for the next run.
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast"])
+        .output()
+        .unwrap();
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["integrity_issues"], 0);
+    assert_eq!(v["records_updated"], 0);
+    assert_eq!(v["copies_refreshed"], 0);
+}
+
+#[test]
+fn sync_never_overwrites_a_copy_edited_in_place_and_repair_backs_it_up() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let (store, copy) = store_skill_with_copy(home, "hands-off");
+
+    fs::write(&copy, "edited in the tool directory\n").unwrap();
+    let updated = fs::read_to_string(&store).unwrap().replace("v1", "v2");
+    fs::write(&store, &updated).unwrap();
+
+    let out = agentspec(home)
+        .args(["--format", "json", "sync", "--fast"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["integrity_issues"], 1);
+    assert_eq!(v["copies_refreshed"], 0);
+    assert_eq!(
+        fs::read_to_string(&copy).unwrap(),
+        "edited in the tool directory\n",
+        "sync must leave an edited copy alone"
+    );
+
+    let out = agentspec(home)
+        .args(["--format", "json", "manage", "verify"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "an edited copy is a real issue");
+    let issues = stdout_json(&out.stdout);
+    assert_eq!(issues.as_array().unwrap().len(), 1);
+    assert_eq!(issues[0]["name"], "hands-off (copy in claude-code)");
+
+    let out = agentspec(home)
+        .args(["--format", "json", "manage", "verify", "--repair"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v = stdout_json(&out.stdout);
+    assert_eq!(v["repaired"], 1);
+    assert_eq!(fs::read_to_string(&copy).unwrap(), updated);
+    let backup = Path::new(v["backup"].as_str().unwrap())
+        .join("claude-code")
+        .join("hands-off")
+        .join("SKILL.md");
+    assert_eq!(
+        fs::read_to_string(backup).unwrap(),
+        "edited in the tool directory\n",
+        "repair must keep the replaced copy"
+    );
+
+    let out = agentspec(home)
+        .args(["--format", "json", "manage", "verify"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(stdout_json(&out.stdout), serde_json::json!([]));
+}

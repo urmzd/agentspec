@@ -5,7 +5,7 @@ use console::style;
 use crate::error::Result;
 use crate::inventory::Config;
 use crate::mcp;
-use crate::ops::{discover, link, project_sync, refresh, verify};
+use crate::ops::{discover, link, project_sync, reconcile, refresh, verify};
 
 /// Run the full sync pipeline: discover → adopt → link → verify.
 pub fn sync(
@@ -100,10 +100,41 @@ pub fn sync(
     let _ = mcp::adopt_from_tools();
     let _ = mcp::link_all_stored();
 
-    // 7. Verify integrity
+    // 7. Reconcile ordinary change so it never reads as an integrity issue:
+    // follow observed files and store updates, drop records for files that
+    // are gone, and rewrite tool copies that are only behind the store.
+    if !json {
+        println!("  {} Reconciling tracked content...", style("→").cyan());
+    }
+    let reconciled_content = reconcile::reconcile(cfg);
+    if !json {
+        if reconciled_content.records_updated > 0 {
+            println!(
+                "  {} Followed {} changed resource(s)",
+                style("✓").green().bold(),
+                reconciled_content.records_updated
+            );
+        }
+        if reconciled_content.copies_refreshed > 0 {
+            println!(
+                "  {} Refreshed {} stale tool copy(ies)",
+                style("✓").green().bold(),
+                reconciled_content.copies_refreshed
+            );
+        }
+        if reconciled_content.records_dropped > 0 {
+            println!(
+                "  {} Dropped {} record(s) for files that no longer exist",
+                style("~").yellow(),
+                reconciled_content.records_dropped
+            );
+        }
+    }
+
+    // 8. Verify integrity: only what a person has to look at is left.
     let issues = verify::verify_integrity(cfg)?;
 
-    // 8. Report
+    // 9. Report
     if json {
         let report = serde_json::json!({
             "managed": cfg.resources.len(),
@@ -112,6 +143,9 @@ pub fn sync(
             "links_created": linked,
             "projects_resynced": projects_resynced,
             "files_updated": files_updated,
+            "records_updated": reconciled_content.records_updated,
+            "records_dropped": reconciled_content.records_dropped,
+            "copies_refreshed": reconciled_content.copies_refreshed,
             "integrity_issues": issues.len(),
         });
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -139,6 +173,12 @@ pub fn sync(
         if remaining > 0 {
             println!(
                 "  {} Run with --adopt to consolidate unmanaged resources",
+                style("→").dim()
+            );
+        }
+        if !issues.is_empty() {
+            println!(
+                "  {} Run `agentspec manage verify --help` for how to resolve integrity issues",
                 style("→").dim()
             );
         }
