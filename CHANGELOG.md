@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.1 (2026-11-21)
+
+### Bug Fixes
+
+- **sync**: reconcile ordinary change so it is not reported as an integrity issue (#33) ([cddba42](https://github.com/urmzd/agentspec/commit/cddba429abe54be5918978b07a3f81405d37f4d1))
+
+### Misc
+
+- move docs into the scaffold-docs layout (#30) ([9e5d5a3](https://github.com/urmzd/agentspec/commit/9e5d5a310baebdc720eb7d425b35681ace8ba34c))
+
+[Full Changelog](https://github.com/urmzd/agentspec/compare/v0.16.0...v0.16.1)
+
+
 ## 0.16.0 (2026-11-20)
 
 ### Features
