@@ -20,7 +20,7 @@ else
   agentspec="$(command -v agentspec)"
 fi
 
-demo="/tmp/agentspec-demo"
+demo="${AGENTSPEC_DEMO_HOME:-/tmp/agentspec-demo}"
 rm -rf "$demo"
 mkdir -p "$demo"
 export HOME="$demo"
@@ -126,6 +126,11 @@ seed_memory "$p3" batch-windows reference "Nightly batch window is 02:00-04:00 U
 "$agentspec" mcp add docs --url "https://docs.example.com/mcp" --type http >/dev/null 2>&1 || true
 "$agentspec" mcp add postgres --command pg-mcp --args "serve --readonly" --env "PG_DATABASE=demo" >/dev/null 2>&1 || true
 "$agentspec" sync --fast --adopt >/dev/null 2>&1 || true
+for name in api-design code-review release-notes sql-tuning test-coverage docs-writer reviewer architect triager; do
+  for tool in codex gemini-cli cursor; do
+    "$agentspec" manage link --symlink "$name" "$tool" >/dev/null 2>&1 || true
+  done
+done
 "$agentspec" fleet --backend store start demo >/dev/null 2>&1 || true
 "$agentspec" fleet --backend store adopt demo store:demo:agent-1 --name reviewer --tool claude >/dev/null 2>&1 || true
 "$agentspec" fleet --backend store adopt demo store:demo:agent-2 --name migrator --tool codex >/dev/null 2>&1 || true

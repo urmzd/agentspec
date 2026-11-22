@@ -15,16 +15,14 @@ family = "MonaspiceNe Nerd Font"
 # so Enter-driven flows (preview, form submit) can't be captured — stick to
 # plain-char keys (`l`, `a`) and Tab.
 
-# ── Static PNG: MCP tab with the add-server form filled in ──
-# Deliberately different from the GIF (which tours the tabs) so the two
-# showcase assets are not redundant.
+# ── Static PNG: Skills tab with per-tool link state ──
 [[scenes]]
 type = "terminal"
 name = "tui"
 command = "./showcase/demo.sh"
 theme = "dracula"
 cols = 120
-rows = 30
+rows = 20
 formats = [{ output_type = "png" }]
 frame_duration = 120
 
@@ -34,48 +32,10 @@ type = "wait"
 duration = 4000
 hidden = true
 
-# Tools (default) -> Skills -> Agents -> MCP
+# Skills tab: each skill linked into several tools (filled dots)
 [[scenes.interactions]]
 type = "key"
 key = "tab"
-
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-
-[[scenes.interactions]]
-type = "wait"
-duration = 500
-hidden = true
-
-# Open the add-server form and fill in a stdio server
-[[scenes.interactions]]
-type = "key"
-key = "a"
-
-[[scenes.interactions]]
-type = "type"
-text = "linear"
-
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-
-[[scenes.interactions]]
-type = "type"
-text = "linear-mcp"
-
-[[scenes.interactions]]
-type = "key"
-key = "tab"
-
-[[scenes.interactions]]
-type = "type"
-text = "serve --team platform"
 
 [[scenes.interactions]]
 type = "wait"
@@ -84,7 +44,7 @@ hidden = true
 
 [[scenes.interactions]]
 type = "snapshot"
-name = "mcp-add"
+name = "skills"
 
 # ── Animated GIF: tour of all eight tabs ──
 # Tab cycle order (see Tab::next in crates/agentspec/src/tui/app.rs):
@@ -95,7 +55,7 @@ name = "tui-demo"
 command = "./showcase/demo.sh"
 theme = "dracula"
 cols = 120
-rows = 30
+rows = 24
 formats = [{ output_type = "gif" }]
 frame_duration = 120
 
